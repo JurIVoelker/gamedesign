@@ -1,4 +1,5 @@
 import { Application, Container, Graphics } from "pixi.js";
+import type { GameState } from "@gamedesign/shared";
 import { FieldEntity, FIELD_W, FIELD_H } from "./entities/FieldEntity";
 import { HouseEntity, HOUSE_W } from "./entities/HouseEntity";
 
@@ -10,7 +11,8 @@ const OUTER_MARGIN = 60;
 
 // Width of one farm side (house + gap + field, or mirrored)
 const FARM_W = HOUSE_W + H_GAP + FIELD_W;
-const SCENE_H = MARGIN + FIELD_COUNT * FIELD_H + (FIELD_COUNT - 1) * ROW_GAP + MARGIN;
+const SCENE_H =
+  MARGIN + FIELD_COUNT * FIELD_H + (FIELD_COUNT - 1) * ROW_GAP + MARGIN;
 
 export class GameEngine {
   private app: Application | null = null;
@@ -20,7 +22,13 @@ export class GameEngine {
   private resizeHandler: (() => void) | null = null;
   private rafId: number | null = null;
 
-  async init(container: HTMLElement): Promise<void> {
+  private playerFields: FieldEntity[] = [];
+  private opponentFields: FieldEntity[] = [];
+
+  async init(
+    container: HTMLElement,
+    onHarvest: (fieldIndex: number) => void,
+  ): Promise<void> {
     const app = new Application();
     await app.init({
       background: 0x3d6b1f,
@@ -34,8 +42,19 @@ export class GameEngine {
     const sceneRoot = new Container();
     app.stage.addChild(sceneRoot);
 
-    this.playerFarm = this.buildFarm("player");
-    this.opponentFarm = this.buildFarm("opponent");
+    const { container: playerFarm, fields: playerFields } = this.buildFarm(
+      "player",
+      onHarvest,
+    );
+    const { container: opponentFarm, fields: opponentFields } = this.buildFarm(
+      "opponent",
+      null,
+    );
+
+    this.playerFarm = playerFarm;
+    this.opponentFarm = opponentFarm;
+    this.playerFields = playerFields;
+    this.opponentFields = opponentFields;
     this.divider = this.buildDivider();
 
     sceneRoot.addChild(this.divider);
@@ -43,6 +62,11 @@ export class GameEngine {
     sceneRoot.addChild(this.opponentFarm);
 
     this.rescale(app, sceneRoot);
+
+    app.ticker.add(() => {
+      for (const entity of this.playerFields) entity.update();
+      for (const entity of this.opponentFields) entity.update();
+    });
 
     this.resizeHandler = () => {
       if (this.rafId !== null) return;
@@ -68,6 +92,26 @@ export class GameEngine {
     this.playerFarm = null;
     this.opponentFarm = null;
     this.divider = null;
+    this.playerFields = [];
+    this.opponentFields = [];
+  }
+
+  updateGameState(state: GameState, myPlayerId: string): void {
+    const myState = state.players[myPlayerId];
+    const opponentState = Object.values(state.players).find(
+      (p) => p.id !== myPlayerId,
+    );
+
+    if (myState) {
+      for (let i = 0; i < this.playerFields.length; i++) {
+        this.playerFields[i].setField(myState.fields[i] ?? null);
+      }
+    }
+    if (opponentState) {
+      for (let i = 0; i < this.opponentFields.length; i++) {
+        this.opponentFields[i].setField(opponentState.fields[i] ?? null);
+      }
+    }
   }
 
   private rescale(app: Application, root: Container): void {
@@ -90,19 +134,31 @@ export class GameEngine {
   }
 
   // player: [house][field], opponent: [field][house] — mirrored
-  private buildFarm(owner: "player" | "opponent"): Container {
+  private buildFarm(
+    owner: "player" | "opponent",
+    onHarvest: ((fieldIndex: number) => void) | null,
+  ): { container: Container; fields: FieldEntity[] } {
     const farm = new Container();
+    const fields: FieldEntity[] = [];
+
     for (let i = 0; i < FIELD_COUNT; i++) {
       const rowY = MARGIN + i * (FIELD_H + ROW_GAP);
+      const harvest = onHarvest ? () => onHarvest(i) : null;
+
       if (owner === "player") {
         new HouseEntity(i, owner, 0, rowY).render(farm);
-        new FieldEntity(i, owner, HOUSE_W + H_GAP, rowY).render(farm);
+        const fe = new FieldEntity(i, owner, HOUSE_W + H_GAP, rowY, harvest);
+        fe.render(farm);
+        fields.push(fe);
       } else {
-        new FieldEntity(i, owner, 0, rowY).render(farm);
+        const fe = new FieldEntity(i, owner, 0, rowY, null);
+        fe.render(farm);
+        fields.push(fe);
         new HouseEntity(i, owner, FIELD_W + H_GAP, rowY).render(farm);
       }
     }
-    return farm;
+
+    return { container: farm, fields };
   }
 
   private buildDivider(): Graphics {

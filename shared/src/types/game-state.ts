@@ -5,6 +5,7 @@ export interface Field {
   stage: CropStage;
   cropType: string | null;
   sowedAt: number | null;
+  readyAt: number | null;
 }
 
 export interface Tool {

@@ -35,6 +35,7 @@ export function useWebSocket() {
       switch (msg.type) {
         case "assigned":
           setSlot(msg.slot);
+          setPlayerId(msg.playerId);
           setStatus("waiting");
           break;
         case "game_ready":
@@ -45,6 +46,7 @@ export function useWebSocket() {
           break;
         case "game_state":
           setGame(msg.state);
+          if (msg.state.phase === "playing") setStatus("in_game");
           break;
         case "error":
           setError(msg.message);
@@ -62,7 +64,8 @@ export function useWebSocket() {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
     setStatus("connecting");
-    const ws = new WebSocket(WS_URL);
+    const playerId = getOrCreatePlayerId();
+    const ws = new WebSocket(`${WS_URL}?playerId=${playerId}`);
     wsRef.current = ws;
 
     ws.onopen = () => {

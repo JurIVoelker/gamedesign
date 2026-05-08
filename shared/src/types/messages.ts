@@ -15,7 +15,7 @@ export type ClientMessage = HelloMsg | PlayerActionMsg | PongMsg;
 // Server → Client
 // ---------------------------------------------------------------------------
 
-export type AssignedMsg = { type: 'assigned'; slot: 'p1' | 'p2' };
+export type AssignedMsg = { type: 'assigned'; slot: 'p1' | 'p2'; playerId: string };
 export type GameReadyMsg = { type: 'game_ready' };
 export type OpponentLeftMsg = { type: 'opponent_left' };
 export type GameStateMsg = { type: 'game_state'; state: GameState };

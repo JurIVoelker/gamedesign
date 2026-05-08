@@ -25,23 +25,38 @@ export function handleMessage(session: Session, raw: string | Buffer): void {
         return;
       }
 
-      session.send({ type: 'assigned', slot: slot! });
+      session.send({ type: 'assigned', slot: slot!, playerId: session.playerId });
 
-      if (gameManager.getGame().isFull()) {
+      if (result === 'rejoined') {
+        const st = gameManager.getGame().getState();
+        if (st) gameManager.getGame().broadcast({ type: 'game_state', state: st });
+      }
+
+      if (gameManager.getGame().isFull() && result === 'assigned') {
         gameManager.getGame().broadcast({ type: 'game_ready' });
-        console.log('[game] Both players connected — game ready');
+        gameManager.getGame().startGame();
+        console.log('[game] Both players connected — game started');
       }
       break;
     }
 
     case 'player_action': {
-      const slot = gameManager.getGame().getSlotOf(session.playerId);
+      const game = gameManager.getGame();
+      const slot = game.getSlotOf(session.playerId);
       if (!slot) {
         session.send({ type: 'error', message: 'Not in game' });
         return;
       }
-      // stub: game logic will process actions later
-      console.log(`[game] Action ${parsed.action.kind} from ${slot}`);
+
+      const action = parsed.action;
+      console.log(`[game] Action ${action.kind} from ${slot}`);
+
+      if (action.kind === 'HarvestField') {
+        const result = game.harvestField(session.playerId, action.fieldIndex);
+        if (result !== 'ok') {
+          session.send({ type: 'error', message: 'Field not ready' });
+        }
+      }
       break;
     }
 

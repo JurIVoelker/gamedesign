@@ -17,7 +17,8 @@ Bun.serve<WsData>({
   port: PORT,
 
   fetch(req, server) {
-    const playerId = crypto.randomUUID();
+    const url = new URL(req.url);
+    const playerId = url.searchParams.get('playerId') ?? crypto.randomUUID();
     const upgraded = server.upgrade(req, {
       data: { playerId, lastPong: Date.now() },
       headers: { 'Access-Control-Allow-Origin': '*' },

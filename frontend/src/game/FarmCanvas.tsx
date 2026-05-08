@@ -1,5 +1,7 @@
 import { CSSProperties, useEffect, useRef } from "react";
 import { GameEngine } from "./GameEngine";
+import { useGameStore } from "../state/gameStore";
+import { useConnectionStore } from "../state/connectionStore";
 
 const labelStyle: CSSProperties = {
   position: "absolute",
@@ -17,13 +19,23 @@ export function FarmCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
 
+  const game = useGameStore((s) => s.game);
+  const { playerId } = useConnectionStore();
+
   useEffect(() => {
     let mounted = true;
     const engine = new GameEngine();
     engineRef.current = engine;
 
+    const onHarvest = (fieldIndex: number) => {
+      useConnectionStore.getState().send?.({
+        type: "player_action",
+        action: { kind: "HarvestField", fieldIndex },
+      });
+    };
+
     engine
-      .init(containerRef.current!)
+      .init(containerRef.current!, onHarvest)
       .then(() => {
         if (!mounted) engine.destroy();
       })
@@ -35,6 +47,12 @@ export function FarmCanvas() {
       engineRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (game && playerId && engineRef.current) {
+      engineRef.current.updateGameState(game, playerId);
+    }
+  }, [game, playerId]);
 
   return (
     <div style={{ position: "absolute", inset: 0 }}>
