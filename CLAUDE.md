@@ -29,7 +29,7 @@ Use double quotes for strings in TypeScript/TSX files (enforced by Prettier).
 
 ## Working style
 
-Ask questions more than usual. When something is underspecified or involves a design choice (layout, naming, architecture, game mechanics), always ask before implementing.
+Ask questions more than usual. When something is underspecified or involves a design choice (layout, naming, architecture, game mechanics), always ask before implementing. Use the `AskUserQuestion` tool to ask — never just plain text questions.
 
 ## Architecture
 

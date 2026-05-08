@@ -1,5 +1,17 @@
-import { useEffect, useRef } from "react";
+import { CSSProperties, useEffect, useRef } from "react";
 import { GameEngine } from "./GameEngine";
+
+const labelStyle: CSSProperties = {
+  position: "absolute",
+  top: 12,
+  color: "#f0e8c0",
+  fontFamily: "monospace",
+  fontSize: 13,
+  fontWeight: "bold",
+  letterSpacing: 1,
+  pointerEvents: "none",
+  userSelect: "none",
+};
 
 export function FarmCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -25,9 +37,13 @@ export function FarmCanvas() {
   }, []);
 
   return (
-    <div
-      ref={containerRef}
-      style={{ imageRendering: "pixelated", position: "absolute", inset: 0 }}
-    />
+    <div style={{ position: "absolute", inset: 0 }}>
+      <div
+        ref={containerRef}
+        style={{ imageRendering: "pixelated", position: "absolute", inset: 0 }}
+      />
+      <span style={{ ...labelStyle, left: 16 }}>Your Farm</span>
+      <span style={{ ...labelStyle, right: 16 }}>Opponent</span>
+    </div>
   );
 }
