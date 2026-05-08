@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "paths": {
+      "@gamedesign/shared": ["./shared/src/index.ts"]
+    }
+  },
+  "files": []
+}

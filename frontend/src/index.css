@@ -1,0 +1,12 @@
+@import "tailwindcss";
+
+/* Game-specific base styles */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  background: #1a2e0a;
+}

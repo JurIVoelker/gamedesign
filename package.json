@@ -1,0 +1,14 @@
+{
+  "name": "gamedesign-root",
+  "private": true,
+  "workspaces": ["frontend", "backend", "shared"],
+  "scripts": {
+    "dev": "concurrently --names fe,be --prefix-colors cyan,yellow \"bun --filter frontend dev\" \"bun --filter backend dev\"",
+    "build": "bun --filter frontend build && bun --filter backend build",
+    "dev:fe": "bun --filter frontend dev",
+    "dev:be": "bun --filter backend dev"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}
