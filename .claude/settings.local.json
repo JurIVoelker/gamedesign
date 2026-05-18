@@ -4,7 +4,9 @@
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\juriv\\\\programming\\\\gamedesign\" -Directory)",
       "Bash(Select-Object Name)",
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\juriv\\\\programming\\\\gamedesign\" -Recurse -Force)",
-      "Bash(Select-Object FullName)"
+      "Bash(Select-Object FullName)",
+      "Bash(git -C \"C:\\\\Users\\\\juriv\\\\programming\\\\gamedesign\" diff frontend/src/game/entities/FieldEntity.ts)",
+      "Bash(git -C \"C:\\\\Users\\\\juriv\\\\programming\\\\gamedesign\" diff backend/src/game.ts)"
     ]
   }
 }

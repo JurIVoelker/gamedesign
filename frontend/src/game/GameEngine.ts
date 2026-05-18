@@ -27,6 +27,7 @@ export class GameEngine {
 
   async init(
     container: HTMLElement,
+    onSow: (fieldIndex: number) => void,
     onHarvest: (fieldIndex: number) => void,
   ): Promise<void> {
     const app = new Application();
@@ -44,10 +45,12 @@ export class GameEngine {
 
     const { container: playerFarm, fields: playerFields } = this.buildFarm(
       "player",
+      onSow,
       onHarvest,
     );
     const { container: opponentFarm, fields: opponentFields } = this.buildFarm(
       "opponent",
+      null,
       null,
     );
 
@@ -136,6 +139,7 @@ export class GameEngine {
   // player: [house][field], opponent: [field][house] — mirrored
   private buildFarm(
     owner: "player" | "opponent",
+    onSow: ((fieldIndex: number) => void) | null,
     onHarvest: ((fieldIndex: number) => void) | null,
   ): { container: Container; fields: FieldEntity[] } {
     const farm = new Container();
@@ -143,15 +147,23 @@ export class GameEngine {
 
     for (let i = 0; i < FIELD_COUNT; i++) {
       const rowY = MARGIN + i * (FIELD_H + ROW_GAP);
+      const sow = onSow ? () => onSow(i) : null;
       const harvest = onHarvest ? () => onHarvest(i) : null;
 
       if (owner === "player") {
         new HouseEntity(i, owner, 0, rowY).render(farm);
-        const fe = new FieldEntity(i, owner, HOUSE_W + H_GAP, rowY, harvest);
+        const fe = new FieldEntity(
+          i,
+          owner,
+          HOUSE_W + H_GAP,
+          rowY,
+          sow,
+          harvest,
+        );
         fe.render(farm);
         fields.push(fe);
       } else {
-        const fe = new FieldEntity(i, owner, 0, rowY, null);
+        const fe = new FieldEntity(i, owner, 0, rowY, null, null);
         fe.render(farm);
         fields.push(fe);
         new HouseEntity(i, owner, FIELD_W + H_GAP, rowY).render(farm);

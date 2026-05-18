@@ -3,6 +3,7 @@ import { useWebSocket } from "./net/useWebSocket";
 import { FarmCanvas } from "./game/FarmCanvas";
 import { Lobby } from "./ui/Lobby";
 import { HUD } from "./ui/HUD";
+import { UpgradePanel } from "./ui/UpgradePanel";
 
 export default function App() {
   useWebSocket();
@@ -14,6 +15,7 @@ export default function App() {
       <FarmCanvas />
       {!isInGame && <Lobby />}
       {isInGame && <HUD />}
+      {isInGame && <UpgradePanel />}
     </div>
   );
 }

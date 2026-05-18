@@ -20,9 +20,11 @@ export type UseItem = {
   targetFieldIndex?: number;
 };
 
+export type ToolId = 'sow' | 'harvest' | 'fertilizer';
+
 export type UpgradeTool = {
   kind: 'UpgradeTool';
-  toolId: string;
+  toolId: ToolId;
 };
 
 export type PlayerAction =

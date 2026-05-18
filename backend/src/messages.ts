@@ -51,10 +51,32 @@ export function handleMessage(session: Session, raw: string | Buffer): void {
       const action = parsed.action;
       console.log(`[game] Action ${action.kind} from ${slot}`);
 
-      if (action.kind === 'HarvestField') {
+      if (action.kind === 'SowField') {
+        const result = game.sowField(
+          session.playerId,
+          action.fieldIndex,
+          action.cropType,
+        );
+        if (result !== 'ok') {
+          session.send({ type: 'error', message: 'Field cannot be sown' });
+        }
+      } else if (action.kind === 'HarvestField') {
         const result = game.harvestField(session.playerId, action.fieldIndex);
         if (result !== 'ok') {
           session.send({ type: 'error', message: 'Field not ready' });
+        }
+      } else if (action.kind === 'UpgradeTool') {
+        if (
+          action.toolId !== 'sow' &&
+          action.toolId !== 'harvest' &&
+          action.toolId !== 'fertilizer'
+        ) {
+          session.send({ type: 'error', message: 'Unknown tool' });
+          break;
+        }
+        const result = game.upgradeTool(session.playerId, action.toolId);
+        if (result !== 'ok') {
+          session.send({ type: 'error', message: `Upgrade failed: ${result}` });
         }
       }
       break;

@@ -17,7 +17,7 @@ bun dev              # start frontend (port 8080) + backend (port 3001) in paral
 bun dev:fe           # frontend only
 bun dev:be           # backend only
 
-bun build            # tsc check + vite build (frontend) + tsc --noEmit (backend)
+bun run build        # tsc check + vite build (frontend) + tsc --noEmit (backend). `bun build` is Bun's bundler — use `bun run build` to invoke the package script.
 bun --filter frontend lint   # ESLint + Prettier check
 ```
 
@@ -67,6 +67,8 @@ All message types and type guards live in `shared/src/types/messages.ts`. Always
 - `messages.ts` — routes incoming `ClientMessage` to game logic
 
 `GameManager.knownSlots` persists slot assignments across reconnects using the client's UUID. Swap the single `Game` instance to a `Map<roomCode, Game>` when adding multi-room support.
+
+**State persistence rule.** All gameplay state (gold, tool levels, field state, items, etc.) must live on the server and be broadcast via `game_state`. The client must never hold authoritative gameplay state. This is what makes a browser refresh seamless: the client reconnects with its stored UUID, lands in the same slot via `knownSlots`, and receives the full `GameState` — picking up exactly where it left off. New features must preserve this property.
 
 ### Frontend rendering (PixiJS)
 

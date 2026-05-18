@@ -1,4 +1,4 @@
-export type CropStage = 'empty' | 'sown' | 'growing' | 'ready' | 'withered';
+export type CropStage = 'empty' | 'sowing' | 'growing' | 'ready' | 'harvesting';
 
 export interface Field {
   index: number;

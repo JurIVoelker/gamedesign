@@ -27,6 +27,13 @@ export function FarmCanvas() {
     const engine = new GameEngine();
     engineRef.current = engine;
 
+    const onSow = (fieldIndex: number) => {
+      useConnectionStore.getState().send?.({
+        type: "player_action",
+        action: { kind: "SowField", fieldIndex, cropType: "wheat" },
+      });
+    };
+
     const onHarvest = (fieldIndex: number) => {
       useConnectionStore.getState().send?.({
         type: "player_action",
@@ -35,7 +42,7 @@ export function FarmCanvas() {
     };
 
     engine
-      .init(containerRef.current!, onHarvest)
+      .init(containerRef.current!, onSow, onHarvest)
       .then(() => {
         if (!mounted) engine.destroy();
       })
