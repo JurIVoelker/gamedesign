@@ -29,6 +29,7 @@ export class GameEngine {
     container: HTMLElement,
     onSow: (fieldIndex: number) => void,
     onHarvest: (fieldIndex: number) => void,
+    onScareCrow: (fieldIndex: number) => void,
   ): Promise<void> {
     const app = new Application();
     await app.init({
@@ -47,9 +48,11 @@ export class GameEngine {
       "player",
       onSow,
       onHarvest,
+      onScareCrow,
     );
     const { container: opponentFarm, fields: opponentFields } = this.buildFarm(
       "opponent",
+      null,
       null,
       null,
     );
@@ -141,6 +144,7 @@ export class GameEngine {
     owner: "player" | "opponent",
     onSow: ((fieldIndex: number) => void) | null,
     onHarvest: ((fieldIndex: number) => void) | null,
+    onScareCrow: ((fieldIndex: number) => void) | null,
   ): { container: Container; fields: FieldEntity[] } {
     const farm = new Container();
     const fields: FieldEntity[] = [];
@@ -149,6 +153,7 @@ export class GameEngine {
       const rowY = MARGIN + i * (FIELD_H + ROW_GAP);
       const sow = onSow ? () => onSow(i) : null;
       const harvest = onHarvest ? () => onHarvest(i) : null;
+      const scare = onScareCrow ? () => onScareCrow(i) : null;
 
       if (owner === "player") {
         new HouseEntity(i, owner, 0, rowY).render(farm);
@@ -159,11 +164,12 @@ export class GameEngine {
           rowY,
           sow,
           harvest,
+          scare,
         );
         fe.render(farm);
         fields.push(fe);
       } else {
-        const fe = new FieldEntity(i, owner, 0, rowY, null, null);
+        const fe = new FieldEntity(i, owner, 0, rowY, null, null, null);
         fe.render(farm);
         fields.push(fe);
         new HouseEntity(i, owner, FIELD_W + H_GAP, rowY).render(farm);

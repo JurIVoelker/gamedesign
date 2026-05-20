@@ -14,6 +14,12 @@ import {
   FERTILIZER_GOLD_MULTIPLIERS,
   MAX_FERTILIZER_LEVEL,
   FERTILIZER_UPGRADE_COSTS,
+  CROW_LEVEL_CONFIG,
+  MAX_CROW_LEVEL,
+  CROW_UPGRADE_COSTS,
+  CROW_SEND_COST,
+  CROW_COOLDOWN_MS,
+  CROW_SCARE_MS,
 } from './constants.js';
 
 type Slot = 'p1' | 'p2';
@@ -22,6 +28,7 @@ const TOOL_COSTS: Record<ToolId, readonly number[]> = {
   sow: SOW_UPGRADE_COSTS,
   harvest: HARVEST_UPGRADE_COSTS,
   fertilizer: FERTILIZER_UPGRADE_COSTS,
+  crows: CROW_UPGRADE_COSTS,
 };
 
 function rollGrowDuration(fertMultiplier: number): number {
@@ -31,7 +38,15 @@ function rollGrowDuration(fertMultiplier: number): number {
 }
 
 function createField(index: number): Field {
-  return { index, stage: 'empty', cropType: null, sowedAt: null, readyAt: null };
+  return {
+    index,
+    stage: 'empty',
+    cropType: null,
+    sowedAt: null,
+    readyAt: null,
+    crowAttack: null,
+    scaringAt: null,
+  };
 }
 
 function createPlayerState(playerId: string): PlayerState {
@@ -41,9 +56,10 @@ function createPlayerState(playerId: string): PlayerState {
     score: 0,
     fields: [0, 1, 2, 3].map(createField),
     tools: [
-      { id: 'sow', level: 0 },
-      { id: 'harvest', level: 0 },
-      { id: 'fertilizer', level: 0 },
+      { id: 'sow',        level: 0, cooldownUntil: 0 },
+      { id: 'harvest',    level: 0, cooldownUntil: 0 },
+      { id: 'fertilizer', level: 0, cooldownUntil: 0 },
+      { id: 'crows',      level: 0, cooldownUntil: 0 },
     ],
     items: [],
   };
@@ -76,17 +92,6 @@ export class Game {
   }
 
   leave(playerId: string): Slot | null {
-    const playerState = this.state?.players[playerId];
-    if (playerState) {
-      for (const field of playerState.fields) {
-        const key = `${playerId}:${field.index}`;
-        const timer = this.timers.get(key);
-        if (timer !== undefined) {
-          clearTimeout(timer);
-          this.timers.delete(key);
-        }
-      }
-    }
     for (const slot of ['p1', 'p2'] as Slot[]) {
       if (this.slots[slot]?.playerId === playerId) {
         this.slots[slot] = null;
@@ -178,7 +183,7 @@ export class Game {
     field.sowedAt = startedAt;
     field.readyAt = startedAt + duration;
 
-    this.scheduleFieldTimer(playerId, fieldIndex, field.readyAt, () =>
+    this.scheduleTimer(`${playerId}:${fieldIndex}`, field.readyAt, () =>
       this.completeSow(playerId, fieldIndex),
     );
     this.broadcast({ type: 'game_state', state: this.state });
@@ -204,12 +209,181 @@ export class Game {
     field.sowedAt = startedAt;
     field.readyAt = startedAt + duration;
 
-    this.scheduleFieldTimer(playerId, fieldIndex, field.readyAt, () =>
+    this.scheduleTimer(`${playerId}:${fieldIndex}`, field.readyAt, () =>
       this.completeHarvest(playerId, fieldIndex),
     );
     this.broadcast({ type: 'game_state', state: this.state });
 
     return 'ok';
+  }
+
+  sendCrows(
+    playerId: string,
+    targetFieldIndices: number[],
+  ): 'ok' | 'not_found' | 'not_unlocked' | 'on_cooldown' | 'insufficient_gold' | 'invalid_target' {
+    if (!this.state) return 'not_found';
+    const playerState = this.state.players[playerId];
+    if (!playerState) return 'not_found';
+
+    const crowTool = playerState.tools.find((t) => t.id === 'crows');
+    if (!crowTool || crowTool.level === 0) return 'not_unlocked';
+
+    const now = Date.now();
+    if (crowTool.cooldownUntil > now) return 'on_cooldown';
+    if (playerState.gold < CROW_SEND_COST) return 'insufficient_gold';
+
+    const opponentState = Object.values(this.state.players).find((p) => p.id !== playerId);
+    if (!opponentState) return 'not_found';
+
+    const config = CROW_LEVEL_CONFIG[crowTool.level - 1];
+
+    // Validate: no duplicates, correct count, each field eligible
+    const deduped = [...new Set(targetFieldIndices)];
+    if (deduped.length === 0 || deduped.length > config.fieldCount) return 'invalid_target';
+    const targets: Field[] = [];
+    for (const idx of deduped) {
+      const field = opponentState.fields[idx];
+      if (
+        !field ||
+        (field.stage !== 'growing' && field.stage !== 'ready') ||
+        field.crowAttack !== null
+      ) {
+        return 'invalid_target';
+      }
+      targets.push(field);
+    }
+
+    for (const field of targets) {
+      const baseProgress =
+        field.stage === 'ready'
+          ? 1.0
+          : Math.min(1, (now - field.sowedAt!) / (field.readyAt! - field.sowedAt!));
+      const totalGrowMs =
+        field.stage === 'ready' ? BASE_GROW_MS : field.readyAt! - field.sowedAt!;
+
+      field.crowAttack = {
+        startedAt: now,
+        eatRatePerMs: config.eatRatePerMs,
+        baseProgress,
+        totalGrowMs,
+      };
+
+      const expiresAt = now + baseProgress / config.eatRatePerMs;
+      this.scheduleTimer(`crow:${opponentState.id}:${field.index}`, expiresAt, () =>
+        this.expireCrowAttack(opponentState.id, field.index),
+      );
+    }
+
+    playerState.gold -= CROW_SEND_COST;
+    crowTool.cooldownUntil = now + CROW_COOLDOWN_MS;
+
+    this.broadcast({ type: 'game_state', state: this.state });
+    return 'ok';
+  }
+
+  scareCrow(
+    playerId: string,
+    fieldIndex: number,
+  ): 'ok' | 'not_found' | 'no_crow' | 'already_scaring' {
+    if (!this.state) return 'not_found';
+    const playerState = this.state.players[playerId];
+    if (!playerState) return 'not_found';
+
+    const field = playerState.fields[fieldIndex];
+    if (!field) return 'not_found';
+    if (!field.crowAttack) return 'no_crow';
+    if (field.scaringAt !== null) return 'already_scaring';
+
+    const now = Date.now();
+    field.scaringAt = now;
+    this.scheduleTimer(`scare:${playerId}:${fieldIndex}`, now + CROW_SCARE_MS, () =>
+      this.completeScare(playerId, fieldIndex),
+    );
+
+    this.broadcast({ type: 'game_state', state: this.state });
+    return 'ok';
+  }
+
+  private completeScare(playerId: string, fieldIndex: number): void {
+    if (!this.state) return;
+    const field = this.state.players[playerId]?.fields[fieldIndex];
+    if (!field || !field.crowAttack) return;
+
+    const now = Date.now();
+    const { startedAt, eatRatePerMs, baseProgress, totalGrowMs } = field.crowAttack;
+    const progressEaten = (now - startedAt) * eatRatePerMs;
+    const effectiveProgress = Math.max(0, baseProgress - progressEaten);
+
+    this.cancelTimer(`crow:${playerId}:${fieldIndex}`);
+    field.crowAttack = null;
+    field.scaringAt = null;
+
+    if (effectiveProgress <= 0) {
+      this.destroyField(field);
+      this.cancelTimer(`${playerId}:${fieldIndex}`);
+    } else {
+      field.stage = 'growing';
+      field.sowedAt = now - effectiveProgress * totalGrowMs;
+      field.readyAt = field.sowedAt + totalGrowMs;
+      this.scheduleTimer(`${playerId}:${fieldIndex}`, field.readyAt, () =>
+        this.completeGrowth(playerId, fieldIndex),
+      );
+    }
+
+    this.broadcast({ type: 'game_state', state: this.state });
+  }
+
+  private expireCrowAttack(playerId: string, fieldIndex: number): void {
+    if (!this.state) return;
+    const field = this.state.players[playerId]?.fields[fieldIndex];
+    if (!field || !field.crowAttack) return;
+
+    this.cancelTimer(`scare:${playerId}:${fieldIndex}`);
+    this.cancelTimer(`${playerId}:${fieldIndex}`);
+    this.destroyField(field);
+
+    this.broadcast({ type: 'game_state', state: this.state });
+  }
+
+  private destroyField(field: Field): void {
+    field.stage = 'empty';
+    field.cropType = null;
+    field.sowedAt = null;
+    field.readyAt = null;
+    field.crowAttack = null;
+    field.scaringAt = null;
+  }
+
+  upgradeTool(
+    playerId: string,
+    toolId: ToolId,
+  ): 'ok' | 'not_found' | 'unknown_tool' | 'max_level' | 'insufficient_gold' {
+    if (!this.state) return 'not_found';
+
+    const playerState = this.state.players[playerId];
+    if (!playerState) return 'not_found';
+
+    const tool = playerState.tools.find((t) => t.id === toolId);
+    if (!tool) return 'unknown_tool';
+
+    const maxLevel =
+      toolId === 'fertilizer' ? MAX_FERTILIZER_LEVEL :
+      toolId === 'crows'      ? MAX_CROW_LEVEL :
+      MAX_TOOL_LEVEL;
+    if (tool.level >= maxLevel) return 'max_level';
+
+    const cost = TOOL_COSTS[toolId][tool.level];
+    if (playerState.gold < cost) return 'insufficient_gold';
+
+    playerState.gold -= cost;
+    tool.level += 1;
+    this.broadcast({ type: 'game_state', state: this.state });
+
+    return 'ok';
+  }
+
+  private getToolLevel(playerState: PlayerState, toolId: ToolId): number {
+    return playerState.tools.find((t) => t.id === toolId)?.level ?? 0;
   }
 
   private completeSow(playerId: string, fieldIndex: number): void {
@@ -225,7 +399,7 @@ export class Game {
     field.sowedAt = startedAt;
     field.readyAt = startedAt + rollGrowDuration(FERTILIZER_GROW_MULTIPLIERS[fertLevel]);
 
-    this.scheduleFieldTimer(playerId, fieldIndex, field.readyAt, () =>
+    this.scheduleTimer(`${playerId}:${fieldIndex}`, field.readyAt, () =>
       this.completeGrowth(playerId, fieldIndex),
     );
     this.broadcast({ type: 'game_state', state: this.state });
@@ -250,55 +424,23 @@ export class Game {
 
     const fertLevel = this.getToolLevel(playerState, 'fertilizer');
     playerState.gold += Math.round(GOLD_PER_HARVEST * FERTILIZER_GOLD_MULTIPLIERS[fertLevel]);
-    field.stage = 'empty';
-    field.cropType = null;
-    field.sowedAt = null;
-    field.readyAt = null;
+    this.destroyField(field);
     this.broadcast({ type: 'game_state', state: this.state });
   }
 
-  upgradeTool(
-    playerId: string,
-    toolId: ToolId,
-  ): 'ok' | 'not_found' | 'unknown_tool' | 'max_level' | 'insufficient_gold' {
-    if (!this.state) return 'not_found';
-
-    const playerState = this.state.players[playerId];
-    if (!playerState) return 'not_found';
-
-    const tool = playerState.tools.find((t) => t.id === toolId);
-    if (!tool) return 'unknown_tool';
-    const maxLevel = toolId === 'fertilizer' ? MAX_FERTILIZER_LEVEL : MAX_TOOL_LEVEL;
-    if (tool.level >= maxLevel) return 'max_level';
-
-    const cost = TOOL_COSTS[toolId][tool.level];
-    if (playerState.gold < cost) return 'insufficient_gold';
-
-    playerState.gold -= cost;
-    tool.level += 1;
-    this.broadcast({ type: 'game_state', state: this.state });
-
-    return 'ok';
-  }
-
-  private getToolLevel(playerState: PlayerState, toolId: ToolId): number {
-    return playerState.tools.find((t) => t.id === toolId)?.level ?? 0;
-  }
-
-  private scheduleFieldTimer(
-    playerId: string,
-    fieldIndex: number,
-    firesAt: number,
-    onFire: () => void,
-  ): void {
-    const key = `${playerId}:${fieldIndex}`;
+  private scheduleTimer(key: string, firesAt: number, onFire: () => void): void {
     const existing = this.timers.get(key);
     if (existing !== undefined) clearTimeout(existing);
-
-    const delay = firesAt - Date.now();
-    const timer = setTimeout(onFire, Math.max(0, delay));
-
+    const timer = setTimeout(onFire, Math.max(0, firesAt - Date.now()));
     this.timers.set(key, timer);
+  }
+
+  private cancelTimer(key: string): void {
+    const existing = this.timers.get(key);
+    if (existing !== undefined) {
+      clearTimeout(existing);
+      this.timers.delete(key);
+    }
   }
 }
 

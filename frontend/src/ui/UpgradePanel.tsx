@@ -1,6 +1,7 @@
 import type { ToolId } from "@gamedesign/shared";
 import { useConnectionStore } from "../state/connectionStore";
 import { useGameStore } from "../state/gameStore";
+import { useTargetingStore } from "../state/targetingStore";
 
 // Sow / Harvest tool constants (mirrored from backend — shared/ is types-only)
 const UPGRADE_SPEED_MULTIPLIERS = [1.0, 0.7, 0.4, 0.1];
@@ -18,12 +19,22 @@ const FERTILIZER_UPGRADE_COSTS = [100, 250, 500, 900, 1500];
 const BASE_GROW_MS = 60_000;
 const BASE_GOLD = 25;
 
+// Crows constants
+const MAX_CROW_LEVEL = 3;
+const CROW_UPGRADE_COSTS = [30, 80, 200];
+const CROW_SEND_COST = 15;
+const CROW_COOLDOWN_MS = 45_000;
+const CROW_EAT_DURATIONS_MS = [12_000, 12_000, 8_000]; // time to eat a full field per level
+
 function dispatchUpgrade(toolId: ToolId): void {
   useConnectionStore.getState().send?.({
     type: "player_action",
     action: { kind: "UpgradeTool", toolId },
   });
 }
+
+// field count per crow level (index = level - 1)
+const CROW_FIELD_COUNTS = [1, 2, 2];
 
 function formatSeconds(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
@@ -118,6 +129,44 @@ function FertilizerHoverCard({ level }: { level: number }) {
   );
 }
 
+function CrowsHoverCard({ level }: { level: number }) {
+  const isMaxed = level >= MAX_CROW_LEVEL;
+  const fieldCount = level > 0 ? CROW_FIELD_COUNTS[level - 1] : 0;
+  const eatMs = level > 0 ? CROW_EAT_DURATIONS_MS[level - 1] : CROW_EAT_DURATIONS_MS[0];
+
+  return (
+    <HoverCardWrapper>
+      {level === 0 ? (
+        <div className="text-stone-400">Unlock to send crows to opponent fields</div>
+      ) : (
+        <>
+          <div className="text-stone-200">
+            Targets: <span className="text-amber-300">{fieldCount} field{fieldCount > 1 ? "s" : ""}</span>
+            {level === MAX_CROW_LEVEL && <span className="text-stone-400 ml-1">(ripest)</span>}
+          </div>
+          <div className="text-stone-200 mt-0.5">
+            Eats full field in:{" "}
+            <span className="text-amber-300">{formatSeconds(eatMs)}</span>
+          </div>
+          <div className="text-stone-200 mt-0.5">
+            Send cost: <span className="text-amber-300">{CROW_SEND_COST}g</span>
+            <span className="text-stone-500 ml-1">· cooldown {formatSeconds(CROW_COOLDOWN_MS)}</span>
+          </div>
+        </>
+      )}
+      {!isMaxed && level > 0 && (
+        <div className="text-stone-400 mt-1">
+          Lv{level + 1}: eats in{" "}
+          <span className="text-green-400">{formatSeconds(CROW_EAT_DURATIONS_MS[level])}</span>
+          {level + 1 >= 2 && <span className="text-stone-500 ml-1">· 2 fields</span>}
+          {level + 1 === MAX_CROW_LEVEL && <span className="text-stone-500 ml-1">· targets ripest</span>}
+        </div>
+      )}
+      {isMaxed && <div className="text-amber-300 mt-1">Max level</div>}
+    </HoverCardWrapper>
+  );
+}
+
 interface UpgradeCardProps {
   toolId: ToolId;
   label: string;
@@ -144,9 +193,9 @@ function UpgradeCard({
     <div className="relative group">
       {toolId === "fertilizer" ? (
         <FertilizerHoverCard level={level} />
-      ) : (
+      ) : toolId === "sow" || toolId === "harvest" ? (
         <SpeedHoverCard toolId={toolId} level={level} />
-      )}
+      ) : null}
       <div className="bg-stone-900/80 border border-stone-600 rounded-lg px-4 py-2 text-stone-300 text-xs font-mono flex flex-col items-center gap-2 min-w-35">
         <div className="flex items-center justify-between w-full">
           <span className="font-bold tracking-widest">{label}</span>
@@ -179,6 +228,101 @@ function UpgradeCard({
   );
 }
 
+function CrowsCard({
+  level,
+  gold,
+  cooldownUntil,
+}: {
+  level: number;
+  gold: number;
+  cooldownUntil: number;
+}) {
+  const isMaxed = level >= MAX_CROW_LEVEL;
+  const nextCost = isMaxed ? null : CROW_UPGRADE_COSTS[level];
+  const canAffordUpgrade = nextCost !== null && gold >= nextCost;
+  const upgradeDisabled = isMaxed || !canAffordUpgrade;
+
+  const now = Date.now();
+  const onCooldown = cooldownUntil > now;
+  const cooldownSec = onCooldown ? Math.ceil((cooldownUntil - now) / 1000) : 0;
+  const canSend = level > 0 && !onCooldown && gold >= CROW_SEND_COST;
+
+  const isTargeting = useTargetingStore((s) => s.active);
+  const chosenCount = useTargetingStore((s) => s.chosen.length);
+  const targetingStart = useTargetingStore((s) => s.start);
+  const targetingCancel = useTargetingStore((s) => s.cancel);
+  const fieldCount = level > 0 ? CROW_FIELD_COUNTS[level - 1] : 0;
+  const remaining = fieldCount - chosenCount;
+
+  const handleSendClick = () => {
+    if (isTargeting) {
+      targetingCancel();
+      return;
+    }
+    targetingStart(fieldCount, (indices) => {
+      useConnectionStore.getState().send?.({
+        type: "player_action",
+        action: { kind: "SendCrows", targetFieldIndices: indices },
+      });
+    });
+  };
+
+  return (
+    <div className="relative group">
+      <CrowsHoverCard level={level} />
+      <div className="bg-stone-900/80 border border-stone-600 rounded-lg px-4 py-2 text-stone-300 text-xs font-mono flex flex-col items-center gap-2 min-w-35">
+        <div className="flex items-center justify-between w-full">
+          <span className="font-bold tracking-widest">CROWS</span>
+          <span className="flex gap-1">
+            {Array.from({ length: MAX_CROW_LEVEL }, (_, i) => (
+              <span
+                key={i}
+                className={`w-2 h-2 rounded-full ${
+                  i < level ? "bg-red-400" : "bg-stone-700"
+                }`}
+              />
+            ))}
+          </span>
+        </div>
+
+        <button
+          type="button"
+          disabled={upgradeDisabled}
+          onClick={() => dispatchUpgrade("crows")}
+          className={`w-full rounded border px-3 py-1 font-mono text-xs transition-colors ${
+            upgradeDisabled
+              ? "border-stone-700 text-stone-500 cursor-not-allowed opacity-50"
+              : "border-amber-400 text-amber-300 hover:bg-amber-300/10 cursor-pointer"
+          }`}
+        >
+          {isMaxed ? "MAXED" : level === 0 ? `Unlock  ${nextCost}g` : `Upgrade  ${nextCost}g`}
+        </button>
+
+        {level > 0 && (
+          <button
+            type="button"
+            disabled={!isTargeting && !canSend}
+            onClick={handleSendClick}
+            className={`w-full rounded border px-3 py-1 font-mono text-xs transition-colors ${
+              isTargeting
+                ? "border-orange-400 text-orange-300 hover:bg-orange-300/10 cursor-pointer animate-pulse"
+                : canSend
+                  ? "border-red-400 text-red-300 hover:bg-red-300/10 cursor-pointer"
+                  : "border-stone-700 text-stone-500 cursor-not-allowed opacity-50"
+            }`}
+          >
+            {isTargeting
+              ? `Pick field  ${remaining}`
+              : onCooldown
+                ? `Send  ${cooldownSec}s`
+                : `Send  ${CROW_SEND_COST}g`}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function UpgradePanel() {
   const game = useGameStore((s) => s.game);
   const playerId = useConnectionStore((s) => s.playerId);
@@ -189,6 +333,9 @@ export function UpgradePanel() {
   const harvestLevel = me?.tools.find((t) => t.id === "harvest")?.level ?? 0;
   const fertilizerLevel =
     me?.tools.find((t) => t.id === "fertilizer")?.level ?? 0;
+  const crowsTool = me?.tools.find((t) => t.id === "crows");
+  const crowsLevel = crowsTool?.level ?? 0;
+  const crowsCooldownUntil = crowsTool?.cooldownUntil ?? 0;
 
   return (
     <div className="absolute bottom-4 left-0 right-0 flex justify-center pointer-events-none">
@@ -216,6 +363,11 @@ export function UpgradePanel() {
           gold={gold}
           costs={FERTILIZER_UPGRADE_COSTS}
           maxLevel={MAX_FERTILIZER_LEVEL}
+        />
+        <CrowsCard
+          level={crowsLevel}
+          gold={gold}
+          cooldownUntil={crowsCooldownUntil}
         />
       </div>
     </div>

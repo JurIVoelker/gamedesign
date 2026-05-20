@@ -18,3 +18,19 @@ export const FERTILIZER_GROW_MULTIPLIERS = [1.0, 0.88, 0.77, 0.67, 0.57, 0.5];
 export const FERTILIZER_GOLD_MULTIPLIERS = [1.0, 1.12, 1.25, 1.4, 1.58, 1.8];
 export const MAX_FERTILIZER_LEVEL = 5;
 export const FERTILIZER_UPGRADE_COSTS = [100, 250, 500, 900, 1500];
+
+// Crows sabotage tool: upgrade to unlock and increase strength.
+// eatRatePerMs — grow-progress units eaten per ms (1/12000 = full field in 12s at Lv1).
+export const CROW_LEVEL_CONFIG = [
+  { fieldCount: 1, eatRatePerMs: 1 / 12_000, targetRipest: false },  // Lv1
+  { fieldCount: 2, eatRatePerMs: 1 / 12_000, targetRipest: false },  // Lv2
+  { fieldCount: 2, eatRatePerMs: 1 / 8_000,  targetRipest: true  },  // Lv3
+] as const;
+
+export type CrowLevelCfg = (typeof CROW_LEVEL_CONFIG)[number];
+
+export const MAX_CROW_LEVEL = 3;
+export const CROW_UPGRADE_COSTS = [30, 80, 200] as const;  // to Lv1, Lv2, Lv3
+export const CROW_SEND_COST = 15;
+export const CROW_COOLDOWN_MS = 45_000;
+export const CROW_SCARE_MS = 1_500;

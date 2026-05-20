@@ -69,7 +69,8 @@ export function handleMessage(session: Session, raw: string | Buffer): void {
         if (
           action.toolId !== 'sow' &&
           action.toolId !== 'harvest' &&
-          action.toolId !== 'fertilizer'
+          action.toolId !== 'fertilizer' &&
+          action.toolId !== 'crows'
         ) {
           session.send({ type: 'error', message: 'Unknown tool' });
           break;
@@ -77,6 +78,16 @@ export function handleMessage(session: Session, raw: string | Buffer): void {
         const result = game.upgradeTool(session.playerId, action.toolId);
         if (result !== 'ok') {
           session.send({ type: 'error', message: `Upgrade failed: ${result}` });
+        }
+      } else if (action.kind === 'SendCrows') {
+        const result = game.sendCrows(session.playerId, action.targetFieldIndices);
+        if (result !== 'ok') {
+          session.send({ type: 'error', message: `SendCrows failed: ${result}` });
+        }
+      } else if (action.kind === 'ScareCrow') {
+        const result = game.scareCrow(session.playerId, action.fieldIndex);
+        if (result !== 'ok') {
+          session.send({ type: 'error', message: `ScareCrow failed: ${result}` });
         }
       }
       break;

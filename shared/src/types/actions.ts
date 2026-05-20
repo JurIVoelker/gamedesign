@@ -20,11 +20,21 @@ export type UseItem = {
   targetFieldIndex?: number;
 };
 
-export type ToolId = 'sow' | 'harvest' | 'fertilizer';
+export type ToolId = 'sow' | 'harvest' | 'fertilizer' | 'crows';
 
 export type UpgradeTool = {
   kind: 'UpgradeTool';
   toolId: ToolId;
+};
+
+export type SendCrows = {
+  kind: 'SendCrows';
+  targetFieldIndices: number[];
+};
+
+export type ScareCrow = {
+  kind: 'ScareCrow';
+  fieldIndex: number;
 };
 
 export type PlayerAction =
@@ -32,4 +42,6 @@ export type PlayerAction =
   | HarvestField
   | BuyItem
   | UseItem
-  | UpgradeTool;
+  | UpgradeTool
+  | SendCrows
+  | ScareCrow;
