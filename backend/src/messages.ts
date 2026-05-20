@@ -71,7 +71,8 @@ export function handleMessage(session: Session, raw: string | Buffer): void {
           action.toolId !== 'harvest' &&
           action.toolId !== 'fertilizer' &&
           action.toolId !== 'crows' &&
-          action.toolId !== 'thief'
+          action.toolId !== 'thief' &&
+          action.toolId !== 'weather'
         ) {
           session.send({ type: 'error', message: 'Unknown tool' });
           break;
@@ -99,6 +100,11 @@ export function handleMessage(session: Session, raw: string | Buffer): void {
         const result = game.catchThief(session.playerId);
         if (result !== 'ok') {
           session.send({ type: 'error', message: `CatchThief failed: ${result}` });
+        }
+      } else if (action.kind === 'SendWeather') {
+        const result = game.sendWeather(session.playerId);
+        if (result !== 'ok') {
+          session.send({ type: 'error', message: `SendWeather failed: ${result}` });
         }
       }
       break;

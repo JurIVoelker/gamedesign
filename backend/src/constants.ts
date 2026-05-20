@@ -46,3 +46,16 @@ export const THIEF_LEVELS = [
 export const MAX_THIEF_LEVEL = 3;
 export const THIEF_UPGRADE_COSTS = [40, 100, 250] as const;  // to Lv1, Lv2, Lv3
 export const THIEF_GOLD_RETURN_FRACTION = 0.60; // fraction of stolen gold that reaches the saboteur
+
+// slowFactor       — fraction of growth speed removed (0.30 → crops grow at 70%)
+// actionSlowFactor — fraction of sow/harvest speed removed (steeper than slowFactor)
+export const WEATHER_LEVELS = [
+  { cost: 15, cooldownMs: 70_000, slowFactor: 0.30, actionSlowFactor: 0.55, durationMs: 40_000, lightning: false },
+  { cost: 28, cooldownMs: 70_000, slowFactor: 0.50, actionSlowFactor: 0.70, durationMs: 40_000, lightning: false },
+  { cost: 48, cooldownMs: 70_000, slowFactor: 0.50, actionSlowFactor: 0.70, durationMs: 40_000, lightning: true  },
+] as const;
+
+export const MAX_WEATHER_LEVEL = 3;
+export const WEATHER_UPGRADE_COSTS = [30, 80, 200] as const;  // to Lv1, Lv2, Lv3
+// Max extra ms added to a growing field's readyAt when weather is applied
+export const WEATHER_MAX_EXTRA_MS = 20_000;

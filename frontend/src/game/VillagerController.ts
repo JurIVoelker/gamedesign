@@ -24,6 +24,7 @@ export class VillagerController {
   private houseEntrances: { x: number; y: number }[];
   private prevFields: Field[] = [];
   private rand: () => number;
+  private weatherActive: boolean = false;
 
   constructor(
     owner: "player" | "opponent",
@@ -77,6 +78,8 @@ export class VillagerController {
   }
 
   setFields(fields: Field[]): void {
+    const now = Date.now();
+
     for (let i = 0; i < fields.length; i++) {
       const prev = this.prevFields[i];
       const curr = fields[i];
@@ -85,8 +88,9 @@ export class VillagerController {
       const stageChanged = prev.stage !== curr.stage;
       if (!stageChanged) continue;
 
+      const pullsOut = curr.stage === "sowing" || curr.stage === "harvesting";
       const interesting =
-        curr.stage === "sowing" ||
+        pullsOut ||
         curr.stage === "ready" ||
         (curr.stage === "empty" && prev.stage !== "empty");
 
@@ -94,7 +98,19 @@ export class VillagerController {
 
       const v = this.villagers[i];
       const s = v.state;
-      if (s.kind === "walking_to_house" || s.kind === "inside_house") continue;
+
+      if (s.kind === "walking_to_house") continue;
+
+      // For sowing/harvesting: pull the villager out of the house if they're inside
+      if (s.kind === "inside_house" && pullsOut) {
+        const entrance = this.houseEntrances[s.houseIndex];
+        v.entity.x = entrance.x;
+        v.entity.y = entrance.y;
+        v.entity.isVisible = true;
+        v.nextHouseVisitAt = now + this.jitter(30_000, 0.3);
+      } else if (s.kind === "inside_house") {
+        continue;
+      }
 
       v.state = {
         kind: "walking_to_field",
@@ -105,6 +121,22 @@ export class VillagerController {
     }
 
     this.prevFields = fields.map((f) => ({ ...f }));
+  }
+
+  setWeather(active: boolean): void {
+    if (active === this.weatherActive) return;
+    this.weatherActive = active;
+
+    if (!active) return;
+
+    // Weather just turned on: stagger each outdoor villager's home trip over 0–12s
+    // so they trickle inside rather than all leaving at once
+    const now = Date.now();
+    for (const v of this.villagers) {
+      const s = v.state;
+      if (s.kind === "walking_to_house" || s.kind === "inside_house") continue;
+      v.nextHouseVisitAt = now + this.rand() * 12_000;
+    }
   }
 
   getOutsideCount(): number {
@@ -180,10 +212,11 @@ export class VillagerController {
         const arrived = this.moveToward(v.entity, s.targetX, s.targetY, dt);
         if (arrived) {
           v.entity.isVisible = false;
+          const indoorMs = this.weatherActive ? this.jitter(30_000, 0.2) : this.jitter(15_000, 0.3);
           v.state = {
             kind: "inside_house",
             houseIndex: s.houseIndex,
-            emergesAt: now + this.jitter(15000, 0.3),
+            emergesAt: now + indoorMs,
           };
         }
         break;
@@ -195,7 +228,7 @@ export class VillagerController {
           v.entity.x = entrance.x;
           v.entity.y = entrance.y;
           v.entity.isVisible = true;
-          v.nextHouseVisitAt = now + this.jitter(45000, 0.3);
+          v.nextHouseVisitAt = now + (this.weatherActive ? this.jitter(6_000, 0.3) : this.jitter(45_000, 0.3));
           v.state = {
             kind: "wandering",
             targetX: this.randomWanderX(),

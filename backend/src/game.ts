@@ -24,6 +24,10 @@ import {
   MAX_THIEF_LEVEL,
   THIEF_UPGRADE_COSTS,
   THIEF_GOLD_RETURN_FRACTION,
+  WEATHER_LEVELS,
+  MAX_WEATHER_LEVEL,
+  WEATHER_UPGRADE_COSTS,
+  WEATHER_MAX_EXTRA_MS,
 } from './constants.js';
 
 type Slot = 'p1' | 'p2';
@@ -34,7 +38,12 @@ const TOOL_COSTS: Record<ToolId, readonly number[]> = {
   fertilizer: FERTILIZER_UPGRADE_COSTS,
   crows: CROW_UPGRADE_COSTS,
   thief: THIEF_UPGRADE_COSTS,
+  weather: WEATHER_UPGRADE_COSTS,
 };
+
+function weatherExtra(remaining: number, slowFactor: number): number {
+  return Math.min(remaining * slowFactor / (1 - slowFactor), WEATHER_MAX_EXTRA_MS);
+}
 
 function rollGrowDuration(fertMultiplier: number): number {
   return (
@@ -57,7 +66,7 @@ function createField(index: number): Field {
 function createPlayerState(playerId: string): PlayerState {
   return {
     id: playerId,
-    gold: 0,
+    gold: 500,
     score: 0,
     fields: [0, 1, 2, 3].map(createField),
     tools: [
@@ -66,9 +75,11 @@ function createPlayerState(playerId: string): PlayerState {
       { id: 'fertilizer', level: 0, cooldownUntil: 0 },
       { id: 'crows',      level: 0, cooldownUntil: 0 },
       { id: 'thief',      level: 0, cooldownUntil: 0 },
+      { id: 'weather',    level: 0, cooldownUntil: 0 },
     ],
     items: [],
     thiefAttack: null,
+    weatherEffect: null,
   };
 }
 
@@ -183,8 +194,10 @@ export class Game {
     if (field.stage !== 'empty') return 'not_empty';
 
     const startedAt = Date.now();
-    const duration =
+    let duration =
       SOW_DURATION_MS * UPGRADE_SPEED_MULTIPLIERS[this.getToolLevel(playerState, 'sow')];
+    if (playerState.weatherEffect)
+      duration += weatherExtra(duration, playerState.weatherEffect.actionSlowFactor);
     field.stage = 'sowing';
     field.cropType = cropType;
     field.sowedAt = startedAt;
@@ -209,9 +222,11 @@ export class Game {
     if (field.stage !== 'ready') return 'not_ready';
 
     const startedAt = Date.now();
-    const duration =
+    let duration =
       HARVEST_DURATION_MS *
       UPGRADE_SPEED_MULTIPLIERS[this.getToolLevel(playerState, 'harvest')];
+    if (playerState.weatherEffect)
+      duration += weatherExtra(duration, playerState.weatherEffect.actionSlowFactor);
     field.stage = 'harvesting';
     field.sowedAt = startedAt;
     field.readyAt = startedAt + duration;
@@ -377,12 +392,69 @@ export class Game {
     return 'ok';
   }
 
+  sendWeather(
+    playerId: string,
+  ): 'ok' | 'not_found' | 'not_unlocked' | 'on_cooldown' | 'insufficient_gold' | 'already_active' {
+    if (!this.state) return 'not_found';
+    const playerState = this.state.players[playerId];
+    if (!playerState) return 'not_found';
+
+    const weatherTool = playerState.tools.find((t) => t.id === 'weather');
+    if (!weatherTool || weatherTool.level === 0) return 'not_unlocked';
+
+    const now = Date.now();
+    if (weatherTool.cooldownUntil > now) return 'on_cooldown';
+
+    const cfg = WEATHER_LEVELS[weatherTool.level - 1];
+    if (playerState.gold < cfg.cost) return 'insufficient_gold';
+
+    const opponentState = Object.values(this.state.players).find((p) => p.id !== playerId);
+    if (!opponentState) return 'not_found';
+    if (opponentState.weatherEffect !== null) return 'already_active';
+
+    const endsAt = now + cfg.durationMs;
+    opponentState.weatherEffect = { slowFactor: cfg.slowFactor, actionSlowFactor: cfg.actionSlowFactor, endsAt };
+
+    for (const field of opponentState.fields) {
+      if (field.readyAt === null) continue;
+      const sf = field.stage === 'growing' ? cfg.slowFactor : cfg.actionSlowFactor;
+      field.readyAt += weatherExtra(field.readyAt - now, sf);
+      this.rescheduleFieldTimer(opponentState.id, field);
+    }
+
+    // Lv3: lightning strikes one random growing or ready field
+    if (cfg.lightning) {
+      const eligible = opponentState.fields.filter(
+        (f) => f.stage === 'growing' || f.stage === 'ready',
+      );
+      if (eligible.length > 0) {
+        const target = eligible[Math.floor(Math.random() * eligible.length)];
+        this.cancelTimer(`${opponentState.id}:${target.index}`);
+        this.destroyField(target);
+      }
+    }
+
+    playerState.gold -= cfg.cost;
+    weatherTool.cooldownUntil = now + cfg.cooldownMs;
+
+    this.scheduleTimer(`weather_expire:${opponentState.id}`, endsAt, () =>
+      this.expireWeather(opponentState.id),
+    );
+
+    this.broadcast({ type: 'game_state', state: this.state });
+    return 'ok';
+  }
+
   processSabotages(): void {
     if (!this.state) return;
     const now = Date.now();
     let changed = false;
 
     for (const [playerId, playerState] of Object.entries(this.state.players)) {
+      // Safety-net: expire weather if scheduled timer was missed (expireWeather broadcasts itself)
+      if (playerState.weatherEffect && now >= playerState.weatherEffect.endsAt)
+        this.expireWeather(playerId);
+
       const attack = playerState.thiefAttack;
       if (!attack) continue;
 
@@ -429,6 +501,7 @@ export class Game {
       toolId === 'fertilizer' ? MAX_FERTILIZER_LEVEL :
       toolId === 'crows'      ? MAX_CROW_LEVEL :
       toolId === 'thief'      ? MAX_THIEF_LEVEL :
+      toolId === 'weather'    ? MAX_WEATHER_LEVEL :
       MAX_TOOL_LEVEL;
     if (tool.level >= maxLevel) return 'max_level';
 
@@ -472,6 +545,26 @@ export class Game {
 
     attack.lastProcessedAt = drainTo;
     return true;
+  }
+
+  private expireWeather(victimId: string): void {
+    if (!this.state) return;
+    const victimState = this.state.players[victimId];
+    if (!victimState?.weatherEffect) return;
+
+    const { slowFactor, actionSlowFactor } = victimState.weatherEffect;
+    victimState.weatherEffect = null;
+    this.cancelTimer(`weather_expire:${victimId}`);
+
+    const now = Date.now();
+    for (const field of victimState.fields) {
+      if (field.readyAt === null) continue;
+      const sf = field.stage === 'growing' ? slowFactor : actionSlowFactor;
+      field.readyAt = now + (field.readyAt - now) * (1 - sf);
+      this.rescheduleFieldTimer(victimId, field);
+    }
+
+    this.broadcast({ type: 'game_state', state: this.state });
   }
 
   private expireThief(victimId: string): void {
@@ -537,6 +630,18 @@ export class Game {
     field.scaringAt = null;
   }
 
+  private rescheduleFieldTimer(playerId: string, field: Field): void {
+    if (field.readyAt === null) return;
+    const at = field.readyAt;
+    if (field.stage === 'growing') {
+      this.scheduleTimer(`${playerId}:${field.index}`, at, () => this.completeGrowth(playerId, field.index));
+    } else if (field.stage === 'sowing') {
+      this.scheduleTimer(`${playerId}:${field.index}`, at, () => this.completeSow(playerId, field.index));
+    } else if (field.stage === 'harvesting') {
+      this.scheduleTimer(`${playerId}:${field.index}`, at, () => this.completeHarvest(playerId, field.index));
+    }
+  }
+
   private getToolLevel(playerState: PlayerState, toolId: ToolId): number {
     return playerState.tools.find((t) => t.id === toolId)?.level ?? 0;
   }
@@ -550,9 +655,14 @@ export class Game {
     const playerState = this.state.players[playerId];
     if (!playerState) return;
     const fertLevel = this.getToolLevel(playerState, 'fertilizer');
+    let growDuration = rollGrowDuration(FERTILIZER_GROW_MULTIPLIERS[fertLevel]);
+
+    if (playerState.weatherEffect)
+      growDuration += weatherExtra(growDuration, playerState.weatherEffect.slowFactor);
+
     field.stage = 'growing';
     field.sowedAt = startedAt;
-    field.readyAt = startedAt + rollGrowDuration(FERTILIZER_GROW_MULTIPLIERS[fertLevel]);
+    field.readyAt = startedAt + growDuration;
 
     this.scheduleTimer(`${playerId}:${fieldIndex}`, field.readyAt, () =>
       this.completeGrowth(playerId, fieldIndex),

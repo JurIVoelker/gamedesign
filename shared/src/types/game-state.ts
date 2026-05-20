@@ -42,6 +42,12 @@ export interface Item {
   cooldownUntil: number;
 }
 
+export interface WeatherEffect {
+  slowFactor: number;
+  actionSlowFactor: number;
+  endsAt: number;
+}
+
 export interface PlayerState {
   id: string;
   gold: number;
@@ -50,6 +56,7 @@ export interface PlayerState {
   tools: Tool[];
   items: Item[];
   thiefAttack: ThiefAttack | null;
+  weatherEffect: WeatherEffect | null;
 }
 
 export interface GameState {

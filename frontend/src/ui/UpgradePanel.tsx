@@ -26,6 +26,15 @@ const CROW_SEND_COST = 15;
 const CROW_COOLDOWN_MS = 45_000;
 const CROW_EAT_DURATIONS_MS = [12_000, 12_000, 8_000]; // time to eat a full field per level
 
+// Weather constants
+const MAX_WEATHER_LEVEL = 3;
+const WEATHER_UPGRADE_COSTS = [30, 80, 200];
+const WEATHER_SEND_COSTS = [15, 28, 48];
+const WEATHER_COOLDOWN_MS = 70_000;
+const WEATHER_DURATION_MS = 40_000;
+const WEATHER_SLOW_FACTORS = [0.30, 0.50, 0.50];
+const WEATHER_ACTION_SLOW_FACTORS = [0.55, 0.70, 0.70];
+
 // Thief constants
 const MAX_THIEF_LEVEL = 3;
 const THIEF_UPGRADE_COSTS = [40, 100, 250];
@@ -454,6 +463,126 @@ function ThiefCard({
   );
 }
 
+function WeatherHoverCard({ level }: { level: number }) {
+  const isMaxed = level >= MAX_WEATHER_LEVEL;
+  const lvIdx = level - 1;
+
+  return (
+    <HoverCardWrapper>
+      {level === 0 ? (
+        <div className="text-stone-400">Unlock to send storms that slow all opponent crops</div>
+      ) : (
+        <>
+          <div className="text-stone-200">
+            Slows growth: <span className="text-amber-300">{Math.round(WEATHER_SLOW_FACTORS[lvIdx] * 100)}%</span>
+            {level === MAX_WEATHER_LEVEL && <span className="text-stone-400 ml-1">+ lightning</span>}
+          </div>
+          <div className="text-stone-200 mt-0.5">
+            Slows sow/harvest: <span className="text-amber-300">{Math.round(WEATHER_ACTION_SLOW_FACTORS[lvIdx] * 100)}%</span>
+          </div>
+          <div className="text-stone-200 mt-0.5">
+            Duration: <span className="text-amber-300">{formatSeconds(WEATHER_DURATION_MS)}</span>
+          </div>
+          <div className="text-stone-200 mt-0.5">
+            Send cost: <span className="text-amber-300">{WEATHER_SEND_COSTS[lvIdx]}g</span>
+            <span className="text-stone-500 ml-1">· cooldown {formatSeconds(WEATHER_COOLDOWN_MS)}</span>
+          </div>
+        </>
+      )}
+      {!isMaxed && level > 0 && (
+        <div className="text-stone-400 mt-1">
+          Lv{level + 1}: {Math.round(WEATHER_SLOW_FACTORS[level] * 100)}% grow · {Math.round(WEATHER_ACTION_SLOW_FACTORS[level] * 100)}% sow/harvest
+          {level + 1 === MAX_WEATHER_LEVEL && <span className="ml-1">· lightning</span>}
+        </div>
+      )}
+      {isMaxed && <div className="text-amber-300 mt-1">Max level</div>}
+    </HoverCardWrapper>
+  );
+}
+
+function WeatherCard({
+  level,
+  gold,
+  cooldownUntil,
+  opponentHasWeather,
+}: {
+  level: number;
+  gold: number;
+  cooldownUntil: number;
+  opponentHasWeather: boolean;
+}) {
+  const isMaxed = level >= MAX_WEATHER_LEVEL;
+  const nextCost = isMaxed ? null : WEATHER_UPGRADE_COSTS[level];
+  const canAffordUpgrade = nextCost !== null && gold >= nextCost;
+  const upgradeDisabled = isMaxed || !canAffordUpgrade;
+
+  const now = Date.now();
+  const onCooldown = cooldownUntil > now;
+  const cooldownSec = onCooldown ? Math.ceil((cooldownUntil - now) / 1000) : 0;
+  const sendCost = level > 0 ? WEATHER_SEND_COSTS[level - 1] : 0;
+  const canSend = level > 0 && !onCooldown && gold >= sendCost && !opponentHasWeather;
+
+  const handleSend = () => {
+    useConnectionStore.getState().send?.({
+      type: "player_action",
+      action: { kind: "SendWeather" },
+    });
+  };
+
+  return (
+    <div className="relative group">
+      <WeatherHoverCard level={level} />
+      <div className="bg-stone-900/80 border border-stone-600 rounded-lg px-4 py-2 text-stone-300 text-xs font-mono flex flex-col items-center gap-2 min-w-35">
+        <div className="flex items-center justify-between w-full">
+          <span className="font-bold tracking-widest">WEATHER</span>
+          <span className="flex gap-1">
+            {Array.from({ length: MAX_WEATHER_LEVEL }, (_, i) => (
+              <span
+                key={i}
+                className={`w-2 h-2 rounded-full ${
+                  i < level ? "bg-sky-400" : "bg-stone-700"
+                }`}
+              />
+            ))}
+          </span>
+        </div>
+
+        <button
+          type="button"
+          disabled={upgradeDisabled}
+          onClick={() => dispatchUpgrade("weather")}
+          className={`w-full rounded border px-3 py-1 font-mono text-xs transition-colors ${
+            upgradeDisabled
+              ? "border-stone-700 text-stone-500 cursor-not-allowed opacity-50"
+              : "border-amber-400 text-amber-300 hover:bg-amber-300/10 cursor-pointer"
+          }`}
+        >
+          {isMaxed ? "MAXED" : level === 0 ? `Unlock  ${nextCost}g` : `Upgrade  ${nextCost}g`}
+        </button>
+
+        {level > 0 && (
+          <button
+            type="button"
+            disabled={!canSend}
+            onClick={handleSend}
+            className={`w-full rounded border px-3 py-1 font-mono text-xs transition-colors ${
+              canSend
+                ? "border-sky-400 text-sky-300 hover:bg-sky-300/10 cursor-pointer"
+                : "border-stone-700 text-stone-500 cursor-not-allowed opacity-50"
+            }`}
+          >
+            {opponentHasWeather
+              ? "Active"
+              : onCooldown
+                ? `Send  ${cooldownSec}s`
+                : `Send  ${sendCost}g`}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function UpgradePanel() {
   const game = useGameStore((s) => s.game);
   const playerId = useConnectionStore((s) => s.playerId);
@@ -474,6 +603,10 @@ export function UpgradePanel() {
   const thiefLevel = thiefTool?.level ?? 0;
   const thiefCooldownUntil = thiefTool?.cooldownUntil ?? 0;
   const opponentHasThief = opponent?.thiefAttack != null;
+  const weatherTool = me?.tools.find((t) => t.id === "weather");
+  const weatherLevel = weatherTool?.level ?? 0;
+  const weatherCooldownUntil = weatherTool?.cooldownUntil ?? 0;
+  const opponentHasWeather = opponent?.weatherEffect != null;
 
   return (
     <div className="absolute bottom-4 left-0 right-0 flex justify-center pointer-events-none">
@@ -512,6 +645,12 @@ export function UpgradePanel() {
           gold={gold}
           cooldownUntil={thiefCooldownUntil}
           opponentHasThief={opponentHasThief}
+        />
+        <WeatherCard
+          level={weatherLevel}
+          gold={gold}
+          cooldownUntil={weatherCooldownUntil}
+          opponentHasWeather={opponentHasWeather}
         />
       </div>
     </div>

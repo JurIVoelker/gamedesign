@@ -5,14 +5,12 @@ import { HouseEntity, HOUSE_W } from "./entities/HouseEntity";
 import { VillagerController } from "./VillagerController";
 import { ThiefController } from "./ThiefController";
 import { SeededRandom, hashStr } from "./SeededRandom";
-import { H_GAP, ROW_GAP, MARGIN } from "./layout";
+import { H_GAP, ROW_GAP, MARGIN, FARM_W, SCENE_H_INNER } from "./layout";
 
 const FIELD_COUNT = 4;
 const OUTER_MARGIN = 60;
 
-const FARM_W = HOUSE_W + H_GAP + FIELD_W;
-const SCENE_H =
-  MARGIN + FIELD_COUNT * FIELD_H + (FIELD_COUNT - 1) * ROW_GAP + MARGIN;
+const SCENE_H = SCENE_H_INNER;
 
 export class GameEngine {
   private app: Application | null = null;
@@ -29,6 +27,8 @@ export class GameEngine {
   private playerThief: ThiefController | null = null;
   private opponentThief: ThiefController | null = null;
   private onCatchThief: (() => void) | null = null;
+  private playerWeatherOverlay: Graphics | null = null;
+  private opponentWeatherOverlay: Graphics | null = null;
 
   // Lazy init: created once startedAt is known so both clients use the same seed
   private villagersSeeded = false;
@@ -72,6 +72,11 @@ export class GameEngine {
     this.playerFields = playerFields;
     this.opponentFields = opponentFields;
     this.divider = this.buildDivider();
+
+    this.playerWeatherOverlay = this.buildWeatherOverlay();
+    this.playerFarm.addChild(this.playerWeatherOverlay);
+    this.opponentWeatherOverlay = this.buildWeatherOverlay();
+    this.opponentFarm.addChild(this.opponentWeatherOverlay);
 
     // Villagers and thief controllers are created lazily in updateGameState once startedAt
     // is known, so both clients produce identical decisions using the same seeds.
@@ -121,6 +126,8 @@ export class GameEngine {
     this.opponentVillagers = null;
     this.playerThief = null;
     this.opponentThief = null;
+    this.playerWeatherOverlay = null;
+    this.opponentWeatherOverlay = null;
     this.villagersSeeded = false;
   }
 
@@ -160,6 +167,9 @@ export class GameEngine {
       }
       this.playerVillagers?.setFields(myState.fields);
       this.playerThief?.setAttack(myState.thiefAttack ?? null, "victim");
+      const myWeather = myState.weatherEffect != null;
+      if (this.playerWeatherOverlay) this.playerWeatherOverlay.visible = myWeather;
+      this.playerVillagers?.setWeather(myWeather);
     }
     if (opponentState) {
       for (let i = 0; i < this.opponentFields.length; i++) {
@@ -167,6 +177,9 @@ export class GameEngine {
       }
       this.opponentVillagers?.setFields(opponentState.fields);
       this.opponentThief?.setAttack(opponentState.thiefAttack ?? null, "attacker");
+      const oppWeather = opponentState.weatherEffect != null;
+      if (this.opponentWeatherOverlay) this.opponentWeatherOverlay.visible = oppWeather;
+      this.opponentVillagers?.setWeather(oppWeather);
     }
   }
 
@@ -216,6 +229,13 @@ export class GameEngine {
     }
 
     return { container: farm, fields };
+  }
+
+  private buildWeatherOverlay(): Graphics {
+    const g = new Graphics();
+    g.rect(0, 0, FARM_W, SCENE_H_INNER).fill({ color: 0x446688, alpha: 0.35 });
+    g.visible = false;
+    return g;
   }
 
   private buildDivider(): Graphics {

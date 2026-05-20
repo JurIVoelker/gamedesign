@@ -20,7 +20,7 @@ export type UseItem = {
   targetFieldIndex?: number;
 };
 
-export type ToolId = 'sow' | 'harvest' | 'fertilizer' | 'crows' | 'thief';
+export type ToolId = 'sow' | 'harvest' | 'fertilizer' | 'crows' | 'thief' | 'weather';
 
 export type UpgradeTool = {
   kind: 'UpgradeTool';
@@ -45,6 +45,10 @@ export type CatchThief = {
   kind: 'CatchThief';
 };
 
+export type SendWeather = {
+  kind: 'SendWeather';
+};
+
 export type PlayerAction =
   | SowField
   | HarvestField
@@ -54,4 +58,5 @@ export type PlayerAction =
   | SendCrows
   | ScareCrow
   | SendThief
-  | CatchThief;
+  | CatchThief
+  | SendWeather;
