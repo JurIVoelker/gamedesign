@@ -34,3 +34,15 @@ export const CROW_UPGRADE_COSTS = [30, 80, 200] as const;  // to Lv1, Lv2, Lv3
 export const CROW_SEND_COST = 15;
 export const CROW_COOLDOWN_MS = 45_000;
 export const CROW_SCARE_MS = 1_500;
+
+// Thief sabotage tool: sneaks onto opponent farm disguised as a villager.
+// cost — gold deducted per send; disguise — visual level on the client.
+export const THIEF_LEVELS = [
+  { cost: 20,  cooldownMs: 60_000, stealPerSecond: 2,   minWaitMs: 5_000,  maxWaitMs: 20_000, durationMs: 15_000, disguise: 'none'    as const },
+  { cost: 35,  cooldownMs: 60_000, stealPerSecond: 3,   minWaitMs: 5_000,  maxWaitMs: 25_000, durationMs: 20_000, disguise: 'partial' as const },
+  { cost: 55,  cooldownMs: 60_000, stealPerSecond: 4.5, minWaitMs: 5_000,  maxWaitMs: 30_000, durationMs: 25_000, disguise: 'full'    as const },
+] as const;
+
+export const MAX_THIEF_LEVEL = 3;
+export const THIEF_UPGRADE_COSTS = [40, 100, 250] as const;  // to Lv1, Lv2, Lv3
+export const THIEF_GOLD_RETURN_FRACTION = 0.60; // fraction of stolen gold that reaches the saboteur

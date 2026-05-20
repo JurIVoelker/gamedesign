@@ -70,7 +70,8 @@ export function handleMessage(session: Session, raw: string | Buffer): void {
           action.toolId !== 'sow' &&
           action.toolId !== 'harvest' &&
           action.toolId !== 'fertilizer' &&
-          action.toolId !== 'crows'
+          action.toolId !== 'crows' &&
+          action.toolId !== 'thief'
         ) {
           session.send({ type: 'error', message: 'Unknown tool' });
           break;
@@ -88,6 +89,16 @@ export function handleMessage(session: Session, raw: string | Buffer): void {
         const result = game.scareCrow(session.playerId, action.fieldIndex);
         if (result !== 'ok') {
           session.send({ type: 'error', message: `ScareCrow failed: ${result}` });
+        }
+      } else if (action.kind === 'SendThief') {
+        const result = game.sendThief(session.playerId);
+        if (result !== 'ok') {
+          session.send({ type: 'error', message: `SendThief failed: ${result}` });
+        }
+      } else if (action.kind === 'CatchThief') {
+        const result = game.catchThief(session.playerId);
+        if (result !== 'ok') {
+          session.send({ type: 'error', message: `CatchThief failed: ${result}` });
         }
       }
       break;

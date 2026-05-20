@@ -2,14 +2,14 @@ import { Application, Container, Graphics } from "pixi.js";
 import type { GameState } from "@gamedesign/shared";
 import { FieldEntity, FIELD_W, FIELD_H } from "./entities/FieldEntity";
 import { HouseEntity, HOUSE_W } from "./entities/HouseEntity";
+import { VillagerController } from "./VillagerController";
+import { ThiefController } from "./ThiefController";
+import { SeededRandom, hashStr } from "./SeededRandom";
+import { H_GAP, ROW_GAP, MARGIN } from "./layout";
 
 const FIELD_COUNT = 4;
-const H_GAP = 16;
-const ROW_GAP = 28;
-const MARGIN = 48;
 const OUTER_MARGIN = 60;
 
-// Width of one farm side (house + gap + field, or mirrored)
 const FARM_W = HOUSE_W + H_GAP + FIELD_W;
 const SCENE_H =
   MARGIN + FIELD_COUNT * FIELD_H + (FIELD_COUNT - 1) * ROW_GAP + MARGIN;
@@ -24,13 +24,23 @@ export class GameEngine {
 
   private playerFields: FieldEntity[] = [];
   private opponentFields: FieldEntity[] = [];
+  private playerVillagers: VillagerController | null = null;
+  private opponentVillagers: VillagerController | null = null;
+  private playerThief: ThiefController | null = null;
+  private opponentThief: ThiefController | null = null;
+  private onCatchThief: (() => void) | null = null;
+
+  // Lazy init: created once startedAt is known so both clients use the same seed
+  private villagersSeeded = false;
 
   async init(
     container: HTMLElement,
     onSow: (fieldIndex: number) => void,
     onHarvest: (fieldIndex: number) => void,
     onScareCrow: (fieldIndex: number) => void,
+    onCatchThief: () => void,
   ): Promise<void> {
+    this.onCatchThief = onCatchThief;
     const app = new Application();
     await app.init({
       background: 0x3d6b1f,
@@ -63,6 +73,9 @@ export class GameEngine {
     this.opponentFields = opponentFields;
     this.divider = this.buildDivider();
 
+    // Villagers and thief controllers are created lazily in updateGameState once startedAt
+    // is known, so both clients produce identical decisions using the same seeds.
+
     sceneRoot.addChild(this.divider);
     sceneRoot.addChild(this.playerFarm);
     sceneRoot.addChild(this.opponentFarm);
@@ -72,6 +85,10 @@ export class GameEngine {
     app.ticker.add(() => {
       for (const entity of this.playerFields) entity.update();
       for (const entity of this.opponentFields) entity.update();
+      this.playerVillagers?.update(app.ticker.deltaMS);
+      this.opponentVillagers?.update(app.ticker.deltaMS);
+      this.playerThief?.update(app.ticker.deltaMS);
+      this.opponentThief?.update(app.ticker.deltaMS);
     });
 
     this.resizeHandler = () => {
@@ -100,6 +117,11 @@ export class GameEngine {
     this.divider = null;
     this.playerFields = [];
     this.opponentFields = [];
+    this.playerVillagers = null;
+    this.opponentVillagers = null;
+    this.playerThief = null;
+    this.opponentThief = null;
+    this.villagersSeeded = false;
   }
 
   updateGameState(state: GameState, myPlayerId: string): void {
@@ -108,15 +130,43 @@ export class GameEngine {
       (p) => p.id !== myPlayerId,
     );
 
+    // First time we have a startedAt: create villager controllers with deterministic seeds
+    // so both clients produce identical decisions for every farm.
+    if (!this.villagersSeeded && state.startedAt && this.playerFarm && this.opponentFarm) {
+      const opponentId = opponentState?.id ?? "";
+      // Each farm gets a seed derived from startedAt + a hash of the owner's playerId.
+      // Both clients compute the same seeds for the same farms, keeping them in sync.
+      const mySeed  = (state.startedAt ^ hashStr(myPlayerId)) >>> 0;
+      const oppSeed = (state.startedAt ^ hashStr(opponentId)) >>> 0;
+      // Thief uses a separate rand sequence (XOR with a constant to offset from villager)
+      const myThiefSeed  = (mySeed  ^ 0xdeadbeef) >>> 0;
+      const oppThiefSeed = (oppSeed ^ 0xdeadbeef) >>> 0;
+
+      const myRand      = new SeededRandom(mySeed);
+      const oppRand     = new SeededRandom(oppSeed);
+      const myThiefRand  = new SeededRandom(myThiefSeed);
+      const oppThiefRand = new SeededRandom(oppThiefSeed);
+
+      this.playerVillagers   = new VillagerController("player",   this.playerFarm,   () => myRand.next());
+      this.opponentVillagers = new VillagerController("opponent", this.opponentFarm, () => oppRand.next());
+      this.playerThief  = new ThiefController("player",   this.playerFarm,   this.onCatchThief ?? undefined, () => myThiefRand.next());
+      this.opponentThief = new ThiefController("opponent", this.opponentFarm, undefined,                      () => oppThiefRand.next());
+      this.villagersSeeded = true;
+    }
+
     if (myState) {
       for (let i = 0; i < this.playerFields.length; i++) {
         this.playerFields[i].setField(myState.fields[i] ?? null);
       }
+      this.playerVillagers?.setFields(myState.fields);
+      this.playerThief?.setAttack(myState.thiefAttack ?? null, "victim");
     }
     if (opponentState) {
       for (let i = 0; i < this.opponentFields.length; i++) {
         this.opponentFields[i].setField(opponentState.fields[i] ?? null);
       }
+      this.opponentVillagers?.setFields(opponentState.fields);
+      this.opponentThief?.setAttack(opponentState.thiefAttack ?? null, "attacker");
     }
   }
 
@@ -124,13 +174,11 @@ export class GameEngine {
     const w = app.renderer.width;
     const h = app.renderer.height;
 
-    // Scale to fit height, let width fill the window
     const scale = (h - OUTER_MARGIN * 2) / SCENE_H;
     root.scale.set(scale);
     root.x = 0;
     root.y = Math.round((h - SCENE_H * scale) / 2);
 
-    // Distribute farms with 3 equal gaps: [gap][playerFarm][gap][opponentFarm][gap]
     const logicalW = w / scale;
     const gap = Math.max(MARGIN, (logicalW - 2 * FARM_W) / 3);
 
@@ -139,7 +187,6 @@ export class GameEngine {
     if (this.divider) this.divider.x = gap + FARM_W + gap / 2;
   }
 
-  // player: [house][field], opponent: [field][house] — mirrored
   private buildFarm(
     owner: "player" | "opponent",
     onSow: ((fieldIndex: number) => void) | null,
@@ -157,15 +204,7 @@ export class GameEngine {
 
       if (owner === "player") {
         new HouseEntity(i, owner, 0, rowY).render(farm);
-        const fe = new FieldEntity(
-          i,
-          owner,
-          HOUSE_W + H_GAP,
-          rowY,
-          sow,
-          harvest,
-          scare,
-        );
+        const fe = new FieldEntity(i, owner, HOUSE_W + H_GAP, rowY, sow, harvest, scare);
         fe.render(farm);
         fields.push(fe);
       } else {

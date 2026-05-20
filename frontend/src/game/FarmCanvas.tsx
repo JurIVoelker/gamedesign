@@ -41,7 +41,6 @@ export function FarmCanvas() {
   const game = useGameStore((s) => s.game);
   const { playerId } = useConnectionStore();
   const { active: targeting, chosen, fieldCount } = useTargetingStore();
-
   // Escape cancels targeting mode
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -77,8 +76,15 @@ export function FarmCanvas() {
       });
     };
 
+    const onCatchThief = () => {
+      useConnectionStore.getState().send?.({
+        type: "player_action",
+        action: { kind: "CatchThief" },
+      });
+    };
+
     engine
-      .init(containerRef.current!, onSow, onHarvest, onScareCrow)
+      .init(containerRef.current!, onSow, onHarvest, onScareCrow, onCatchThief)
       .then(() => {
         if (!mounted) engine.destroy();
       })

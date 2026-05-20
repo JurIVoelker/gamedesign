@@ -7,6 +7,18 @@ export interface CrowAttack {
   totalGrowMs: number;   // original full grow duration (used to recalculate sowedAt/readyAt)
 }
 
+export interface ThiefAttack {
+  phase: 'waiting' | 'stealing';
+  deployedAt: number;
+  entryAt: number;           // server-chosen random entry time; frontend uses to sync house animation
+  stealStartedAt: number | null;
+  lastProcessedAt: number | null; // tracks drain progress to avoid double-counting
+  durationMs: number;
+  stealPerSecond: number;
+  disguise: 'none' | 'partial' | 'full';
+  actorSlot: 'p1' | 'p2';   // who sent the thief (routes stolen gold)
+}
+
 export interface Field {
   index: number;
   stage: CropStage;
@@ -37,6 +49,7 @@ export interface PlayerState {
   fields: Field[];
   tools: Tool[];
   items: Item[];
+  thiefAttack: ThiefAttack | null;
 }
 
 export interface GameState {

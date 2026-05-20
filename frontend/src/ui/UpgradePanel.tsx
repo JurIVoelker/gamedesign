@@ -26,6 +26,17 @@ const CROW_SEND_COST = 15;
 const CROW_COOLDOWN_MS = 45_000;
 const CROW_EAT_DURATIONS_MS = [12_000, 12_000, 8_000]; // time to eat a full field per level
 
+// Thief constants
+const MAX_THIEF_LEVEL = 3;
+const THIEF_UPGRADE_COSTS = [40, 100, 250];
+const THIEF_SEND_COSTS = [20, 35, 55];
+const THIEF_COOLDOWN_MS = 60_000;
+const THIEF_WAIT_MAX_MS = [20_000, 25_000, 30_000];
+const THIEF_STEAL_DURATION_MS = [15_000, 20_000, 25_000];
+const THIEF_STEAL_PER_SEC = [2, 3, 4.5];
+const THIEF_MAX_STOLEN = [30, 60, 112];
+const THIEF_DISGUISE_LABELS = ["None", "Partial", "Full"];
+
 function dispatchUpgrade(toolId: ToolId): void {
   useConnectionStore.getState().send?.({
     type: "player_action",
@@ -323,11 +334,134 @@ function CrowsCard({
   );
 }
 
+function ThiefHoverCard({ level }: { level: number }) {
+  const isMaxed = level >= MAX_THIEF_LEVEL;
+  const lvIdx = level - 1;
+
+  return (
+    <HoverCardWrapper>
+      {level === 0 ? (
+        <div className="text-stone-400">Unlock to send a thief to steal opponent gold</div>
+      ) : (
+        <>
+          <div className="text-stone-200">
+            Steals: <span className="text-amber-300">{THIEF_STEAL_PER_SEC[lvIdx]}g/s</span>
+            <span className="text-stone-500 ml-1">· max {THIEF_MAX_STOLEN[lvIdx]}g</span>
+          </div>
+          <div className="text-stone-200 mt-0.5">
+            Window: <span className="text-amber-300">{formatSeconds(THIEF_STEAL_DURATION_MS[lvIdx])}</span>
+            <span className="text-stone-500 ml-1">· entry ≤{formatSeconds(THIEF_WAIT_MAX_MS[lvIdx])}</span>
+          </div>
+          <div className="text-stone-200 mt-0.5">
+            Disguise: <span className="text-amber-300">{THIEF_DISGUISE_LABELS[lvIdx]}</span>
+          </div>
+          <div className="text-stone-200 mt-0.5">
+            Send cost: <span className="text-amber-300">{THIEF_SEND_COSTS[lvIdx]}g</span>
+            <span className="text-stone-500 ml-1">· cooldown {formatSeconds(THIEF_COOLDOWN_MS)}</span>
+          </div>
+        </>
+      )}
+      {!isMaxed && level > 0 && (
+        <div className="text-stone-400 mt-1">
+          Lv{level + 1}: {THIEF_STEAL_PER_SEC[level]}g/s · disguise {THIEF_DISGUISE_LABELS[level]}
+        </div>
+      )}
+      {isMaxed && <div className="text-amber-300 mt-1">Max level</div>}
+    </HoverCardWrapper>
+  );
+}
+
+function ThiefCard({
+  level,
+  gold,
+  cooldownUntil,
+  opponentHasThief,
+}: {
+  level: number;
+  gold: number;
+  cooldownUntil: number;
+  opponentHasThief: boolean;
+}) {
+  const isMaxed = level >= MAX_THIEF_LEVEL;
+  const nextCost = isMaxed ? null : THIEF_UPGRADE_COSTS[level];
+  const canAffordUpgrade = nextCost !== null && gold >= nextCost;
+  const upgradeDisabled = isMaxed || !canAffordUpgrade;
+
+  const now = Date.now();
+  const onCooldown = cooldownUntil > now;
+  const cooldownSec = onCooldown ? Math.ceil((cooldownUntil - now) / 1000) : 0;
+  const sendCost = level > 0 ? THIEF_SEND_COSTS[level - 1] : 0;
+  const canSend = level > 0 && !onCooldown && gold >= sendCost && !opponentHasThief;
+
+  const handleSend = () => {
+    useConnectionStore.getState().send?.({
+      type: "player_action",
+      action: { kind: "SendThief" },
+    });
+  };
+
+  return (
+    <div className="relative group">
+      <ThiefHoverCard level={level} />
+      <div className="bg-stone-900/80 border border-stone-600 rounded-lg px-4 py-2 text-stone-300 text-xs font-mono flex flex-col items-center gap-2 min-w-35">
+        <div className="flex items-center justify-between w-full">
+          <span className="font-bold tracking-widest">THIEF</span>
+          <span className="flex gap-1">
+            {Array.from({ length: MAX_THIEF_LEVEL }, (_, i) => (
+              <span
+                key={i}
+                className={`w-2 h-2 rounded-full ${
+                  i < level ? "bg-purple-400" : "bg-stone-700"
+                }`}
+              />
+            ))}
+          </span>
+        </div>
+
+        <button
+          type="button"
+          disabled={upgradeDisabled}
+          onClick={() => dispatchUpgrade("thief")}
+          className={`w-full rounded border px-3 py-1 font-mono text-xs transition-colors ${
+            upgradeDisabled
+              ? "border-stone-700 text-stone-500 cursor-not-allowed opacity-50"
+              : "border-amber-400 text-amber-300 hover:bg-amber-300/10 cursor-pointer"
+          }`}
+        >
+          {isMaxed ? "MAXED" : level === 0 ? `Unlock  ${nextCost}g` : `Upgrade  ${nextCost}g`}
+        </button>
+
+        {level > 0 && (
+          <button
+            type="button"
+            disabled={!canSend}
+            onClick={handleSend}
+            className={`w-full rounded border px-3 py-1 font-mono text-xs transition-colors ${
+              canSend
+                ? "border-purple-400 text-purple-300 hover:bg-purple-300/10 cursor-pointer"
+                : "border-stone-700 text-stone-500 cursor-not-allowed opacity-50"
+            }`}
+          >
+            {opponentHasThief
+              ? "Busy"
+              : onCooldown
+                ? `Send  ${cooldownSec}s`
+                : `Send  ${sendCost}g`}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function UpgradePanel() {
   const game = useGameStore((s) => s.game);
   const playerId = useConnectionStore((s) => s.playerId);
 
   const me = playerId ? game?.players[playerId] : null;
+  const opponent = playerId
+    ? Object.values(game?.players ?? {}).find((p) => p.id !== playerId)
+    : null;
   const gold = me?.gold ?? 0;
   const sowLevel = me?.tools.find((t) => t.id === "sow")?.level ?? 0;
   const harvestLevel = me?.tools.find((t) => t.id === "harvest")?.level ?? 0;
@@ -336,6 +470,10 @@ export function UpgradePanel() {
   const crowsTool = me?.tools.find((t) => t.id === "crows");
   const crowsLevel = crowsTool?.level ?? 0;
   const crowsCooldownUntil = crowsTool?.cooldownUntil ?? 0;
+  const thiefTool = me?.tools.find((t) => t.id === "thief");
+  const thiefLevel = thiefTool?.level ?? 0;
+  const thiefCooldownUntil = thiefTool?.cooldownUntil ?? 0;
+  const opponentHasThief = opponent?.thiefAttack != null;
 
   return (
     <div className="absolute bottom-4 left-0 right-0 flex justify-center pointer-events-none">
@@ -368,6 +506,12 @@ export function UpgradePanel() {
           level={crowsLevel}
           gold={gold}
           cooldownUntil={crowsCooldownUntil}
+        />
+        <ThiefCard
+          level={thiefLevel}
+          gold={gold}
+          cooldownUntil={thiefCooldownUntil}
+          opponentHasThief={opponentHasThief}
         />
       </div>
     </div>

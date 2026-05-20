@@ -60,4 +60,9 @@ setInterval(() => {
   }
 }, HEARTBEAT_INTERVAL_MS);
 
+// Tick active thief attacks every second so gold drains in real time
+setInterval(() => {
+  gameManager.getGame().processSabotages();
+}, 1_000);
+
 console.log(`[server] Listening on ws://localhost:${PORT}`);

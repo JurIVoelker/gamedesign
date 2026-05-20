@@ -1,4 +1,4 @@
-import type { ServerMessage, GameState, Field, PlayerState, ToolId } from '@gamedesign/shared';
+import type { ServerMessage, GameState, Field, PlayerState, ToolId, ThiefAttack } from '@gamedesign/shared';
 import { Session } from './session.js';
 import {
   SOW_DURATION_MS,
@@ -20,6 +20,10 @@ import {
   CROW_SEND_COST,
   CROW_COOLDOWN_MS,
   CROW_SCARE_MS,
+  THIEF_LEVELS,
+  MAX_THIEF_LEVEL,
+  THIEF_UPGRADE_COSTS,
+  THIEF_GOLD_RETURN_FRACTION,
 } from './constants.js';
 
 type Slot = 'p1' | 'p2';
@@ -29,6 +33,7 @@ const TOOL_COSTS: Record<ToolId, readonly number[]> = {
   harvest: HARVEST_UPGRADE_COSTS,
   fertilizer: FERTILIZER_UPGRADE_COSTS,
   crows: CROW_UPGRADE_COSTS,
+  thief: THIEF_UPGRADE_COSTS,
 };
 
 function rollGrowDuration(fertMultiplier: number): number {
@@ -60,8 +65,10 @@ function createPlayerState(playerId: string): PlayerState {
       { id: 'harvest',    level: 0, cooldownUntil: 0 },
       { id: 'fertilizer', level: 0, cooldownUntil: 0 },
       { id: 'crows',      level: 0, cooldownUntil: 0 },
+      { id: 'thief',      level: 0, cooldownUntil: 0 },
     ],
     items: [],
+    thiefAttack: null,
   };
 }
 
@@ -304,6 +311,182 @@ export class Game {
     return 'ok';
   }
 
+  sendThief(
+    playerId: string,
+  ): 'ok' | 'not_found' | 'not_unlocked' | 'on_cooldown' | 'insufficient_gold' | 'target_busy' {
+    if (!this.state) return 'not_found';
+    const playerState = this.state.players[playerId];
+    if (!playerState) return 'not_found';
+
+    const thiefTool = playerState.tools.find((t) => t.id === 'thief');
+    if (!thiefTool || thiefTool.level === 0) return 'not_unlocked';
+
+    const now = Date.now();
+    if (thiefTool.cooldownUntil > now) return 'on_cooldown';
+
+    const cfg = THIEF_LEVELS[thiefTool.level - 1];
+    if (playerState.gold < cfg.cost) return 'insufficient_gold';
+
+    const opponentState = Object.values(this.state.players).find((p) => p.id !== playerId);
+    if (!opponentState) return 'not_found';
+    if (opponentState.thiefAttack !== null) return 'target_busy';
+
+    const actorSlot = this.getSlotOf(playerId)!;
+    const entryAt = now + cfg.minWaitMs + Math.random() * (cfg.maxWaitMs - cfg.minWaitMs);
+
+    const attack: ThiefAttack = {
+      phase: 'waiting',
+      deployedAt: now,
+      entryAt,
+      stealStartedAt: null,
+      lastProcessedAt: null,
+      durationMs: cfg.durationMs,
+      stealPerSecond: cfg.stealPerSecond,
+      disguise: cfg.disguise,
+      actorSlot,
+    };
+
+    opponentState.thiefAttack = attack;
+    playerState.gold -= cfg.cost;
+    thiefTool.cooldownUntil = now + cfg.cooldownMs;
+
+    // Safety-net timer: ensure state is cleaned up even if no actions arrive
+    this.scheduleTimer(`thief_expire:${opponentState.id}`, entryAt + cfg.durationMs, () =>
+      this.expireThief(opponentState.id),
+    );
+
+    this.broadcast({ type: 'game_state', state: this.state });
+    return 'ok';
+  }
+
+  catchThief(
+    playerId: string,
+  ): 'ok' | 'not_found' | 'no_thief' | 'still_waiting' {
+    if (!this.state) return 'not_found';
+    const playerState = this.state.players[playerId];
+    if (!playerState) return 'not_found';
+    if (!playerState.thiefAttack) return 'no_thief';
+    if (playerState.thiefAttack.phase === 'waiting') return 'still_waiting';
+
+    const now = Date.now();
+    this.drainThief(playerId, now);
+    playerState.thiefAttack = null;
+    this.cancelTimer(`thief_expire:${playerId}`);
+
+    this.broadcast({ type: 'game_state', state: this.state });
+    return 'ok';
+  }
+
+  processSabotages(): void {
+    if (!this.state) return;
+    const now = Date.now();
+    let changed = false;
+
+    for (const [playerId, playerState] of Object.entries(this.state.players)) {
+      const attack = playerState.thiefAttack;
+      if (!attack) continue;
+
+      // Transition waiting → stealing
+      if (attack.phase === 'waiting' && now >= attack.entryAt) {
+        attack.phase = 'stealing';
+        attack.stealStartedAt = attack.entryAt;
+        attack.lastProcessedAt = attack.entryAt;
+        changed = true;
+      }
+
+      // Drain gold
+      if (attack.phase === 'stealing' && attack.stealStartedAt !== null) {
+        const drained = this.drainThief(playerId, now);
+        if (drained) changed = true;
+
+        // Check expiry
+        if (now >= attack.stealStartedAt + attack.durationMs) {
+          playerState.thiefAttack = null;
+          this.cancelTimer(`thief_expire:${playerId}`);
+          changed = true;
+        }
+      }
+    }
+
+    if (changed) {
+      this.broadcast({ type: 'game_state', state: this.state });
+    }
+  }
+
+  upgradeTool(
+    playerId: string,
+    toolId: ToolId,
+  ): 'ok' | 'not_found' | 'unknown_tool' | 'max_level' | 'insufficient_gold' {
+    if (!this.state) return 'not_found';
+
+    const playerState = this.state.players[playerId];
+    if (!playerState) return 'not_found';
+
+    const tool = playerState.tools.find((t) => t.id === toolId);
+    if (!tool) return 'unknown_tool';
+
+    const maxLevel =
+      toolId === 'fertilizer' ? MAX_FERTILIZER_LEVEL :
+      toolId === 'crows'      ? MAX_CROW_LEVEL :
+      toolId === 'thief'      ? MAX_THIEF_LEVEL :
+      MAX_TOOL_LEVEL;
+    if (tool.level >= maxLevel) return 'max_level';
+
+    const cost = TOOL_COSTS[toolId][tool.level];
+    if (playerState.gold < cost) return 'insufficient_gold';
+
+    playerState.gold -= cost;
+    tool.level += 1;
+    this.broadcast({ type: 'game_state', state: this.state });
+
+    return 'ok';
+  }
+
+  private getPlayerIdBySlot(slot: Slot): string | null {
+    return this.slots[slot]?.playerId ?? null;
+  }
+
+  private drainThief(victimId: string, now: number): boolean {
+    if (!this.state) return false;
+    const victimState = this.state.players[victimId];
+    const attack = victimState?.thiefAttack;
+    if (!attack || attack.phase !== 'stealing' || attack.stealStartedAt === null || attack.lastProcessedAt === null) return false;
+
+    const endMs = attack.stealStartedAt + attack.durationMs;
+    const drainTo = Math.min(now, endMs);
+    const drainFrom = attack.lastProcessedAt;
+    if (drainTo <= drainFrom) return false;
+
+    const elapsedSec = (drainTo - drainFrom) / 1000;
+    const toSteal = elapsedSec * attack.stealPerSecond;
+    const actualStolen = Math.min(victimState.gold, toSteal);
+
+    if (actualStolen > 0) {
+      const actorId = this.getPlayerIdBySlot(attack.actorSlot);
+      const actorState = actorId ? this.state.players[actorId] : null;
+      victimState.gold = Math.max(0, victimState.gold - Math.floor(actualStolen));
+      if (actorState) {
+        actorState.gold += Math.floor(actualStolen * THIEF_GOLD_RETURN_FRACTION);
+      }
+    }
+
+    attack.lastProcessedAt = drainTo;
+    return true;
+  }
+
+  private expireThief(victimId: string): void {
+    if (!this.state) return;
+    const victimState = this.state.players[victimId];
+    if (!victimState?.thiefAttack) return;
+
+    const now = Date.now();
+    if (victimState.thiefAttack.phase === 'stealing') {
+      this.drainThief(victimId, now);
+    }
+    victimState.thiefAttack = null;
+    this.broadcast({ type: 'game_state', state: this.state });
+  }
+
   private completeScare(playerId: string, fieldIndex: number): void {
     if (!this.state) return;
     const field = this.state.players[playerId]?.fields[fieldIndex];
@@ -352,34 +535,6 @@ export class Game {
     field.readyAt = null;
     field.crowAttack = null;
     field.scaringAt = null;
-  }
-
-  upgradeTool(
-    playerId: string,
-    toolId: ToolId,
-  ): 'ok' | 'not_found' | 'unknown_tool' | 'max_level' | 'insufficient_gold' {
-    if (!this.state) return 'not_found';
-
-    const playerState = this.state.players[playerId];
-    if (!playerState) return 'not_found';
-
-    const tool = playerState.tools.find((t) => t.id === toolId);
-    if (!tool) return 'unknown_tool';
-
-    const maxLevel =
-      toolId === 'fertilizer' ? MAX_FERTILIZER_LEVEL :
-      toolId === 'crows'      ? MAX_CROW_LEVEL :
-      MAX_TOOL_LEVEL;
-    if (tool.level >= maxLevel) return 'max_level';
-
-    const cost = TOOL_COSTS[toolId][tool.level];
-    if (playerState.gold < cost) return 'insufficient_gold';
-
-    playerState.gold -= cost;
-    tool.level += 1;
-    this.broadcast({ type: 'game_state', state: this.state });
-
-    return 'ok';
   }
 
   private getToolLevel(playerState: PlayerState, toolId: ToolId): number {
