@@ -41,8 +41,8 @@ Bun.serve<WsData>({
 
     close(ws) {
       sessions.delete(ws.data.playerId);
-      gameManager.handleDisconnect(ws.data.playerId);
-      gameManager.getGame().broadcastExcept(ws.data.playerId, { type: 'opponent_left' });
+      const game = gameManager.handleDisconnect(ws.data.playerId);
+      game?.broadcastExcept(ws.data.playerId, { type: 'opponent_left' });
       console.log(`[server] - ${ws.data.playerId} (${sessions.size} connected)`);
     },
   },
@@ -60,9 +60,9 @@ setInterval(() => {
   }
 }, HEARTBEAT_INTERVAL_MS);
 
-// Tick active thief attacks every second so gold drains in real time
+// Tick active sabotages every second so effects update in real time
 setInterval(() => {
-  gameManager.getGame().processSabotages();
+  for (const game of gameManager.getAllGames()) game.processSabotages();
 }, 1_000);
 
 console.log(`[server] Listening on ws://localhost:${PORT}`);

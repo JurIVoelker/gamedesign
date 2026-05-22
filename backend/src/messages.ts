@@ -17,31 +17,64 @@ export function handleMessage(session: Session, raw: string | Buffer): void {
   }
 
   switch (parsed.type) {
-    case 'hello': {
-      const { result, slot } = gameManager.handleHello(session);
+    case 'create_room': {
+      const { roomCode, slot } = gameManager.createRoom(session);
+      session.send({ type: 'room_created', roomCode });
+      session.send({ type: 'assigned', slot, playerId: session.playerId });
+      break;
+    }
 
-      if (result === 'full') {
-        session.send({ type: 'error', message: 'Game is full' });
+    case 'hello': {
+      const helloResult = gameManager.handleHello(session, parsed.roomCode);
+      const { result } = helloResult;
+
+      const errorMessages: Partial<Record<typeof result, string>> = {
+        no_room: 'No room code — create or join a room first',
+        not_found: 'Room not found',
+        full: 'Game is full',
+      };
+      if (result in errorMessages) {
+        session.send({ type: 'error', message: errorMessages[result]! });
         return;
       }
 
-      session.send({ type: 'assigned', slot: slot!, playerId: session.playerId });
+      // result is now 'assigned' | 'rejoined', slot and game are defined
+      const { slot, game } = helloResult as Required<typeof helloResult>;
+
+      session.send({ type: 'assigned', slot, playerId: session.playerId });
 
       if (result === 'rejoined') {
-        const st = gameManager.getGame().getState();
-        if (st) gameManager.getGame().broadcast({ type: 'game_state', state: st });
+        const st = game.getState();
+        if (st) game.broadcast({ type: 'game_state', state: st });
       }
 
-      if (gameManager.getGame().isFull() && result === 'assigned') {
-        gameManager.getGame().broadcast({ type: 'game_ready' });
-        gameManager.getGame().startGame();
-        console.log('[game] Both players connected — game started');
+      if (game.isFull() && result === 'assigned') {
+        game.broadcast({ type: 'game_ready' });
+        game.startGame();
+        console.log(`[game] Both players in room ${gameManager.getRoomCodeOf(session.playerId)} — game started`);
       }
       break;
     }
 
+    case 'play_again': {
+      const roomCode = gameManager.getRoomCodeOf(session.playerId);
+      if (!roomCode) return;
+      const game = gameManager.getGame(roomCode);
+      game?.votePlayAgain(session.playerId);
+      break;
+    }
+
     case 'player_action': {
-      const game = gameManager.getGame();
+      const roomCode = gameManager.getRoomCodeOf(session.playerId);
+      if (!roomCode) {
+        session.send({ type: 'error', message: 'Not in game' });
+        return;
+      }
+      const game = gameManager.getGame(roomCode);
+      if (!game) {
+        session.send({ type: 'error', message: 'Not in game' });
+        return;
+      }
       const slot = game.getSlotOf(session.playerId);
       if (!slot) {
         session.send({ type: 'error', message: 'Not in game' });

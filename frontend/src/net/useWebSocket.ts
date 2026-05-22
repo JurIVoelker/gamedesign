@@ -14,12 +14,16 @@ function getOrCreatePlayerId(): string {
   return id;
 }
 
+function getRoomCodeFromUrl(): string | null {
+  return new URLSearchParams(window.location.search).get("room");
+}
+
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
 
-  const { setStatus, setError, setSend, setSlot, setPlayerId, reset } =
+  const { setStatus, setError, setSend, setSlot, setPlayerId, setRoomCode, reset } =
     useConnectionStore.getState();
   const { setGame } = useGameStore.getState();
 
@@ -33,6 +37,10 @@ export function useWebSocket() {
   const handleMessage = useCallback(
     (msg: ServerMessage) => {
       switch (msg.type) {
+        case "room_created":
+          setRoomCode(msg.roomCode);
+          localStorage.setItem("roomCode", msg.roomCode);
+          break;
         case "assigned":
           setSlot(msg.slot);
           setPlayerId(msg.playerId);
@@ -46,7 +54,7 @@ export function useWebSocket() {
           break;
         case "game_state":
           setGame(msg.state);
-          if (msg.state.phase === "playing") setStatus("in_game");
+          if (msg.state.phase === "playing" || msg.state.phase === "ended") setStatus("in_game");
           break;
         case "error":
           setError(msg.message);
@@ -56,7 +64,7 @@ export function useWebSocket() {
           break;
       }
     },
-    [send, setGame, setSlot, setError, setStatus],
+    [send, setGame, setSlot, setError, setStatus, setPlayerId, setRoomCode],
   );
 
   const connect = useCallback(() => {
@@ -76,7 +84,23 @@ export function useWebSocket() {
       const playerId = getOrCreatePlayerId();
       setPlayerId(playerId);
       setError(null);
-      send({ type: "hello", playerId });
+
+      const urlRoom = getRoomCodeFromUrl();
+      const storedRoom = localStorage.getItem("roomCode");
+
+      if (urlRoom) {
+        // Joining via invite link — store and send hello
+        localStorage.setItem("roomCode", urlRoom);
+        setRoomCode(urlRoom);
+        send({ type: "hello", playerId, roomCode: urlRoom });
+      } else if (storedRoom) {
+        // Reconnecting to an existing room
+        setRoomCode(storedRoom);
+        send({ type: "hello", playerId, roomCode: storedRoom });
+      } else {
+        // No room — show the lobby so the user can create or join
+        setStatus("lobby");
+      }
     };
 
     ws.onmessage = (event) => {
@@ -97,7 +121,7 @@ export function useWebSocket() {
     ws.onerror = () => {
       setError("Connection error");
     };
-  }, [handleMessage, reset, setError, setStatus, setPlayerId, send]);
+  }, [handleMessage, reset, setError, setStatus, setPlayerId, setRoomCode, send]);
 
   useEffect(() => {
     mountedRef.current = true;

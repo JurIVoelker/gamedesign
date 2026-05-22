@@ -32,6 +32,10 @@ import {
 
 type Slot = 'p1' | 'p2';
 
+const MATCH_DURATION_MS = 8 * 60 * 1000;
+
+const ROOM_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
 const TOOL_COSTS: Record<ToolId, readonly number[]> = {
   sow: SOW_UPGRADE_COSTS,
   harvest: HARVEST_UPGRADE_COSTS,
@@ -163,12 +167,13 @@ export class Game {
   startGame(): void {
     const p1Id = this.slots.p1!.playerId;
     const p2Id = this.slots.p2!.playerId;
+    const startedAt = Date.now();
 
     this.state = {
       roomCode: this.id,
       phase: 'playing',
-      startedAt: Date.now(),
-      endsAt: null,
+      startedAt,
+      endsAt: startedAt + MATCH_DURATION_MS,
       players: {
         [p1Id]: createPlayerState(p1Id),
         [p2Id]: createPlayerState(p2Id),
@@ -176,7 +181,32 @@ export class Game {
       winnerId: null,
     };
 
+    this.scheduleTimer('match_end', startedAt + MATCH_DURATION_MS, () => this.endMatch());
     this.broadcast({ type: 'game_state', state: this.state });
+  }
+
+  private endMatch(): void {
+    if (!this.state || this.state.phase !== 'playing') return;
+    const [a, b] = Object.values(this.state.players);
+    this.state.phase = 'ended';
+    this.state.winnerId = a.gold > b.gold ? a.id : b.gold > a.gold ? b.id : null;
+    this.broadcast({ type: 'game_state', state: this.state });
+  }
+
+  private playAgainVotes: Set<string> = new Set();
+
+  votePlayAgain(playerId: string): void {
+    this.playAgainVotes.add(playerId);
+    if (this.playAgainVotes.size >= 2) {
+      this.playAgainVotes.clear();
+      this.resetAndRestart();
+    }
+  }
+
+  private resetAndRestart(): void {
+    for (const key of [...this.timers.keys()]) this.cancelTimer(key);
+    this.startGame();
+    this.broadcast({ type: 'game_ready' });
   }
 
   sowField(
@@ -710,38 +740,79 @@ export class Game {
 }
 
 export class GameManager {
-  // Single game for now — swap to Map<string, Game> later for multi-game support
-  private game: Game = new Game('global');
-  private knownSlots: Map<string, Slot> = new Map();
+  private games: Map<string, Game> = new Map();
+  private knownSlots: Map<string, { slot: Slot; roomCode: string }> = new Map();
 
-  handleHello(session: Session): { result: 'assigned' | 'rejoined' | 'full'; slot?: Slot } {
-    const existingSlot = this.knownSlots.get(session.playerId);
+  private generateRoomCode(): string {
+    for (;;) {
+      let code = '';
+      for (let i = 0; i < 6; i++) {
+        code += ROOM_CODE_CHARS[Math.floor(Math.random() * ROOM_CODE_CHARS.length)];
+      }
+      if (!this.games.has(code)) return code;
+    }
+  }
 
-    if (existingSlot) {
-      this.game.rejoin(session, existingSlot);
-      console.log(`[game] ${session.playerId} rejoined as ${existingSlot}`);
-      return { result: 'rejoined', slot: existingSlot };
+  createRoom(session: Session): { roomCode: string; slot: Slot } {
+    const roomCode = this.generateRoomCode();
+    const game = new Game(roomCode);
+    this.games.set(roomCode, game);
+    const slot = game.join(session)!;
+    this.knownSlots.set(session.playerId, { slot, roomCode });
+    console.log(`[game] ${session.playerId} created room ${roomCode} as ${slot}`);
+    return { roomCode, slot };
+  }
+
+  handleHello(
+    session: Session,
+    roomCode?: string,
+  ): { result: 'assigned' | 'rejoined' | 'full' | 'no_room' | 'not_found'; slot?: Slot; game?: Game } {
+    const existing = this.knownSlots.get(session.playerId);
+
+    if (existing) {
+      const game = this.games.get(existing.roomCode);
+      if (!game) return { result: 'not_found' };
+      game.rejoin(session, existing.slot);
+      console.log(`[game] ${session.playerId} rejoined room ${existing.roomCode} as ${existing.slot}`);
+      return { result: 'rejoined', slot: existing.slot, game };
     }
 
-    const slot = this.game.join(session);
+    if (!roomCode) return { result: 'no_room' };
+
+    const game = this.games.get(roomCode);
+    if (!game) return { result: 'not_found' };
+
+    const slot = game.join(session);
     if (!slot) {
-      console.log(`[game] ${session.playerId} tried to join but game is full`);
+      console.log(`[game] ${session.playerId} tried to join ${roomCode} but it's full`);
       return { result: 'full' };
     }
 
-    this.knownSlots.set(session.playerId, slot);
-    console.log(`[game] ${session.playerId} assigned as ${slot}`);
-    return { result: 'assigned', slot };
+    this.knownSlots.set(session.playerId, { slot, roomCode });
+    console.log(`[game] ${session.playerId} joined room ${roomCode} as ${slot}`);
+    return { result: 'assigned', slot, game };
   }
 
-  handleDisconnect(playerId: string): void {
-    this.game.leave(playerId);
-    // Keep knownSlots entry so the player can rejoin after reload
-    console.log(`[game] ${playerId} disconnected (slot reserved)`);
+  handleDisconnect(playerId: string): Game | undefined {
+    const existing = this.knownSlots.get(playerId);
+    if (!existing) return undefined;
+    const game = this.games.get(existing.roomCode);
+    game?.leave(playerId);
+    // Keep knownSlots so the player can rejoin after reload
+    console.log(`[game] ${playerId} disconnected from room ${existing.roomCode} (slot reserved)`);
+    return game;
   }
 
-  getGame(): Game {
-    return this.game;
+  getGame(roomCode: string): Game | undefined {
+    return this.games.get(roomCode);
+  }
+
+  getRoomCodeOf(playerId: string): string | undefined {
+    return this.knownSlots.get(playerId)?.roomCode;
+  }
+
+  getAllGames(): IterableIterator<Game> {
+    return this.games.values();
   }
 }
 
