@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useConnectionStore } from "../state/connectionStore";
 
 export function Lobby() {
-  const { status, slot, roomCode, error, send, playerId } = useConnectionStore();
+  const { status, slot, roomCode, error, send, playerId, disconnect } = useConnectionStore();
   const [joinCode, setJoinCode] = useState("");
   const [copied, setCopied] = useState(false);
 
@@ -57,9 +57,19 @@ export function Lobby() {
         </h1>
 
         {(status === "disconnected" || status === "connecting") && (
-          <p className="text-center text-stone-400 text-sm animate-pulse">
-            Verbinde…
-          </p>
+          <>
+            <p className="text-center text-stone-400 text-sm animate-pulse">
+              Verbinde…
+            </p>
+            {roomCode && (
+              <button
+                onClick={() => disconnect?.()}
+                className="bg-stone-700 hover:bg-stone-600 text-stone-300 text-sm font-semibold py-2 px-4 rounded-lg transition-colors"
+              >
+                Abbrechen
+              </button>
+            )}
+          </>
         )}
 
         {status === "lobby" && (
@@ -126,7 +136,17 @@ export function Lobby() {
           </div>
         )}
 
-        {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+        {error && (
+          <div className="flex flex-col items-center gap-2">
+            <p className="text-red-400 text-sm text-center">{error}</p>
+            <button
+              onClick={() => disconnect?.()}
+              className="bg-stone-700 hover:bg-stone-600 text-stone-300 text-sm font-semibold py-2 px-4 rounded-lg transition-colors"
+            >
+              Zurück zum Menü
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -11,6 +11,7 @@ export interface CrowAttack {
 export interface ThiefAttack {
   phase: 'waiting' | 'stealing';
   deployedAt: number;
+  minEntryAt: number;        // earliest the thief can enter (deployedAt + minWaitMs)
   entryAt: number;           // server-chosen random entry time; frontend uses to sync house animation
   stealStartedAt: number | null;
   lastProcessedAt: number | null; // tracks drain progress to avoid double-counting

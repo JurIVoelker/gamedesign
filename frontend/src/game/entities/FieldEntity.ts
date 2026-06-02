@@ -3,6 +3,7 @@ import type { CropStage, Field } from "@gamedesign/shared";
 import { Entity } from "./Entity";
 import { useTargetingStore } from "../../state/targetingStore";
 import { CrowAnimator } from "./CrowAnimator";
+import { SeededRandom } from "../SeededRandom";
 
 export const FIELD_W = 120;
 export const FIELD_H = 64;
@@ -145,21 +146,44 @@ export class FieldEntity extends Entity {
     this.farmSprite!.tint = hasCrow ? 0xaa7755 : 0xffffff;
 
     // Plants (soil rows are provided by the farm.png sprite)
+    const isHarvesting = stage === "harvesting";
+    const plantCount = 5;
+    const plantW = 3;
+    const plantSpacing = SOIL_W / (plantCount + 1);
+    const plantColor =
+      (isReady || isHarvesting) && isOwn && !hasCrow ? 0xf5d020 : 0x4caf50;
+    // Deterministic per-plant vanish thresholds seeded by field id
+    const vanishRng = isHarvesting ? new SeededRandom(this.id) : null;
+
     for (let row = 0; row < SOIL_ROWS; row++) {
       const rowY = SOIL_Y_START + row * SOIL_ROW_STRIDE;
 
-      const plantFill = showPlants ? effectiveProgress : 0;
-      const plantH = Math.round(plantFill * MAX_PLANT_H);
-      if (plantH > 0) {
-        const plantCount = 5;
-        const spacing = SOIL_W / (plantCount + 1);
-        const plantW = 3;
-        const color = isReady && isOwn && !hasCrow ? 0xf5d020 : 0x4caf50;
+      if (isHarvesting && showPlants) {
+        // Crops stay at full height; each vanishes when stageProgress exceeds its threshold
+        const plantH = MAX_PLANT_H;
+        const py = rowY - plantH + 1;
         for (let p = 0; p < plantCount; p++) {
-          const px =
-            SOIL_X + Math.round(spacing * (p + 1)) - Math.floor(plantW / 2);
-          const py = rowY - plantH + 1;
-          base.rect(px, py, plantW, plantH).fill({ color });
+          const vanishAt = vanishRng!.next();
+          if (stageProgress < vanishAt) {
+            const px =
+              SOIL_X +
+              Math.round(plantSpacing * (p + 1)) -
+              Math.floor(plantW / 2);
+            base.rect(px, py, plantW, plantH).fill({ color: plantColor });
+          }
+        }
+      } else {
+        const plantFill = showPlants ? effectiveProgress : 0;
+        const plantH = Math.round(plantFill * MAX_PLANT_H);
+        if (plantH > 0) {
+          for (let p = 0; p < plantCount; p++) {
+            const px =
+              SOIL_X +
+              Math.round(plantSpacing * (p + 1)) -
+              Math.floor(plantW / 2);
+            const py = rowY - plantH + 1;
+            base.rect(px, py, plantW, plantH).fill({ color: plantColor });
+          }
         }
       }
     }

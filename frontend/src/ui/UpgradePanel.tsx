@@ -3,6 +3,11 @@ import { useEffect, useState } from "react";
 import { useConnectionStore } from "../state/connectionStore";
 import { useGameStore } from "../state/gameStore";
 import { useTargetingStore } from "../state/targetingStore";
+import {
+  CROW_LEVEL_CONFIG,
+  THIEF_LEVELS,
+  WEATHER_LEVELS,
+} from "../../../backend/src/constants";
 
 function useNow(intervalMs = 1_000): number {
   const [now, setNow] = useState(() => Date.now());
@@ -13,11 +18,13 @@ function useNow(intervalMs = 1_000): number {
   return now;
 }
 
-// Sow / Harvest tool constants (mirrored from backend — shared/ is types-only)
+// Sow / Harvest constants (mirrored from backend — shared/ is types-only)
 const UPGRADE_SPEED_MULTIPLIERS = [1.0, 0.7, 0.4, 0.1];
 const MAX_TOOL_LEVEL = 3;
-const SOW_UPGRADE_COSTS = [50, 150, 400];
-const HARVEST_UPGRADE_COSTS = [50, 150, 400];
+const SOW_UPGRADE_COSTS = [50, 150, 200];
+const SOW_GROW_MULTIPLIERS = [1.0, 0.92, 0.84, 0.76];
+const HARVEST_UPGRADE_COSTS = [50, 150, 200];
+const HARVEST_GOLD_MULTIPLIERS = [1.0, 1.1, 1.2, 1.3];
 const BASE_SOW_MS = 5_000;
 const BASE_HARVEST_MS = 5_000;
 
@@ -27,14 +34,15 @@ const FERTILIZER_GOLD_MULTIPLIERS = [1.0, 1.12, 1.25, 1.4, 1.58, 1.8];
 const MAX_FERTILIZER_LEVEL = 5;
 const FERTILIZER_UPGRADE_COSTS = [100, 250, 500, 900, 1500];
 const BASE_GROW_MS = 60_000;
-const BASE_GOLD = 25;
+const BASE_GOLD = 40;
 
 // Crows constants
 const MAX_CROW_LEVEL = 3;
 const CROW_UPGRADE_COSTS = [30, 80, 200];
-const CROW_SEND_COST = 15;
+const CROW_SEND_COST = 10;
 const CROW_COOLDOWN_MS = 45_000;
-const CROW_EAT_DURATIONS_MS = [12_000, 12_000, 8_000]; // time to eat a full field per level
+const CROW_EAT_DURATIONS_MS = [12_000, 12_000, 8_000];
+const CROW_FIELD_COUNTS = [1, 2, 2];
 
 // Weather constants
 const MAX_WEATHER_LEVEL = 3;
@@ -42,8 +50,8 @@ const WEATHER_UPGRADE_COSTS = [30, 80, 200];
 const WEATHER_SEND_COSTS = [15, 28, 48];
 const WEATHER_COOLDOWN_MS = 70_000;
 const WEATHER_DURATION_MS = 40_000;
-const WEATHER_SLOW_FACTORS = [0.30, 0.50, 0.50];
-const WEATHER_ACTION_SLOW_FACTORS = [0.55, 0.70, 0.70];
+const WEATHER_SLOW_FACTORS = [0.3, 0.5, 0.5];
+const WEATHER_ACTION_SLOW_FACTORS = [0.55, 0.7, 0.7];
 
 // Thief constants
 const MAX_THIEF_LEVEL = 3;
@@ -52,9 +60,13 @@ const THIEF_SEND_COSTS = [20, 35, 55];
 const THIEF_COOLDOWN_MS = 60_000;
 const THIEF_WAIT_MAX_MS = [20_000, 25_000, 30_000];
 const THIEF_STEAL_DURATION_MS = [15_000, 20_000, 25_000];
-const THIEF_STEAL_PER_SEC = [2, 3, 4.5];
-const THIEF_MAX_STOLEN = [30, 60, 112];
-const THIEF_DISGUISE_LABELS = ["None", "Partial", "Full"];
+const THIEF_STEAL_PER_SEC = [
+  THIEF_LEVELS[0].stealPerSecond,
+  THIEF_LEVELS[1].stealPerSecond,
+  THIEF_LEVELS[2].stealPerSecond,
+];
+const THIEF_MAX_STOLEN = [45, 90, 150];
+const THIEF_DISGUISE_LABELS = ["Keine", "Teilweise", "Vollständig"];
 
 function dispatchUpgrade(toolId: ToolId): void {
   useConnectionStore.getState().send?.({
@@ -62,9 +74,6 @@ function dispatchUpgrade(toolId: ToolId): void {
     action: { kind: "UpgradeTool", toolId },
   });
 }
-
-// field count per crow level (index = level - 1)
-const CROW_FIELD_COUNTS = [1, 2, 2];
 
 function formatSeconds(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
@@ -81,41 +90,76 @@ function HoverCardWrapper({ children }: { children: React.ReactNode }) {
   );
 }
 
-function SpeedHoverCard({
-  toolId,
-  level,
-}: {
-  toolId: "sow" | "harvest";
-  level: number;
-}) {
-  const baseMs = toolId === "sow" ? BASE_SOW_MS : BASE_HARVEST_MS;
-  const currentMs = baseMs * UPGRADE_SPEED_MULTIPLIERS[level];
+function SowHoverCard({ level }: { level: number }) {
   const isMaxed = level >= MAX_TOOL_LEVEL;
+  const sowMs = BASE_SOW_MS * UPGRADE_SPEED_MULTIPLIERS[level];
+  const growReductionPct = Math.round((1 - SOW_GROW_MULTIPLIERS[level]) * 100);
+  const growMs = BASE_GROW_MS * SOW_GROW_MULTIPLIERS[level];
 
   return (
     <HoverCardWrapper>
       <div className="text-stone-200">
-        Now: <span className="text-amber-300">{formatSeconds(currentMs)}</span>
+        Säen: <span className="text-amber-300">{formatSeconds(sowMs)}</span>
+      </div>
+      <div className="text-stone-200 mt-0.5">
+        Wachstum:{" "}
+        <span className="text-amber-300">
+          {growReductionPct > 0 ? `-${growReductionPct}%` : "–"} (
+          {formatSeconds(growMs)})
+        </span>
       </div>
       {!isMaxed && (
         <div className="text-stone-400 mt-1">
           {"→ "}
           <span className="text-green-400">
-            {formatSeconds(baseMs * UPGRADE_SPEED_MULTIPLIERS[level + 1])}
+            {formatSeconds(BASE_SOW_MS * UPGRADE_SPEED_MULTIPLIERS[level + 1])}
           </span>
           <span className="text-stone-500 ml-1">
-            (
-            {Math.round(
-              (1 -
-                UPGRADE_SPEED_MULTIPLIERS[level + 1] /
-                  UPGRADE_SPEED_MULTIPLIERS[level]) *
-                100,
-            )}
-            % faster)
+            + {Math.round((1 - SOW_GROW_MULTIPLIERS[level + 1]) * 100)}%
+            schnelleres Wachstum
           </span>
         </div>
       )}
-      {isMaxed && <div className="text-amber-300 mt-1">Max level</div>}
+      {isMaxed && <div className="text-amber-300 mt-1">Max. Stufe</div>}
+    </HoverCardWrapper>
+  );
+}
+
+function HarvestHoverCard({ level }: { level: number }) {
+  const isMaxed = level >= MAX_TOOL_LEVEL;
+  const harvestMs = BASE_HARVEST_MS * UPGRADE_SPEED_MULTIPLIERS[level];
+  const goldBonusPct = Math.round((HARVEST_GOLD_MULTIPLIERS[level] - 1) * 100);
+  const goldPerHarvest = Math.round(
+    BASE_GOLD * HARVEST_GOLD_MULTIPLIERS[level],
+  );
+
+  return (
+    <HoverCardWrapper>
+      <div className="text-stone-200">
+        Ernten:{" "}
+        <span className="text-amber-300">{formatSeconds(harvestMs)}</span>
+      </div>
+      <div className="text-stone-200 mt-0.5">
+        Gold-Bonus:{" "}
+        <span className="text-amber-300">
+          {goldBonusPct > 0 ? `+${goldBonusPct}%` : "–"} ({goldPerHarvest}g)
+        </span>
+      </div>
+      {!isMaxed && (
+        <div className="text-stone-400 mt-1">
+          {"→ "}
+          <span className="text-green-400">
+            {formatSeconds(
+              BASE_HARVEST_MS * UPGRADE_SPEED_MULTIPLIERS[level + 1],
+            )}
+          </span>
+          <span className="text-stone-500 ml-1">
+            · +{Math.round((HARVEST_GOLD_MULTIPLIERS[level + 1] - 1) * 100)}%
+            Gold
+          </span>
+        </div>
+      )}
+      {isMaxed && <div className="text-amber-300 mt-1">Max. Stufe</div>}
     </HoverCardWrapper>
   );
 }
@@ -130,7 +174,7 @@ function FertilizerHoverCard({ level }: { level: number }) {
   return (
     <HoverCardWrapper>
       <div className="text-stone-200">
-        Grow:{" "}
+        Wachstum:{" "}
         <span className="text-amber-300">{formatSeconds(currentGrowMs)}</span>
         {!isMaxed && (
           <>
@@ -154,7 +198,10 @@ function FertilizerHoverCard({ level }: { level: number }) {
           </>
         )}
       </div>
-      {isMaxed && <div className="text-amber-300 mt-1">Max level</div>}
+      <div className="text-stone-500 mt-1 text-[10px]">
+        Stapelt mit Säen &amp; Ernte-Upgrades
+      </div>
+      {isMaxed && <div className="text-amber-300 mt-1">Max. Stufe</div>}
     </HoverCardWrapper>
   );
 }
@@ -162,37 +209,57 @@ function FertilizerHoverCard({ level }: { level: number }) {
 function CrowsHoverCard({ level }: { level: number }) {
   const isMaxed = level >= MAX_CROW_LEVEL;
   const fieldCount = level > 0 ? CROW_FIELD_COUNTS[level - 1] : 0;
-  const eatMs = level > 0 ? CROW_EAT_DURATIONS_MS[level - 1] : CROW_EAT_DURATIONS_MS[0];
+  const eatMs =
+    level > 0 ? CROW_EAT_DURATIONS_MS[level - 1] : CROW_EAT_DURATIONS_MS[0];
 
   return (
     <HoverCardWrapper>
       {level === 0 ? (
-        <div className="text-stone-400">Unlock to send crows to opponent fields</div>
+        <div className="text-stone-400">
+          Freischalten um Krähen auf Gegnerfelder zu senden
+        </div>
       ) : (
         <>
           <div className="text-stone-200">
-            Targets: <span className="text-amber-300">{fieldCount} field{fieldCount > 1 ? "s" : ""}</span>
-            {level === MAX_CROW_LEVEL && <span className="text-stone-400 ml-1">(ripest)</span>}
+            Ziele:{" "}
+            <span className="text-amber-300">
+              {fieldCount} Feld{fieldCount > 1 ? "er" : ""}
+            </span>
+            {level === MAX_CROW_LEVEL && (
+              <span className="text-stone-400 ml-1">(reifste zuerst)</span>
+            )}
           </div>
           <div className="text-stone-200 mt-0.5">
-            Eats full field in:{" "}
+            Frisst volles Feld in:{" "}
             <span className="text-amber-300">{formatSeconds(eatMs)}</span>
           </div>
+          <div className="text-stone-400 mt-0.5 text-[10px]">
+            Frisch gesäte Felder (~0%) sofort zerstört
+          </div>
           <div className="text-stone-200 mt-0.5">
-            Send cost: <span className="text-amber-300">{CROW_SEND_COST}g</span>
-            <span className="text-stone-500 ml-1">· cooldown {formatSeconds(CROW_COOLDOWN_MS)}</span>
+            Sendekosten:{" "}
+            <span className="text-amber-300">{CROW_SEND_COST}g</span>
+            <span className="text-stone-500 ml-1">
+              · Abklingzeit {formatSeconds(CROW_COOLDOWN_MS)}
+            </span>
           </div>
         </>
       )}
       {!isMaxed && level > 0 && (
         <div className="text-stone-400 mt-1">
-          Lv{level + 1}: eats in{" "}
-          <span className="text-green-400">{formatSeconds(CROW_EAT_DURATIONS_MS[level])}</span>
-          {level + 1 >= 2 && <span className="text-stone-500 ml-1">· 2 fields</span>}
-          {level + 1 === MAX_CROW_LEVEL && <span className="text-stone-500 ml-1">· targets ripest</span>}
+          Lv{level + 1}:{" "}
+          <span className="text-green-400">
+            frisst in {formatSeconds(CROW_EAT_DURATIONS_MS[level])}
+          </span>
+          {level + 1 >= 2 && (
+            <span className="text-stone-500 ml-1">· 2 Felder</span>
+          )}
+          {level + 1 === MAX_CROW_LEVEL && (
+            <span className="text-stone-500 ml-1">· zielt auf reifste</span>
+          )}
         </div>
       )}
-      {isMaxed && <div className="text-amber-300 mt-1">Max level</div>}
+      {isMaxed && <div className="text-amber-300 mt-1">Max. Stufe</div>}
     </HoverCardWrapper>
   );
 }
@@ -223,8 +290,10 @@ function UpgradeCard({
     <div className="relative group">
       {toolId === "fertilizer" ? (
         <FertilizerHoverCard level={level} />
-      ) : toolId === "sow" || toolId === "harvest" ? (
-        <SpeedHoverCard toolId={toolId} level={level} />
+      ) : toolId === "sow" ? (
+        <SowHoverCard level={level} />
+      ) : toolId === "harvest" ? (
+        <HarvestHoverCard level={level} />
       ) : null}
       <div className="bg-stone-900/80 border border-stone-600 rounded-lg px-4 py-2 text-stone-300 text-xs font-mono flex flex-col items-center gap-2 min-w-35">
         <div className="flex items-center justify-between w-full">
@@ -251,7 +320,7 @@ function UpgradeCard({
               : "border-amber-400 text-amber-300 hover:bg-amber-300/10 cursor-pointer"
           }`}
         >
-          {isMaxed ? "MAXED" : `Upgrade  ${nextCost}g`}
+          {isMaxed ? "MAXIMAL" : `Aufwerten  ${nextCost}g`}
         </button>
       </div>
     </div>
@@ -302,7 +371,7 @@ function CrowsCard({
       <CrowsHoverCard level={level} />
       <div className="bg-stone-900/80 border border-stone-600 rounded-lg px-4 py-2 text-stone-300 text-xs font-mono flex flex-col items-center gap-2 min-w-35">
         <div className="flex items-center justify-between w-full">
-          <span className="font-bold tracking-widest">CROWS</span>
+          <span className="font-bold tracking-widest">KRÄHEN</span>
           <span className="flex gap-1">
             {Array.from({ length: MAX_CROW_LEVEL }, (_, i) => (
               <span
@@ -325,7 +394,11 @@ function CrowsCard({
               : "border-amber-400 text-amber-300 hover:bg-amber-300/10 cursor-pointer"
           }`}
         >
-          {isMaxed ? "MAXED" : level === 0 ? `Unlock  ${nextCost}g` : `Upgrade  ${nextCost}g`}
+          {isMaxed
+            ? "MAXIMAL"
+            : level === 0
+              ? `Freischalten  ${nextCost}g`
+              : `Aufwerten  ${nextCost}g`}
         </button>
 
         {level > 0 && (
@@ -342,10 +415,10 @@ function CrowsCard({
             }`}
           >
             {isTargeting
-              ? `Pick field  ${remaining}`
+              ? `Feld wählen  ${remaining}`
               : onCooldown
-                ? `Send  ${cooldownSec}s`
-                : `Send  ${CROW_SEND_COST}g`}
+                ? `Abkling.  ${cooldownSec}s`
+                : `Senden  ${CROW_SEND_COST}g`}
           </button>
         )}
       </div>
@@ -360,32 +433,54 @@ function ThiefHoverCard({ level }: { level: number }) {
   return (
     <HoverCardWrapper>
       {level === 0 ? (
-        <div className="text-stone-400">Unlock to send a thief to steal opponent gold</div>
+        <div className="text-stone-400">
+          Freischalten um einen Dieb zu schicken der Gold stiehlt
+        </div>
       ) : (
         <>
           <div className="text-stone-200">
-            Steals: <span className="text-amber-300">{THIEF_STEAL_PER_SEC[lvIdx]}g/s</span>
-            <span className="text-stone-500 ml-1">· max {THIEF_MAX_STOLEN[lvIdx]}g</span>
+            Stiehlt:{" "}
+            <span className="text-amber-300">
+              {THIEF_STEAL_PER_SEC[lvIdx]}g/s
+            </span>
+            <span className="text-stone-500 ml-1">
+              · max. {THIEF_MAX_STOLEN[lvIdx]}g
+            </span>
           </div>
           <div className="text-stone-200 mt-0.5">
-            Window: <span className="text-amber-300">{formatSeconds(THIEF_STEAL_DURATION_MS[lvIdx])}</span>
-            <span className="text-stone-500 ml-1">· entry ≤{formatSeconds(THIEF_WAIT_MAX_MS[lvIdx])}</span>
+            Stehldauer:{" "}
+            <span className="text-amber-300">
+              {formatSeconds(THIEF_STEAL_DURATION_MS[lvIdx])}
+            </span>
+            <span className="text-stone-500 ml-1">
+              · Eintritt ≤{formatSeconds(THIEF_WAIT_MAX_MS[lvIdx])}
+            </span>
           </div>
           <div className="text-stone-200 mt-0.5">
-            Disguise: <span className="text-amber-300">{THIEF_DISGUISE_LABELS[lvIdx]}</span>
+            Tarnung:{" "}
+            <span className="text-amber-300">
+              {THIEF_DISGUISE_LABELS[lvIdx]}
+            </span>
           </div>
           <div className="text-stone-200 mt-0.5">
-            Send cost: <span className="text-amber-300">{THIEF_SEND_COSTS[lvIdx]}g</span>
-            <span className="text-stone-500 ml-1">· cooldown {formatSeconds(THIEF_COOLDOWN_MS)}</span>
+            Sendekosten:{" "}
+            <span className="text-amber-300">{THIEF_SEND_COSTS[lvIdx]}g</span>
+            <span className="text-stone-500 ml-1">
+              · Abklingzeit {formatSeconds(THIEF_COOLDOWN_MS)}
+            </span>
           </div>
         </>
       )}
       {!isMaxed && level > 0 && (
         <div className="text-stone-400 mt-1">
-          Lv{level + 1}: {THIEF_STEAL_PER_SEC[level]}g/s · disguise {THIEF_DISGUISE_LABELS[level]}
+          Lv{level + 1}:{" "}
+          <span className="text-green-400">
+            {THIEF_STEAL_PER_SEC[level]}g/s
+          </span>
+          {" · "}Tarnung {THIEF_DISGUISE_LABELS[level]}
         </div>
       )}
-      {isMaxed && <div className="text-amber-300 mt-1">Max level</div>}
+      {isMaxed && <div className="text-amber-300 mt-1">Max. Stufe</div>}
     </HoverCardWrapper>
   );
 }
@@ -410,7 +505,8 @@ function ThiefCard({
   const onCooldown = cooldownUntil > now;
   const cooldownSec = onCooldown ? Math.ceil((cooldownUntil - now) / 1000) : 0;
   const sendCost = level > 0 ? THIEF_SEND_COSTS[level - 1] : 0;
-  const canSend = level > 0 && !onCooldown && gold >= sendCost && !opponentHasThief;
+  const canSend =
+    level > 0 && !onCooldown && gold >= sendCost && !opponentHasThief;
 
   const handleSend = () => {
     useConnectionStore.getState().send?.({
@@ -424,7 +520,7 @@ function ThiefCard({
       <ThiefHoverCard level={level} />
       <div className="bg-stone-900/80 border border-stone-600 rounded-lg px-4 py-2 text-stone-300 text-xs font-mono flex flex-col items-center gap-2 min-w-35">
         <div className="flex items-center justify-between w-full">
-          <span className="font-bold tracking-widest">THIEF</span>
+          <span className="font-bold tracking-widest">DIEB</span>
           <span className="flex gap-1">
             {Array.from({ length: MAX_THIEF_LEVEL }, (_, i) => (
               <span
@@ -447,7 +543,11 @@ function ThiefCard({
               : "border-amber-400 text-amber-300 hover:bg-amber-300/10 cursor-pointer"
           }`}
         >
-          {isMaxed ? "MAXED" : level === 0 ? `Unlock  ${nextCost}g` : `Upgrade  ${nextCost}g`}
+          {isMaxed
+            ? "MAXIMAL"
+            : level === 0
+              ? `Freischalten  ${nextCost}g`
+              : `Aufwerten  ${nextCost}g`}
         </button>
 
         {level > 0 && (
@@ -462,10 +562,10 @@ function ThiefCard({
             }`}
           >
             {opponentHasThief
-              ? "Busy"
+              ? "Besetzt"
               : onCooldown
-                ? `Send  ${cooldownSec}s`
-                : `Send  ${sendCost}g`}
+                ? `Abkling.  ${cooldownSec}s`
+                : `Senden  ${sendCost}g`}
           </button>
         )}
       </div>
@@ -480,32 +580,55 @@ function WeatherHoverCard({ level }: { level: number }) {
   return (
     <HoverCardWrapper>
       {level === 0 ? (
-        <div className="text-stone-400">Unlock to send storms that slow all opponent crops</div>
+        <div className="text-stone-400">
+          Freischalten um Stürme zu senden die Gegnerernten verlangsamen
+        </div>
       ) : (
         <>
           <div className="text-stone-200">
-            Slows growth: <span className="text-amber-300">{Math.round(WEATHER_SLOW_FACTORS[lvIdx] * 100)}%</span>
-            {level === MAX_WEATHER_LEVEL && <span className="text-stone-400 ml-1">+ lightning</span>}
+            Verlangsamt Wachstum:{" "}
+            <span className="text-amber-300">
+              -{Math.round(WEATHER_SLOW_FACTORS[lvIdx] * 100)}%
+            </span>
+            {level === MAX_WEATHER_LEVEL && (
+              <span className="text-stone-400 ml-1">+ Blitz</span>
+            )}
           </div>
           <div className="text-stone-200 mt-0.5">
-            Slows sow/harvest: <span className="text-amber-300">{Math.round(WEATHER_ACTION_SLOW_FACTORS[lvIdx] * 100)}%</span>
+            Verlangsamt Säen/Ernten:{" "}
+            <span className="text-amber-300">
+              -{Math.round(WEATHER_ACTION_SLOW_FACTORS[lvIdx] * 100)}%
+            </span>
           </div>
           <div className="text-stone-200 mt-0.5">
-            Duration: <span className="text-amber-300">{formatSeconds(WEATHER_DURATION_MS)}</span>
+            Dauer:{" "}
+            <span className="text-amber-300">
+              {formatSeconds(WEATHER_DURATION_MS)}
+            </span>
           </div>
           <div className="text-stone-200 mt-0.5">
-            Send cost: <span className="text-amber-300">{WEATHER_SEND_COSTS[lvIdx]}g</span>
-            <span className="text-stone-500 ml-1">· cooldown {formatSeconds(WEATHER_COOLDOWN_MS)}</span>
+            Sendekosten:{" "}
+            <span className="text-amber-300">{WEATHER_SEND_COSTS[lvIdx]}g</span>
+            <span className="text-stone-500 ml-1">
+              · Abklingzeit {formatSeconds(WEATHER_COOLDOWN_MS)}
+            </span>
           </div>
         </>
       )}
       {!isMaxed && level > 0 && (
         <div className="text-stone-400 mt-1">
-          Lv{level + 1}: {Math.round(WEATHER_SLOW_FACTORS[level] * 100)}% grow · {Math.round(WEATHER_ACTION_SLOW_FACTORS[level] * 100)}% sow/harvest
-          {level + 1 === MAX_WEATHER_LEVEL && <span className="ml-1">· lightning</span>}
+          Lv{level + 1}:{" "}
+          <span className="text-green-400">
+            -{Math.round(WEATHER_SLOW_FACTORS[level] * 100)}% Wachstum
+          </span>
+          {" · "}-{Math.round(WEATHER_ACTION_SLOW_FACTORS[level] * 100)}%
+          Aktionen
+          {level + 1 === MAX_WEATHER_LEVEL && (
+            <span className="ml-1">· Blitz</span>
+          )}
         </div>
       )}
-      {isMaxed && <div className="text-amber-300 mt-1">Max level</div>}
+      {isMaxed && <div className="text-amber-300 mt-1">Max. Stufe</div>}
     </HoverCardWrapper>
   );
 }
@@ -530,7 +653,8 @@ function WeatherCard({
   const onCooldown = cooldownUntil > now;
   const cooldownSec = onCooldown ? Math.ceil((cooldownUntil - now) / 1000) : 0;
   const sendCost = level > 0 ? WEATHER_SEND_COSTS[level - 1] : 0;
-  const canSend = level > 0 && !onCooldown && gold >= sendCost && !opponentHasWeather;
+  const canSend =
+    level > 0 && !onCooldown && gold >= sendCost && !opponentHasWeather;
 
   const handleSend = () => {
     useConnectionStore.getState().send?.({
@@ -544,7 +668,7 @@ function WeatherCard({
       <WeatherHoverCard level={level} />
       <div className="bg-stone-900/80 border border-stone-600 rounded-lg px-4 py-2 text-stone-300 text-xs font-mono flex flex-col items-center gap-2 min-w-35">
         <div className="flex items-center justify-between w-full">
-          <span className="font-bold tracking-widest">WEATHER</span>
+          <span className="font-bold tracking-widest">STURM</span>
           <span className="flex gap-1">
             {Array.from({ length: MAX_WEATHER_LEVEL }, (_, i) => (
               <span
@@ -567,7 +691,11 @@ function WeatherCard({
               : "border-amber-400 text-amber-300 hover:bg-amber-300/10 cursor-pointer"
           }`}
         >
-          {isMaxed ? "MAXED" : level === 0 ? `Unlock  ${nextCost}g` : `Upgrade  ${nextCost}g`}
+          {isMaxed
+            ? "MAXIMAL"
+            : level === 0
+              ? `Freischalten  ${nextCost}g`
+              : `Aufwerten  ${nextCost}g`}
         </button>
 
         {level > 0 && (
@@ -582,10 +710,10 @@ function WeatherCard({
             }`}
           >
             {opponentHasWeather
-              ? "Active"
+              ? "Aktiv"
               : onCooldown
-                ? `Send  ${cooldownSec}s`
-                : `Send  ${sendCost}g`}
+                ? `Abkling.  ${cooldownSec}s`
+                : `Senden  ${sendCost}g`}
           </button>
         )}
       </div>
@@ -623,7 +751,7 @@ export function UpgradePanel() {
       <div className="flex gap-3 pointer-events-auto">
         <UpgradeCard
           toolId="sow"
-          label="SOW"
+          label="SÄEN"
           level={sowLevel}
           gold={gold}
           costs={SOW_UPGRADE_COSTS}
@@ -631,7 +759,7 @@ export function UpgradePanel() {
         />
         <UpgradeCard
           toolId="harvest"
-          label="HARVEST"
+          label="ERNTEN"
           level={harvestLevel}
           gold={gold}
           costs={HARVEST_UPGRADE_COSTS}
@@ -639,7 +767,7 @@ export function UpgradePanel() {
         />
         <UpgradeCard
           toolId="fertilizer"
-          label="FERTILIZER"
+          label="DÜNGER"
           level={fertilizerLevel}
           gold={gold}
           costs={FERTILIZER_UPGRADE_COSTS}

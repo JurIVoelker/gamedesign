@@ -6,10 +6,13 @@ import {
   BASE_GROW_MS,
   GROW_VARIANCE,
   GOLD_PER_HARVEST,
+  STARTING_GOLD,
   UPGRADE_SPEED_MULTIPLIERS,
   MAX_TOOL_LEVEL,
   SOW_UPGRADE_COSTS,
+  SOW_GROW_MULTIPLIERS,
   HARVEST_UPGRADE_COSTS,
+  HARVEST_GOLD_MULTIPLIERS,
   FERTILIZER_GROW_MULTIPLIERS,
   FERTILIZER_GOLD_MULTIPLIERS,
   MAX_FERTILIZER_LEVEL,
@@ -70,7 +73,7 @@ function createField(index: number): Field {
 function createPlayerState(playerId: string): PlayerState {
   return {
     id: playerId,
-    gold: 500,
+    gold: STARTING_GOLD,
     score: 0,
     fields: [0, 1, 2, 3].map(createField),
     tools: [
@@ -401,6 +404,7 @@ export class Game {
     const attack: ThiefAttack = {
       phase: 'waiting',
       deployedAt: now,
+      minEntryAt: now + cfg.minWaitMs,
       entryAt,
       stealStartedAt: null,
       lastProcessedAt: null,
@@ -507,8 +511,10 @@ export class Game {
       const attack = playerState.thiefAttack;
       if (!attack) continue;
 
-      // Transition waiting → stealing
-      if (attack.phase === 'waiting' && now >= attack.entryAt) {
+      // Transition waiting → stealing: either the full random wait elapsed, or the
+      // minimum wait passed and there is at least one villager inside (<4 outside)
+      const earlyEntry = now >= attack.minEntryAt && playerState.villagersOutside < 4;
+      if (attack.phase === 'waiting' && (now >= attack.entryAt || earlyEntry)) {
         attack.phase = 'stealing';
         attack.stealStartedAt = attack.entryAt;
         attack.lastProcessedAt = attack.entryAt;
@@ -704,7 +710,8 @@ export class Game {
     const playerState = this.state.players[playerId];
     if (!playerState) return;
     const fertLevel = this.getToolLevel(playerState, 'fertilizer');
-    let growDuration = rollGrowDuration(FERTILIZER_GROW_MULTIPLIERS[fertLevel]);
+    const sowLevel = this.getToolLevel(playerState, 'sow');
+    let growDuration = rollGrowDuration(FERTILIZER_GROW_MULTIPLIERS[fertLevel] * SOW_GROW_MULTIPLIERS[sowLevel]);
 
     if (playerState.weatherEffect)
       growDuration += weatherExtra(growDuration, playerState.weatherEffect.slowFactor);
@@ -737,7 +744,8 @@ export class Game {
     if (!playerState || !field || field.stage !== 'harvesting') return;
 
     const fertLevel = this.getToolLevel(playerState, 'fertilizer');
-    playerState.gold += Math.round(GOLD_PER_HARVEST * FERTILIZER_GOLD_MULTIPLIERS[fertLevel]);
+    const harvestLevel = this.getToolLevel(playerState, 'harvest');
+    playerState.gold += Math.round(GOLD_PER_HARVEST * FERTILIZER_GOLD_MULTIPLIERS[fertLevel] * HARVEST_GOLD_MULTIPLIERS[harvestLevel]);
     this.destroyField(field);
     this.broadcast({ type: 'game_state', state: this.state });
   }
