@@ -22,10 +22,31 @@ export function Lobby() {
 
   function handleCopy() {
     if (!inviteUrl) return;
-    navigator.clipboard.writeText(inviteUrl).then(() => {
+    const confirm = () => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    });
+    };
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(inviteUrl).then(confirm).catch(() => {
+        fallbackCopy(inviteUrl);
+        confirm();
+      });
+    } else {
+      fallbackCopy(inviteUrl);
+      confirm();
+    }
+  }
+
+  function fallbackCopy(text: string) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
   }
 
   return (

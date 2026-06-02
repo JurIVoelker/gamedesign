@@ -5,6 +5,7 @@ export interface CrowAttack {
   eatRatePerMs: number;  // grow-progress units consumed per millisecond
   baseProgress: number;  // grow progress [0-1] when crows landed
   totalGrowMs: number;   // original full grow duration (used to recalculate sowedAt/readyAt)
+  level: number;         // 1-3, used to determine crow count on the client
 }
 
 export interface ThiefAttack {
@@ -57,6 +58,7 @@ export interface PlayerState {
   items: Item[];
   thiefAttack: ThiefAttack | null;
   weatherEffect: WeatherEffect | null;
+  villagersOutside: number;
 }
 
 export interface GameState {

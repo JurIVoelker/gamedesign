@@ -1,6 +1,7 @@
 import { Container } from "pixi.js";
 
 export type Owner = "player" | "opponent";
+export type Direction = "up" | "down" | "left" | "right";
 
 export abstract class Entity {
   readonly id: number;

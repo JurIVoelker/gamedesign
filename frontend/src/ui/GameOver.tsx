@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { useConnectionStore } from "../state/connectionStore";
 import { useGameStore } from "../state/gameStore";
 
 export function GameOver() {
-  const { playerId, slot, send } = useConnectionStore();
+  const { playerId, slot, send, disconnect } = useConnectionStore();
   const game = useGameStore((s) => s.game);
+  const [clicked, setClicked] = useState(false);
 
   if (!game || game.phase !== "ended") return null;
 
@@ -13,6 +15,8 @@ export function GameOver() {
   const isDraw = !game.winnerId;
 
   function handlePlayAgain() {
+    if (clicked) return;
+    setClicked(true);
     send?.({ type: "play_again" });
   }
 
@@ -44,12 +48,21 @@ export function GameOver() {
           </div>
         </div>
 
-        <button
-          onClick={handlePlayAgain}
-          className="bg-amber-500 hover:bg-amber-400 text-stone-900 font-bold py-2 px-4 rounded-lg transition-colors"
-        >
-          Nochmal spielen
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handlePlayAgain}
+            disabled={clicked}
+            className="flex-1 bg-amber-500 text-stone-900 font-bold py-2 px-4 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed enabled:hover:bg-amber-400"
+          >
+            {clicked ? "✓ Bereit!" : "Nochmal spielen"}
+          </button>
+          <button
+            onClick={() => disconnect?.()}
+            className="bg-stone-700 hover:bg-stone-600 text-stone-300 font-bold py-2 px-4 rounded-lg transition-colors"
+          >
+            Verlassen
+          </button>
+        </div>
         <p className="text-stone-600 text-xs text-center">
           Warte, bis beide Spieler bereit sind…
         </p>

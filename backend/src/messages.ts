@@ -143,6 +143,24 @@ export function handleMessage(session: Session, raw: string | Buffer): void {
       break;
     }
 
+    case 'leave_game': {
+      const roomCode = gameManager.getRoomCodeOf(session.playerId);
+      if (!roomCode) return;
+      const game = gameManager.getGame(roomCode);
+      game?.forfeit(session.playerId);
+      gameManager.clearSlot(session.playerId);
+      console.log(`[game] ${session.playerId} forfeited room ${roomCode}`);
+      break;
+    }
+
+    case 'villagers': {
+      const roomCode = gameManager.getRoomCodeOf(session.playerId);
+      if (!roomCode) return;
+      const game = gameManager.getGame(roomCode);
+      game?.reportVillagersOutside(session.playerId, parsed.count);
+      break;
+    }
+
     case 'pong': {
       session.lastPong = Date.now();
       break;

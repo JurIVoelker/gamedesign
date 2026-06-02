@@ -1,7 +1,17 @@
 import type { ToolId } from "@gamedesign/shared";
+import { useEffect, useState } from "react";
 import { useConnectionStore } from "../state/connectionStore";
 import { useGameStore } from "../state/gameStore";
 import { useTargetingStore } from "../state/targetingStore";
+
+function useNow(intervalMs = 1_000): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs]);
+  return now;
+}
 
 // Sow / Harvest tool constants (mirrored from backend — shared/ is types-only)
 const UPGRADE_SPEED_MULTIPLIERS = [1.0, 0.7, 0.4, 0.1];
@@ -262,7 +272,7 @@ function CrowsCard({
   const canAffordUpgrade = nextCost !== null && gold >= nextCost;
   const upgradeDisabled = isMaxed || !canAffordUpgrade;
 
-  const now = Date.now();
+  const now = useNow();
   const onCooldown = cooldownUntil > now;
   const cooldownSec = onCooldown ? Math.ceil((cooldownUntil - now) / 1000) : 0;
   const canSend = level > 0 && !onCooldown && gold >= CROW_SEND_COST;
@@ -396,7 +406,7 @@ function ThiefCard({
   const canAffordUpgrade = nextCost !== null && gold >= nextCost;
   const upgradeDisabled = isMaxed || !canAffordUpgrade;
 
-  const now = Date.now();
+  const now = useNow();
   const onCooldown = cooldownUntil > now;
   const cooldownSec = onCooldown ? Math.ceil((cooldownUntil - now) / 1000) : 0;
   const sendCost = level > 0 ? THIEF_SEND_COSTS[level - 1] : 0;
@@ -516,7 +526,7 @@ function WeatherCard({
   const canAffordUpgrade = nextCost !== null && gold >= nextCost;
   const upgradeDisabled = isMaxed || !canAffordUpgrade;
 
-  const now = Date.now();
+  const now = useNow();
   const onCooldown = cooldownUntil > now;
   const cooldownSec = onCooldown ? Math.ceil((cooldownUntil - now) / 1000) : 0;
   const sendCost = level > 0 ? WEATHER_SEND_COSTS[level - 1] : 0;

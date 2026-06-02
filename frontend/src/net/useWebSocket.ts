@@ -3,13 +3,22 @@ import type { ServerMessage, ClientMessage } from "@gamedesign/shared";
 import { useConnectionStore } from "../state/connectionStore";
 import { useGameStore } from "../state/gameStore";
 
-const WS_URL = "ws://localhost:3001";
+const WS_URL = `ws://${window.location.hostname}:3001`;
 const RECONNECT_DELAY_MS = 3_000;
+
+function randomUUID(): string {
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  // Fallback for non-secure contexts (HTTP over LAN)
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
 
 function getOrCreatePlayerId(): string {
   const stored = localStorage.getItem("playerId");
   if (stored) return stored;
-  const id = crypto.randomUUID();
+  const id = randomUUID();
   localStorage.setItem("playerId", id);
   return id;
 }
@@ -22,8 +31,9 @@ export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
+  const intentionalDisconnectRef = useRef(false);
 
-  const { setStatus, setError, setSend, setSlot, setPlayerId, setRoomCode, reset } =
+  const { setStatus, setError, setSend, setDisconnect, setSlot, setPlayerId, setRoomCode, reset } =
     useConnectionStore.getState();
   const { setGame } = useGameStore.getState();
 
@@ -114,8 +124,15 @@ export function useWebSocket() {
 
     ws.onclose = () => {
       if (!mountedRef.current) return;
+      const wasIntentional = intentionalDisconnectRef.current;
+      intentionalDisconnectRef.current = false;
       reset();
-      reconnectRef.current = setTimeout(connect, RECONNECT_DELAY_MS);
+      if (wasIntentional) {
+        setStatus("lobby");
+        connect();
+      } else {
+        reconnectRef.current = setTimeout(connect, RECONNECT_DELAY_MS);
+      }
     };
 
     ws.onerror = () => {
@@ -126,6 +143,17 @@ export function useWebSocket() {
   useEffect(() => {
     mountedRef.current = true;
     setSend(send);
+    setDisconnect(() => {
+      intentionalDisconnectRef.current = true;
+      localStorage.removeItem("roomCode");
+      localStorage.removeItem("playerId");
+      // Clear the ?room= param so reconnect won't try to rejoin the old room
+      const url = new URL(window.location.href);
+      url.searchParams.delete("room");
+      window.history.replaceState(null, "", url.toString());
+      if (reconnectRef.current) clearTimeout(reconnectRef.current);
+      wsRef.current?.close();
+    });
     connect();
 
     return () => {
@@ -133,5 +161,5 @@ export function useWebSocket() {
       if (reconnectRef.current) clearTimeout(reconnectRef.current);
       wsRef.current?.close();
     };
-  }, [connect, send, setSend]);
+  }, [connect, send, setSend, setDisconnect]);
 }

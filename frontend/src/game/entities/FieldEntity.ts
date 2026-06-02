@@ -1,15 +1,15 @@
-import { Container, Graphics } from "pixi.js";
+import { Assets, Container, Graphics, Rectangle, Sprite } from "pixi.js";
 import type { CropStage, Field } from "@gamedesign/shared";
 import { Entity } from "./Entity";
 import { useTargetingStore } from "../../state/targetingStore";
+import { CrowAnimator } from "./CrowAnimator";
 
 export const FIELD_W = 120;
 export const FIELD_H = 64;
 
 const MAX_PLANT_H = 9;
 const SOIL_ROWS = 4;
-const SOIL_Y_START = 4;
-const SOIL_ROW_H = 10;
+const SOIL_Y_START = 8;
 const SOIL_ROW_STRIDE = 14;
 const SOIL_X = 4;
 const SOIL_W = FIELD_W - 8;
@@ -27,9 +27,11 @@ const PROGRESS_RADIUS = Math.ceil(
 );
 
 export class FieldEntity extends Entity {
+  private farmSprite: Sprite | null = null;
   private base: Graphics | null = null;
   private progress: Graphics | null = null;
-  private crow: Graphics | null = null;
+  private fieldContainer: Container | null = null;
+  private crowAnimator: CrowAnimator | null = null;
   private field: Field | null = null;
   private lastInteractiveStage: CropStage | null = null;
   private lastHadCrowAttack = false;
@@ -63,9 +65,17 @@ export class FieldEntity extends Entity {
     const container = new Container();
     container.x = this.x;
     container.y = this.y;
+    this.fieldContainer = container;
+
+    const farmSprite = new Sprite(Assets.get("/assets/farm.png"));
+    farmSprite.width = FIELD_W;
+    farmSprite.height = FIELD_H;
+    container.addChild(farmSprite);
+    this.farmSprite = farmSprite;
 
     const base = new Graphics();
     base.eventMode = "static";
+    base.hitArea = new Rectangle(0, 0, FIELD_W, FIELD_H);
     container.addChild(base);
 
     const progress = new Graphics();
@@ -75,14 +85,10 @@ export class FieldEntity extends Entity {
     progress.mask = progressMask;
     container.addChild(progress);
 
-    const crow = new Graphics();
-    container.addChild(crow);
-
     stage.addChild(container);
 
     this.base = base;
     this.progress = progress;
-    this.crow = crow;
     this.draw();
   }
 
@@ -93,10 +99,8 @@ export class FieldEntity extends Entity {
   private draw(): void {
     const base = this.base!;
     const progress = this.progress!;
-    const crow = this.crow!;
     base.clear();
     progress.clear();
-    crow.clear();
 
     const field = this.field;
     const stage = field?.stage ?? "empty";
@@ -138,14 +142,11 @@ export class FieldEntity extends Entity {
       effectiveProgress = isReady ? 1 : stageProgress;
     }
 
-    // Soil background — tint darker when under crow attack
-    const soilColor = hasCrow ? 0x6b3a20 : 0x7a5230;
-    base.rect(0, 0, FIELD_W, FIELD_H).fill({ color: soilColor });
+    this.farmSprite!.tint = hasCrow ? 0xaa7755 : 0xffffff;
 
-    // Soil rows + plants
+    // Plants (soil rows are provided by the farm.png sprite)
     for (let row = 0; row < SOIL_ROWS; row++) {
       const rowY = SOIL_Y_START + row * SOIL_ROW_STRIDE;
-      base.rect(SOIL_X, rowY, SOIL_W, SOIL_ROW_H).fill({ color: 0x8b6338 });
 
       const plantFill = showPlants ? effectiveProgress : 0;
       const plantH = Math.round(plantFill * MAX_PLANT_H);
@@ -194,10 +195,20 @@ export class FieldEntity extends Entity {
       base.rect(0, 0, FIELD_W, FIELD_H).stroke({ color: 0xff6600, width: 3 });
     }
 
-    // Crow overlay
-    if (hasCrow) {
-      this.drawCrow(crow, isScaring);
+    // Crow animator lifecycle
+    if (hasCrow !== this.lastHadCrowAttack) {
+      if (hasCrow && this.fieldContainer) {
+        this.crowAnimator = new CrowAnimator(this.fieldContainer, this.owner, field?.crowAttack?.level ?? 1);
+      } else {
+        this.crowAnimator?.startFlyAway();
+      }
     }
+    // Clean up once all crows have flown off screen
+    if (this.crowAnimator?.isDone) {
+      this.crowAnimator.destroy();
+      this.crowAnimator = null;
+    }
+    this.crowAnimator?.update();
 
     // Scaring border — orange flash while scare animation plays
     if (isScaring) {
@@ -239,20 +250,6 @@ export class FieldEntity extends Entity {
       this.lastWasChosen = isChosen;
       this.lastWasScaring = isScaring;
     }
-  }
-
-  private drawCrow(g: Graphics, scared: boolean): void {
-    const cx = FIELD_W / 2;
-    const cy = FIELD_H / 2 - 2;
-    const bodyColor = scared ? 0x665544 : 0x111111;
-    const wingColor = scared ? 0x554433 : 0x222222;
-
-    g.ellipse(cx, cy, 10, 6).fill({ color: bodyColor });
-    g.circle(cx + 8, cy - 4, 4).fill({ color: bodyColor });
-    g.poly([cx + 11, cy - 4, cx + 16, cy - 3, cx + 11, cy - 2]).fill({ color: 0xf0c040 });
-    g.poly([cx - 12, cy, cx - 2, cy - 7, cx + 2, cy + 3]).fill({ color: wingColor });
-    g.poly([cx + 4, cy - 1, cx + 14, cy - 7, cx + 12, cy + 3]).fill({ color: wingColor });
-    g.circle(cx + 9, cy - 5, 1).fill({ color: scared ? 0xffffff : 0xff4040 });
   }
 
   private drawPlusIcon(g: Graphics): void {

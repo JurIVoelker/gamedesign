@@ -83,10 +83,21 @@ export function FarmCanvas() {
       });
     };
 
+    const onVillagersChange = (count: number) => {
+      useConnectionStore.getState().send?.({ type: "villagers", count });
+    };
+
     engine
-      .init(containerRef.current!, onSow, onHarvest, onScareCrow, onCatchThief)
+      .init(containerRef.current!, onSow, onHarvest, onScareCrow, onCatchThief, onVillagersChange)
       .then(() => {
-        if (!mounted) engine.destroy();
+        if (!mounted) {
+          engine.destroy();
+          return;
+        }
+        // Game state may have arrived while assets were loading; apply it now.
+        const { game } = useGameStore.getState();
+        const { playerId } = useConnectionStore.getState();
+        if (game && playerId) engine.updateGameState(game, playerId);
       })
       .catch((err) => console.error("[GameEngine] init failed", err));
 

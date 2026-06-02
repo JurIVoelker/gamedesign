@@ -8,7 +8,7 @@ export const MARGIN = 48;
 export const FARM_W = HOUSE_W + H_GAP + FIELD_W;
 export const SCENE_H_INNER = MARGIN + 4 * FIELD_H + 3 * ROW_GAP + MARGIN;
 
-export const SPEED = 35; // logical px/s
+export const SPEED = 28; // logical px/s
 export const ARRIVE_DIST = 4;
 
 export function rowY(i: number): number {

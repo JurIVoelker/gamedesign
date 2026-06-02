@@ -2,7 +2,7 @@ import { Container } from "pixi.js";
 import type { Field } from "@gamedesign/shared";
 import { VillagerEntity } from "./entities/VillagerEntity";
 import { FIELD_W } from "./entities/FieldEntity";
-import { HOUSE_W } from "./entities/HouseEntity";
+import { HOUSE_W, HOUSE_H } from "./entities/HouseEntity";
 import { H_GAP, MARGIN, FARM_W, SCENE_H_INNER, SPEED, ARRIVE_DIST, rowY } from "./layout";
 
 type VState =
@@ -25,45 +25,67 @@ export class VillagerController {
   private prevFields: Field[] = [];
   private rand: () => number;
   private weatherActive: boolean = false;
+  private isPlayer: boolean;
+  private outsideCount: number;
+  private onOutsideCountChange: ((count: number) => void) | undefined;
 
   constructor(
     owner: "player" | "opponent",
     farmStage: Container,
     rand: () => number = Math.random,
+    initialOutsideCount: number = 4,
+    onOutsideCountChange?: (count: number) => void,
   ) {
     this.rand = rand;
-    const isPlayer = owner === "player";
+    this.isPlayer = owner === "player";
+    this.outsideCount = Math.max(0, Math.min(4, initialOutsideCount));
+    this.onOutsideCountChange = onOutsideCountChange;
 
     this.fieldCenters = Array.from({ length: 4 }, (_, i) => ({
-      x: isPlayer ? HOUSE_W + H_GAP + FIELD_W / 2 : FIELD_W / 2,
+      x: this.isPlayer ? HOUSE_W + H_GAP + FIELD_W / 2 : FIELD_W / 2,
       y: rowY(i),
     }));
 
+    // Entrance is at the center of the house, vertically at the door (bottom of house)
     this.houseEntrances = Array.from({ length: 4 }, (_, i) => ({
-      x: isPlayer ? HOUSE_W / 2 : FIELD_W + H_GAP + HOUSE_W / 2,
-      y: rowY(i),
+      x: this.isPlayer ? HOUSE_W / 2 : FIELD_W + H_GAP + HOUSE_W / 2,
+      y: rowY(i) + HOUSE_H / 2,
     }));
 
     const now = Date.now();
+    // How many villagers start inside: the ones past index (initialOutsideCount - 1)
+    const insideCount = 4 - this.outsideCount;
 
     for (let i = 0; i < 4; i++) {
       const startX = this.houseEntrances[i].x;
       const startY = this.houseEntrances[i].y;
-      const entity = new VillagerEntity(i, startX, startY);
+      const entity = new VillagerEntity(i, owner, startX, startY);
       entity.render(farmStage);
 
       const initialDelay = i * 1500;
-      const data: VillagerData = {
-        entity,
-        state: {
+      let state: VState;
+      let nextHouseVisitAt: number;
+
+      if (i < insideCount) {
+        // This villager starts inside — stagger their emergence so they trickle out
+        entity.isVisible = false;
+        state = {
+          kind: "inside_house",
+          houseIndex: i,
+          emergesAt: now + this.jitter(10_000, 0.5),
+        };
+        nextHouseVisitAt = now + this.jitter(45_000, 0.3);
+      } else {
+        state = {
           kind: "wandering",
           targetX: this.randomWanderX(),
           targetY: this.randomWanderY(),
           nextDecisionAt: now + initialDelay + this.randBetween(1000, 3000),
-        },
-        nextHouseVisitAt: now + initialDelay + this.jitter(40000, 0.3),
-      };
-      this.villagers.push(data);
+        };
+        nextHouseVisitAt = now + initialDelay + this.jitter(40_000, 0.3);
+      }
+
+      this.villagers.push({ entity, state, nextHouseVisitAt });
     }
   }
 
@@ -108,6 +130,8 @@ export class VillagerController {
         v.entity.y = entrance.y;
         v.entity.isVisible = true;
         v.nextHouseVisitAt = now + this.jitter(30_000, 0.3);
+        this.outsideCount++;
+        this.onOutsideCountChange?.(this.outsideCount);
       } else if (s.kind === "inside_house") {
         continue;
       }
@@ -209,7 +233,7 @@ export class VillagerController {
       }
 
       case "walking_to_house": {
-        const arrived = this.moveToward(v.entity, s.targetX, s.targetY, dt);
+        const arrived = this.moveTowardVFirst(v.entity, s.targetX, s.targetY, dt);
         if (arrived) {
           v.entity.isVisible = false;
           const indoorMs = this.weatherActive ? this.jitter(30_000, 0.2) : this.jitter(15_000, 0.3);
@@ -218,6 +242,8 @@ export class VillagerController {
             houseIndex: s.houseIndex,
             emergesAt: now + indoorMs,
           };
+          this.outsideCount--;
+          this.onOutsideCountChange?.(this.outsideCount);
         }
         break;
       }
@@ -235,6 +261,8 @@ export class VillagerController {
             targetY: this.randomWanderY(),
             nextDecisionAt: now + this.jitter(2000, 0.3),
           };
+          this.outsideCount++;
+          this.onOutsideCountChange?.(this.outsideCount);
         }
         break;
       }
@@ -244,16 +272,40 @@ export class VillagerController {
   private moveToward(entity: VillagerEntity, tx: number, ty: number, dt: number): boolean {
     const dx = tx - entity.x;
     const dy = ty - entity.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
 
-    if (dist <= ARRIVE_DIST) return true;
+    if (Math.abs(dx) <= ARRIVE_DIST && Math.abs(dy) <= ARRIVE_DIST) return true;
 
     const step = SPEED * dt;
-    const ratio = Math.min(step, dist) / dist;
-    entity.x += dx * ratio;
-    entity.y += dy * ratio;
-    entity.facingRight = dx >= 0;
-    entity.walkFrame++;
+    // Resolve horizontal first, then vertical — never both at once
+    if (Math.abs(dx) > ARRIVE_DIST) {
+      entity.x += Math.sign(dx) * Math.min(Math.abs(dx), step);
+      entity.direction = dx >= 0 ? "right" : "left";
+    } else {
+      entity.y += Math.sign(dy) * Math.min(Math.abs(dy), step);
+      entity.direction = dy >= 0 ? "down" : "up";
+    }
+    entity.walkFrame += 0.8;
+    return false;
+  }
+
+  // Vertical-first variant: used when approaching the house so the villager
+  // aligns to the entrance Y (house bottom) while still in the open field column,
+  // then slides horizontally into the door — never clipping through the house body.
+  private moveTowardVFirst(entity: VillagerEntity, tx: number, ty: number, dt: number): boolean {
+    const dx = tx - entity.x;
+    const dy = ty - entity.y;
+
+    if (Math.abs(dx) <= ARRIVE_DIST && Math.abs(dy) <= ARRIVE_DIST) return true;
+
+    const step = SPEED * dt;
+    if (Math.abs(dy) > ARRIVE_DIST) {
+      entity.y += Math.sign(dy) * Math.min(Math.abs(dy), step);
+      entity.direction = dy >= 0 ? "down" : "up";
+    } else {
+      entity.x += Math.sign(dx) * Math.min(Math.abs(dx), step);
+      entity.direction = dx >= 0 ? "right" : "left";
+    }
+    entity.walkFrame += 0.8;
     return false;
   }
 
@@ -266,7 +318,12 @@ export class VillagerController {
   }
 
   private randomWanderX(): number {
-    return this.randBetween(8, FARM_W - 8);
+    // Keep villagers in the field column, never in the house column
+    if (this.isPlayer) {
+      return this.randBetween(HOUSE_W + H_GAP + 4, FARM_W - 8);
+    } else {
+      return this.randBetween(8, FIELD_W - 4);
+    }
   }
 
   private randomWanderY(): number {

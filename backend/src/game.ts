@@ -84,6 +84,7 @@ function createPlayerState(playerId: string): PlayerState {
     items: [],
     thiefAttack: null,
     weatherEffect: null,
+    villagersOutside: 4,
   };
 }
 
@@ -203,6 +204,23 @@ export class Game {
     }
   }
 
+  reportVillagersOutside(playerId: string, count: number): void {
+    if (!this.state) return;
+    const playerState = this.state.players[playerId];
+    if (!playerState) return;
+    playerState.villagersOutside = Math.max(0, Math.min(4, count));
+    this.broadcast({ type: 'game_state', state: this.state });
+  }
+
+  forfeit(playerId: string): void {
+    if (!this.state || this.state.phase !== 'playing') return;
+    const opponentId = Object.keys(this.state.players).find((id) => id !== playerId);
+    this.cancelTimer('match_end');
+    this.state.phase = 'ended';
+    this.state.winnerId = opponentId ?? null;
+    this.broadcast({ type: 'game_state', state: this.state });
+  }
+
   private resetAndRestart(): void {
     for (const key of [...this.timers.keys()]) this.cancelTimer(key);
     this.startGame();
@@ -318,6 +336,7 @@ export class Game {
         eatRatePerMs: config.eatRatePerMs,
         baseProgress,
         totalGrowMs,
+        level: crowTool.level,
       };
 
       const expiresAt = now + baseProgress / config.eatRatePerMs;
@@ -801,6 +820,10 @@ export class GameManager {
     // Keep knownSlots so the player can rejoin after reload
     console.log(`[game] ${playerId} disconnected from room ${existing.roomCode} (slot reserved)`);
     return game;
+  }
+
+  clearSlot(playerId: string): void {
+    this.knownSlots.delete(playerId);
   }
 
   getGame(roomCode: string): Game | undefined {

@@ -22,7 +22,7 @@ export class ThiefController {
   private readonly lurkerX: number;
 
   constructor(
-    owner: "player" | "opponent",
+    private readonly owner: "player" | "opponent",
     private readonly farmStage: Container,
     private readonly onCatch?: () => void,
     rand: () => number = Math.random,
@@ -103,6 +103,7 @@ export class ThiefController {
       startX,
       startY,
       attack.disguise,
+      this.owner,
       isClickable,
       isClickable ? () => this.onCatch?.() : null,
     );
@@ -148,16 +149,18 @@ export class ThiefController {
       case "moving": {
         const dx = this.moveState.tx - this.entity.x;
         const dy = this.moveState.ty - this.entity.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
 
-        if (dist <= ARRIVE_DIST) {
+        if (Math.abs(dx) <= ARRIVE_DIST && Math.abs(dy) <= ARRIVE_DIST) {
           this.moveState = { kind: "working", doneAt: now + this.randBetween(2000, 5000) };
         } else {
           const step = SPEED * dt;
-          const ratio = Math.min(step, dist) / dist;
-          this.entity.x += dx * ratio;
-          this.entity.y += dy * ratio;
-          this.entity.facingRight = dx >= 0;
+          if (Math.abs(dx) > ARRIVE_DIST) {
+            this.entity.x += Math.sign(dx) * Math.min(Math.abs(dx), step);
+            this.entity.direction = dx >= 0 ? "right" : "left";
+          } else {
+            this.entity.y += Math.sign(dy) * Math.min(Math.abs(dy), step);
+            this.entity.direction = dy >= 0 ? "down" : "up";
+          }
         }
         break;
       }
