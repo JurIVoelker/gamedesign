@@ -466,7 +466,7 @@ export class Game {
     if (opponentState.weatherEffect !== null) return 'already_active';
 
     const endsAt = now + cfg.durationMs;
-    opponentState.weatherEffect = { slowFactor: cfg.slowFactor, actionSlowFactor: cfg.actionSlowFactor, endsAt };
+    opponentState.weatherEffect = { slowFactor: cfg.slowFactor, actionSlowFactor: cfg.actionSlowFactor, endsAt, lightning: cfg.lightning };
 
     for (const field of opponentState.fields) {
       if (field.readyAt === null) continue;
@@ -475,7 +475,7 @@ export class Game {
       this.rescheduleFieldTimer(opponentState.id, field);
     }
 
-    // Lv3: lightning strikes one random growing or ready field
+    // Lv3: lightning strikes one random growing or ready field after a short delay
     if (cfg.lightning) {
       const eligible = opponentState.fields.filter(
         (f) => f.stage === 'growing' || f.stage === 'ready',
@@ -483,7 +483,11 @@ export class Game {
       if (eligible.length > 0) {
         const target = eligible[Math.floor(Math.random() * eligible.length)];
         this.cancelTimer(`${opponentState.id}:${target.index}`);
-        this.destroyField(target);
+        const strikeAt = now + 2000;
+        this.scheduleTimer(`lightning:${opponentState.id}:${target.index}`, strikeAt, () => {
+          this.destroyField(target);
+          this.broadcast({ type: 'game_state', state: this.state! });
+        });
       }
     }
 

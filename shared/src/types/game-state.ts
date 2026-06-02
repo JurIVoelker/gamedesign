@@ -48,6 +48,7 @@ export interface WeatherEffect {
   slowFactor: number;
   actionSlowFactor: number;
   endsAt: number;
+  lightning: boolean;
 }
 
 export interface PlayerState {

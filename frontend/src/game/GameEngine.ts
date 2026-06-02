@@ -39,6 +39,16 @@ export class GameEngine {
   private onVillagersChange: ((count: number) => void) | null = null;
   private playerWeatherOverlay: Graphics | null = null;
   private opponentWeatherOverlay: Graphics | null = null;
+  private opponentLightningOverlay: Graphics | null = null;
+  private lightningPhase:
+    | "idle"
+    | "flash1"
+    | "flash1_fade"
+    | "gap"
+    | "flash2"
+    | "flash2_fade" = "idle";
+  private lightningTimer = 0;
+  private opponentHasLightning = false;
 
   // Lazy init: created once startedAt is known so both clients use the same seed
   private villagersSeeded = false;
@@ -120,6 +130,9 @@ export class GameEngine {
     this.opponentWeatherOverlay = new Graphics();
     this.opponentWeatherOverlay.visible = false;
     app.stage.addChild(this.opponentWeatherOverlay);
+    this.opponentLightningOverlay = new Graphics();
+    this.opponentLightningOverlay.visible = false;
+    app.stage.addChild(this.opponentLightningOverlay);
 
     // Edge fade lives in stage space (above sceneRoot) so it always fills the screen
     this.edgeFade = new Graphics();
@@ -134,6 +147,7 @@ export class GameEngine {
       this.opponentVillagers?.update(app.ticker.deltaMS);
       this.playerThief?.update(app.ticker.deltaMS);
       this.opponentThief?.update(app.ticker.deltaMS);
+      this.updateLightning(app.ticker.deltaMS);
     });
 
     this.resizeHandler = () => {
@@ -170,6 +184,7 @@ export class GameEngine {
     this.opponentThief = null;
     this.playerWeatherOverlay = null;
     this.opponentWeatherOverlay = null;
+    this.opponentLightningOverlay = null;
     this.villagersSeeded = false;
   }
 
@@ -253,6 +268,11 @@ export class GameEngine {
       if (this.opponentWeatherOverlay)
         this.opponentWeatherOverlay.visible = oppWeather;
       this.opponentVillagers?.setWeather(oppWeather);
+      const hadLightning = this.opponentHasLightning;
+      this.opponentHasLightning = opponentState.weatherEffect?.lightning ?? false;
+      if (!hadLightning && this.opponentHasLightning) {
+        setTimeout(() => this.triggerLightningStrike(), 2000);
+      }
     }
   }
 
@@ -291,7 +311,67 @@ export class GameEngine {
         .rect(centerX, 0, w - centerX, h)
         .fill({ color: 0x446688, alpha: 0.35 });
     }
+    if (this.opponentLightningOverlay) {
+      this.opponentLightningOverlay.clear();
+      this.opponentLightningOverlay
+        .rect(centerX, 0, w - centerX, h)
+        .fill({ color: 0xffffff, alpha: 1 });
+    }
     if (this.edgeFade) this.drawEdgeFade(w, h, centerX);
+  }
+
+  private triggerLightningStrike(): void {
+    this.lightningPhase = "flash1";
+    this.lightningTimer = 50;
+    if (this.opponentLightningOverlay) {
+      this.opponentLightningOverlay.alpha = 0.85;
+      this.opponentLightningOverlay.visible = true;
+    }
+  }
+
+  private updateLightning(deltaMS: number): void {
+    const overlay = this.opponentLightningOverlay;
+    if (!overlay || this.lightningPhase === "idle") return;
+
+    this.lightningTimer -= deltaMS;
+
+    switch (this.lightningPhase) {
+      case "flash1":
+        if (this.lightningTimer <= 0) {
+          this.lightningPhase = "flash1_fade";
+          this.lightningTimer = 80;
+        }
+        break;
+      case "flash1_fade":
+        overlay.alpha = Math.max(0, 0.85 * (this.lightningTimer / 80));
+        if (this.lightningTimer <= 0) {
+          overlay.visible = false;
+          this.lightningPhase = "gap";
+          this.lightningTimer = 60;
+        }
+        break;
+      case "gap":
+        if (this.lightningTimer <= 0) {
+          this.lightningPhase = "flash2";
+          this.lightningTimer = 40;
+          overlay.alpha = 0.45;
+          overlay.visible = true;
+        }
+        break;
+      case "flash2":
+        if (this.lightningTimer <= 0) {
+          this.lightningPhase = "flash2_fade";
+          this.lightningTimer = 100;
+        }
+        break;
+      case "flash2_fade":
+        overlay.alpha = Math.max(0, 0.45 * (this.lightningTimer / 100));
+        if (this.lightningTimer <= 0) {
+          overlay.visible = false;
+          this.lightningPhase = "idle";
+        }
+        break;
+    }
   }
 
   private buildBackgroundLayer(): Container {

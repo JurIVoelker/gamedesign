@@ -680,7 +680,7 @@ function WeatherCard({
       <WeatherHoverCard level={level} />
       <div className="upgrade-card text-parchment flex flex-col items-center gap-2 min-w-35">
         <div className="flex items-center justify-between w-full">
-          <span className="text-gold tracking-widest">STURM</span>
+          <span className="text-gold tracking-widest">UNWETTER</span>
           <span className="flex gap-1">
             {Array.from({ length: MAX_WEATHER_LEVEL }, (_, i) => (
               <span
