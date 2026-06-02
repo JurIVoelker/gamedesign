@@ -23,32 +23,32 @@ export function GameOver() {
   }
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center bg-stone-950/70">
-      <div className="bg-stone-900 border border-stone-600 rounded-2xl p-8 w-80 flex flex-col gap-5 text-stone-100 shadow-2xl">
-        <h2 className="text-2xl font-bold text-center tracking-wide">
+    <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+      <div className="panel-pixel lobby-panel flex flex-col gap-5 text-parchment">
+        <h2 className="text-center text-[12px] tracking-wide">
           {isDraw ? (
-            <span className="text-stone-300">Unentschieden!</span>
+            <span className="text-parchment">Unentschieden!</span>
           ) : iWon ? (
-            <span className="text-amber-300">Du gewinnst! 🏆</span>
+            <span className="text-gold">Du gewinnst! 🏆</span>
           ) : (
-            <span className="text-stone-400">Du verlierst!</span>
+            <span className="text-muted-gold">Du verlierst!</span>
           )}
         </h2>
 
-        <div className="flex flex-col gap-2 text-sm">
-          <div className="flex justify-between items-center bg-stone-800 rounded-lg px-4 py-2">
-            <span className="text-stone-300">
+        <div className="flex flex-col gap-2 text-[8px]">
+          <div className="score-row">
+            <span className="text-parchment">
               {slot === "p1" ? "Spieler 1 (Du)" : "Spieler 2 (Du)"}
             </span>
-            <span className="text-amber-300 font-bold">
+            <span className="text-gold">
               {myState?.gold ?? 0} Gold
             </span>
           </div>
-          <div className="flex justify-between items-center bg-stone-800 rounded-lg px-4 py-2">
-            <span className="text-stone-400">
+          <div className="score-row">
+            <span className="text-muted-gold">
               {slot === "p1" ? "Spieler 2 (Gegner)" : "Spieler 1 (Gegner)"}
             </span>
-            <span className="text-stone-300 font-bold">
+            <span className="text-parchment">
               {opponentState?.gold ?? 0} Gold
             </span>
           </div>
@@ -58,18 +58,18 @@ export function GameOver() {
           <button
             onClick={handlePlayAgain}
             disabled={clicked}
-            className="flex-1 bg-amber-500 text-stone-900 font-bold py-2 px-4 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed enabled:hover:bg-amber-400"
+            className="btn-pixel flex-1"
           >
             {clicked ? "✓ Bereit!" : "Nochmal spielen"}
           </button>
           <button
             onClick={() => disconnect?.()}
-            className="bg-stone-700 hover:bg-stone-600 text-stone-300 font-bold py-2 px-4 rounded-lg transition-colors"
+            className="btn-pixel-secondary"
           >
             Verlassen
           </button>
         </div>
-        <p className="text-stone-600 text-xs text-center">
+        <p className="text-muted-gold text-[7px] text-center">
           Warte, bis beide Spieler bereit sind…
         </p>
       </div>

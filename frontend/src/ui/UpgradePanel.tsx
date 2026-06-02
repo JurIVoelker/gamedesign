@@ -79,11 +79,10 @@ function formatSeconds(ms: number): string {
 
 function HoverCardWrapper({ children }: { children: React.ReactNode }) {
   return (
-    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-max pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-10">
-      <div className="bg-stone-900 border border-stone-600 rounded-lg px-3 py-2 text-xs font-mono shadow-lg">
+    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-max pointer-events-none opacity-0 group-hover:opacity-100 z-10">
+      <div className="hover-card-pixel">
         {children}
       </div>
-      <div className="absolute left-1/2 -translate-x-1/2 -bottom-1.5 w-3 h-3 bg-stone-900 border-r border-b border-stone-600 rotate-45" />
     </div>
   );
 }
@@ -104,22 +103,22 @@ function SowHoverCard({
 
   return (
     <HoverCardWrapper>
-      <div className="text-stone-200">
-        Säen: <span className="text-amber-300">{formatSeconds(sowMs)}</span>
+      <div className="text-parchment">
+        Säen: <span className="text-gold">{formatSeconds(sowMs)}</span>
       </div>
-      <div className="text-stone-200 mt-0.5">
+      <div className="text-parchment mt-0.5">
         Wachstum:{" "}
-        <span className="text-amber-300">{formatSeconds(growMs)}</span>
+        <span className="text-gold">{formatSeconds(growMs)}</span>
       </div>
       {!isMaxed && (
-        <div className="text-stone-400 mt-1">
+        <div className="text-muted-gold mt-1">
           {"→ "}
           <span className="text-green-400">
             {formatSeconds(
               SOW_DURATION_MS * UPGRADE_SPEED_MULTIPLIERS[level + 1],
             )}
           </span>
-          <span className="text-stone-500 ml-1">
+          <span className="text-muted-gold ml-1">
             {"· Wachstum "}
             {formatSeconds(
               BASE_GROW_MS *
@@ -129,7 +128,7 @@ function SowHoverCard({
           </span>
         </div>
       )}
-      {isMaxed && <div className="text-amber-300 mt-1">Max. Stufe</div>}
+      {isMaxed && <div className="text-gold mt-1">Max. Stufe</div>}
     </HoverCardWrapper>
   );
 }
@@ -156,28 +155,28 @@ function HarvestHoverCard({
 
   return (
     <HoverCardWrapper>
-      <div className="text-stone-200">
+      <div className="text-parchment">
         Ernten:{" "}
-        <span className="text-amber-300">{formatSeconds(harvestMs)}</span>
+        <span className="text-gold">{formatSeconds(harvestMs)}</span>
       </div>
-      <div className="text-stone-200 mt-0.5">
-        Gold: <span className="text-amber-300">{goldPerHarvest}g</span>
+      <div className="text-parchment mt-0.5">
+        Gold: <span className="text-gold">{goldPerHarvest}g</span>
       </div>
       {!isMaxed && (
-        <div className="text-stone-400 mt-1">
+        <div className="text-muted-gold mt-1">
           {"→ "}
           <span className="text-green-400">
             {formatSeconds(
               HARVEST_DURATION_MS * UPGRADE_SPEED_MULTIPLIERS[level + 1],
             )}
           </span>
-          <span className="text-stone-500 ml-1">
+          <span className="text-muted-gold ml-1">
             {"· "}
             {nextGold}g
           </span>
         </div>
       )}
-      {isMaxed && <div className="text-amber-300 mt-1">Max. Stufe</div>}
+      {isMaxed && <div className="text-gold mt-1">Max. Stufe</div>}
     </HoverCardWrapper>
   );
 }
@@ -213,9 +212,9 @@ function FertilizerHoverCard({
 
   return (
     <HoverCardWrapper>
-      <div className="text-stone-200">
+      <div className="text-parchment">
         Wachstum:{" "}
-        <span className="text-amber-300">{formatSeconds(currentGrowMs)}</span>
+        <span className="text-gold">{formatSeconds(currentGrowMs)}</span>
         {!isMaxed && (
           <>
             {" → "}
@@ -223,8 +222,8 @@ function FertilizerHoverCard({
           </>
         )}
       </div>
-      <div className="text-stone-200 mt-0.5">
-        Gold: <span className="text-amber-300">{currentGold}g</span>
+      <div className="text-parchment mt-0.5">
+        Gold: <span className="text-gold">{currentGold}g</span>
         {!isMaxed && (
           <>
             {" → "}
@@ -232,7 +231,7 @@ function FertilizerHoverCard({
           </>
         )}
       </div>
-      {isMaxed && <div className="text-amber-300 mt-1">Max. Stufe</div>}
+      {isMaxed && <div className="text-gold mt-1">Max. Stufe</div>}
     </HoverCardWrapper>
   );
 }
@@ -246,51 +245,51 @@ function CrowsHoverCard({ level }: { level: number }) {
   return (
     <HoverCardWrapper>
       {level === 0 ? (
-        <div className="text-stone-400">
+        <div className="text-muted-gold">
           Freischalten um Krähen auf Gegnerfelder zu senden
         </div>
       ) : (
         <>
-          <div className="text-stone-200">
+          <div className="text-parchment">
             Ziele:{" "}
-            <span className="text-amber-300">
+            <span className="text-gold">
               {fieldCount} Feld{fieldCount > 1 ? "er" : ""}
             </span>
             {level === MAX_CROW_LEVEL && (
-              <span className="text-stone-400 ml-1">(reifste zuerst)</span>
+              <span className="text-muted-gold ml-1">(reifste zuerst)</span>
             )}
           </div>
-          <div className="text-stone-200 mt-0.5">
+          <div className="text-parchment mt-0.5">
             Frisst volles Feld in:{" "}
-            <span className="text-amber-300">{formatSeconds(eatMs)}</span>
+            <span className="text-gold">{formatSeconds(eatMs)}</span>
           </div>
-          <div className="text-stone-400 mt-0.5 text-[10px]">
+          <div className="text-muted-gold mt-0.5">
             Frisch gesäte Felder (~0%) sofort zerstört
           </div>
-          <div className="text-stone-200 mt-0.5">
+          <div className="text-parchment mt-0.5">
             Sendekosten:{" "}
-            <span className="text-amber-300">{CROW_SEND_COST}g</span>
-            <span className="text-stone-500 ml-1">
+            <span className="text-gold">{CROW_SEND_COST}g</span>
+            <span className="text-muted-gold ml-1">
               · Abklingzeit {formatSeconds(CROW_COOLDOWN_MS)}
             </span>
           </div>
         </>
       )}
       {!isMaxed && level > 0 && (
-        <div className="text-stone-400 mt-1">
+        <div className="text-muted-gold mt-1">
           Lv{level + 1}:{" "}
           <span className="text-green-400">
             frisst in {formatSeconds(CROW_EAT_DURATIONS_MS[level])}
           </span>
           {level + 1 >= 2 && (
-            <span className="text-stone-500 ml-1">· 2 Felder</span>
+            <span className="text-muted-gold ml-1">· 2 Felder</span>
           )}
           {level + 1 === MAX_CROW_LEVEL && (
-            <span className="text-stone-500 ml-1">· zielt auf reifste</span>
+            <span className="text-muted-gold ml-1">· zielt auf reifste</span>
           )}
         </div>
       )}
-      {isMaxed && <div className="text-amber-300 mt-1">Max. Stufe</div>}
+      {isMaxed && <div className="text-gold mt-1">Max. Stufe</div>}
     </HoverCardWrapper>
   );
 }
@@ -336,16 +335,14 @@ function UpgradeCard({
       ) : toolId === "harvest" ? (
         <HarvestHoverCard level={level} fertLevel={fertLevel} />
       ) : null}
-      <div className="bg-stone-900/80 border border-stone-600 rounded-lg px-4 py-2 text-stone-300 text-xs font-mono flex flex-col items-center gap-2 min-w-35">
+      <div className="upgrade-card text-parchment flex flex-col items-center gap-2 min-w-35">
         <div className="flex items-center justify-between w-full">
-          <span className="font-bold tracking-widest">{label}</span>
+          <span className="text-gold tracking-widest">{label}</span>
           <span className="flex gap-1">
             {Array.from({ length: maxLevel }, (_, i) => (
               <span
                 key={i}
-                className={`w-2 h-2 rounded-full ${
-                  i < level ? "bg-amber-300" : "bg-stone-700"
-                }`}
+                className={`level-dot${i < level ? " filled-gold" : ""}`}
               />
             ))}
           </span>
@@ -355,11 +352,7 @@ function UpgradeCard({
           type="button"
           disabled={disabled}
           onClick={() => dispatchUpgrade(toolId)}
-          className={`w-full rounded border px-3 py-1 font-mono text-xs transition-colors ${
-            disabled
-              ? "border-stone-700 text-stone-500 cursor-not-allowed opacity-50"
-              : "border-amber-400 text-amber-300 hover:bg-amber-300/10 cursor-pointer"
-          }`}
+          className="btn-upgrade"
         >
           {isMaxed ? "MAXIMAL" : `Aufwerten  ${nextCost}g`}
         </button>
@@ -410,16 +403,14 @@ function CrowsCard({
   return (
     <div className="relative group">
       <CrowsHoverCard level={level} />
-      <div className="bg-stone-900/80 border border-stone-600 rounded-lg px-4 py-2 text-stone-300 text-xs font-mono flex flex-col items-center gap-2 min-w-35">
+      <div className="upgrade-card text-parchment flex flex-col items-center gap-2 min-w-35">
         <div className="flex items-center justify-between w-full">
-          <span className="font-bold tracking-widest">KRÄHEN</span>
+          <span className="text-gold tracking-widest">KRÄHEN</span>
           <span className="flex gap-1">
             {Array.from({ length: MAX_CROW_LEVEL }, (_, i) => (
               <span
                 key={i}
-                className={`w-2 h-2 rounded-full ${
-                  i < level ? "bg-red-400" : "bg-stone-700"
-                }`}
+                className={`level-dot${i < level ? " filled-red" : ""}`}
               />
             ))}
           </span>
@@ -429,11 +420,7 @@ function CrowsCard({
           type="button"
           disabled={upgradeDisabled}
           onClick={() => dispatchUpgrade("crows")}
-          className={`w-full rounded border px-3 py-1 font-mono text-xs transition-colors ${
-            upgradeDisabled
-              ? "border-stone-700 text-stone-500 cursor-not-allowed opacity-50"
-              : "border-amber-400 text-amber-300 hover:bg-amber-300/10 cursor-pointer"
-          }`}
+          className="btn-upgrade"
         >
           {isMaxed
             ? "MAXIMAL"
@@ -447,13 +434,7 @@ function CrowsCard({
             type="button"
             disabled={!isTargeting && !canSend}
             onClick={handleSendClick}
-            className={`w-full rounded border px-3 py-1 font-mono text-xs transition-colors ${
-              isTargeting
-                ? "border-orange-400 text-orange-300 hover:bg-orange-300/10 cursor-pointer animate-pulse"
-                : canSend
-                  ? "border-red-400 text-red-300 hover:bg-red-300/10 cursor-pointer"
-                  : "border-stone-700 text-stone-500 cursor-not-allowed opacity-50"
-            }`}
+            className={`btn-upgrade-action${isTargeting ? " targeting" : ""}`}
           >
             {isTargeting
               ? `Feld wählen  ${remaining}`
@@ -474,46 +455,46 @@ function ThiefHoverCard({ level }: { level: number }) {
   return (
     <HoverCardWrapper>
       {level === 0 ? (
-        <div className="text-stone-400">
+        <div className="text-muted-gold">
           Freischalten um einen Dieb zu schicken der Gold stiehlt
         </div>
       ) : (
         <>
-          <div className="text-stone-200">
+          <div className="text-parchment">
             Stiehlt:{" "}
-            <span className="text-amber-300">
+            <span className="text-gold">
               {THIEF_STEAL_PER_SEC[lvIdx]}g/s
             </span>
-            <span className="text-stone-500 ml-1">
+            <span className="text-muted-gold ml-1">
               · max. {THIEF_MAX_STOLEN[lvIdx]}g
             </span>
           </div>
-          <div className="text-stone-200 mt-0.5">
+          <div className="text-parchment mt-0.5">
             Stehldauer:{" "}
-            <span className="text-amber-300">
+            <span className="text-gold">
               {formatSeconds(THIEF_STEAL_DURATION_MS[lvIdx])}
             </span>
-            <span className="text-stone-500 ml-1">
+            <span className="text-muted-gold ml-1">
               · Eintritt ≤{formatSeconds(THIEF_WAIT_MAX_MS[lvIdx])}
             </span>
           </div>
-          <div className="text-stone-200 mt-0.5">
+          <div className="text-parchment mt-0.5">
             Tarnung:{" "}
-            <span className="text-amber-300">
+            <span className="text-gold">
               {DISGUISE_LABEL[THIEF_LEVELS[lvIdx].disguise]}
             </span>
           </div>
-          <div className="text-stone-200 mt-0.5">
+          <div className="text-parchment mt-0.5">
             Sendekosten:{" "}
-            <span className="text-amber-300">{THIEF_SEND_COSTS[lvIdx]}g</span>
-            <span className="text-stone-500 ml-1">
+            <span className="text-gold">{THIEF_SEND_COSTS[lvIdx]}g</span>
+            <span className="text-muted-gold ml-1">
               · Abklingzeit {formatSeconds(THIEF_COOLDOWN_MS)}
             </span>
           </div>
         </>
       )}
       {!isMaxed && level > 0 && (
-        <div className="text-stone-400 mt-1">
+        <div className="text-muted-gold mt-1">
           Lv{level + 1}:{" "}
           <span className="text-green-400">
             {THIEF_STEAL_PER_SEC[level]}g/s
@@ -521,7 +502,7 @@ function ThiefHoverCard({ level }: { level: number }) {
           {" · "}Tarnung {DISGUISE_LABEL[THIEF_LEVELS[level].disguise]}
         </div>
       )}
-      {isMaxed && <div className="text-amber-300 mt-1">Max. Stufe</div>}
+      {isMaxed && <div className="text-gold mt-1">Max. Stufe</div>}
     </HoverCardWrapper>
   );
 }
@@ -559,16 +540,14 @@ function ThiefCard({
   return (
     <div className="relative group">
       <ThiefHoverCard level={level} />
-      <div className="bg-stone-900/80 border border-stone-600 rounded-lg px-4 py-2 text-stone-300 text-xs font-mono flex flex-col items-center gap-2 min-w-35">
+      <div className="upgrade-card text-parchment flex flex-col items-center gap-2 min-w-35">
         <div className="flex items-center justify-between w-full">
-          <span className="font-bold tracking-widest">DIEB</span>
+          <span className="text-gold tracking-widest">DIEB</span>
           <span className="flex gap-1">
             {Array.from({ length: MAX_THIEF_LEVEL }, (_, i) => (
               <span
                 key={i}
-                className={`w-2 h-2 rounded-full ${
-                  i < level ? "bg-purple-400" : "bg-stone-700"
-                }`}
+                className={`level-dot${i < level ? " filled-purple" : ""}`}
               />
             ))}
           </span>
@@ -578,11 +557,7 @@ function ThiefCard({
           type="button"
           disabled={upgradeDisabled}
           onClick={() => dispatchUpgrade("thief")}
-          className={`w-full rounded border px-3 py-1 font-mono text-xs transition-colors ${
-            upgradeDisabled
-              ? "border-stone-700 text-stone-500 cursor-not-allowed opacity-50"
-              : "border-amber-400 text-amber-300 hover:bg-amber-300/10 cursor-pointer"
-          }`}
+          className="btn-upgrade"
         >
           {isMaxed
             ? "MAXIMAL"
@@ -596,11 +571,7 @@ function ThiefCard({
             type="button"
             disabled={!canSend}
             onClick={handleSend}
-            className={`w-full rounded border px-3 py-1 font-mono text-xs transition-colors ${
-              canSend
-                ? "border-purple-400 text-purple-300 hover:bg-purple-300/10 cursor-pointer"
-                : "border-stone-700 text-stone-500 cursor-not-allowed opacity-50"
-            }`}
+            className="btn-upgrade-action"
           >
             {opponentHasThief
               ? "Besetzt"
@@ -621,43 +592,43 @@ function WeatherHoverCard({ level }: { level: number }) {
   return (
     <HoverCardWrapper>
       {level === 0 ? (
-        <div className="text-stone-400">
+        <div className="text-muted-gold">
           Freischalten um Stürme zu senden die Gegnerernten verlangsamen
         </div>
       ) : (
         <>
-          <div className="text-stone-200">
+          <div className="text-parchment">
             Verlangsamt Wachstum:{" "}
-            <span className="text-amber-300">
+            <span className="text-gold">
               -{Math.round(WEATHER_SLOW_FACTORS[lvIdx] * 100)}%
             </span>
             {level === MAX_WEATHER_LEVEL && (
-              <span className="text-stone-400 ml-1">+ Blitz</span>
+              <span className="text-muted-gold ml-1">+ Blitz</span>
             )}
           </div>
-          <div className="text-stone-200 mt-0.5">
+          <div className="text-parchment mt-0.5">
             Verlangsamt Säen/Ernten:{" "}
-            <span className="text-amber-300">
+            <span className="text-gold">
               -{Math.round(WEATHER_ACTION_SLOW_FACTORS[lvIdx] * 100)}%
             </span>
           </div>
-          <div className="text-stone-200 mt-0.5">
+          <div className="text-parchment mt-0.5">
             Dauer:{" "}
-            <span className="text-amber-300">
+            <span className="text-gold">
               {formatSeconds(WEATHER_DURATION_MS)}
             </span>
           </div>
-          <div className="text-stone-200 mt-0.5">
+          <div className="text-parchment mt-0.5">
             Sendekosten:{" "}
-            <span className="text-amber-300">{WEATHER_SEND_COSTS[lvIdx]}g</span>
-            <span className="text-stone-500 ml-1">
+            <span className="text-gold">{WEATHER_SEND_COSTS[lvIdx]}g</span>
+            <span className="text-muted-gold ml-1">
               · Abklingzeit {formatSeconds(WEATHER_COOLDOWN_MS)}
             </span>
           </div>
         </>
       )}
       {!isMaxed && level > 0 && (
-        <div className="text-stone-400 mt-1">
+        <div className="text-muted-gold mt-1">
           Lv{level + 1}:{" "}
           <span className="text-green-400">
             -{Math.round(WEATHER_SLOW_FACTORS[level] * 100)}% Wachstum
@@ -669,7 +640,7 @@ function WeatherHoverCard({ level }: { level: number }) {
           )}
         </div>
       )}
-      {isMaxed && <div className="text-amber-300 mt-1">Max. Stufe</div>}
+      {isMaxed && <div className="text-gold mt-1">Max. Stufe</div>}
     </HoverCardWrapper>
   );
 }
@@ -707,16 +678,14 @@ function WeatherCard({
   return (
     <div className="relative group">
       <WeatherHoverCard level={level} />
-      <div className="bg-stone-900/80 border border-stone-600 rounded-lg px-4 py-2 text-stone-300 text-xs font-mono flex flex-col items-center gap-2 min-w-35">
+      <div className="upgrade-card text-parchment flex flex-col items-center gap-2 min-w-35">
         <div className="flex items-center justify-between w-full">
-          <span className="font-bold tracking-widest">STURM</span>
+          <span className="text-gold tracking-widest">STURM</span>
           <span className="flex gap-1">
             {Array.from({ length: MAX_WEATHER_LEVEL }, (_, i) => (
               <span
                 key={i}
-                className={`w-2 h-2 rounded-full ${
-                  i < level ? "bg-sky-400" : "bg-stone-700"
-                }`}
+                className={`level-dot${i < level ? " filled-sky" : ""}`}
               />
             ))}
           </span>
@@ -726,11 +695,7 @@ function WeatherCard({
           type="button"
           disabled={upgradeDisabled}
           onClick={() => dispatchUpgrade("weather")}
-          className={`w-full rounded border px-3 py-1 font-mono text-xs transition-colors ${
-            upgradeDisabled
-              ? "border-stone-700 text-stone-500 cursor-not-allowed opacity-50"
-              : "border-amber-400 text-amber-300 hover:bg-amber-300/10 cursor-pointer"
-          }`}
+          className="btn-upgrade"
         >
           {isMaxed
             ? "MAXIMAL"
@@ -744,11 +709,7 @@ function WeatherCard({
             type="button"
             disabled={!canSend}
             onClick={handleSend}
-            className={`w-full rounded border px-3 py-1 font-mono text-xs transition-colors ${
-              canSend
-                ? "border-sky-400 text-sky-300 hover:bg-sky-300/10 cursor-pointer"
-                : "border-stone-700 text-stone-500 cursor-not-allowed opacity-50"
-            }`}
+            className="btn-upgrade-action"
           >
             {opponentHasWeather
               ? "Aktiv"

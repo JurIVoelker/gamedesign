@@ -40,51 +40,38 @@ export function HUD() {
 
   return (
     <div className="absolute top-4 left-0 right-0 flex justify-center pointer-events-none z-10">
-      <div className="bg-stone-900/80 border border-stone-600 rounded-lg px-4 py-1 text-stone-300 text-xs font-mono flex gap-4 items-center pointer-events-auto">
+      <div className="panel-pixel px-4 py-2 text-parchment text-[8px] flex gap-4 items-center pointer-events-auto">
         <span>
           Slot:{" "}
-          <span className="text-amber-300 font-bold">
+          <span className="text-gold">
             {slot === "p1" ? "Spieler 1" : "Spieler 2"}
           </span>
         </span>
-        <span className="text-stone-600">|</span>
+        <span className="text-muted-gold">|</span>
         <span>
-          Gold: <span className="text-amber-300 font-bold">{gold}</span>
+          Gold: <span className="text-gold">{gold}</span>
         </span>
         {remaining !== null && (
           <>
-            <span className="text-stone-600">|</span>
+            <span className="text-muted-gold">|</span>
             <span>
               Zeit:{" "}
-              <span
-                className={
-                  remaining <= 60_000
-                    ? "text-red-400 font-bold"
-                    : "text-amber-300 font-bold"
-                }
-              >
+              <span className={remaining <= 60_000 ? "text-danger" : "text-gold"}>
                 {formatTime(remaining)}
               </span>
             </span>
           </>
         )}
-        <span className="text-stone-600">|</span>
-        <span>
-          ID: <span className="text-stone-400">{playerId?.slice(0, 8)}</span>
-        </span>
-        <span className="text-stone-600">|</span>
+        <span className="text-muted-gold">|</span>
         {confirming ? (
           <span className="flex gap-2 items-center">
-            <span className="text-stone-300">Aufgeben?</span>
-            <button
-              onClick={handleLeaveConfirm}
-              className="bg-red-700 hover:bg-red-600 text-stone-100 font-bold px-2 py-0.5 rounded transition-colors"
-            >
+            <span className="text-parchment">Aufgeben?</span>
+            <button onClick={handleLeaveConfirm} className="btn-pixel-danger">
               Ja
             </button>
             <button
               onClick={() => setConfirming(false)}
-              className="bg-stone-700 hover:bg-stone-600 text-stone-300 font-bold px-2 py-0.5 rounded transition-colors"
+              className="btn-pixel-secondary"
             >
               Nein
             </button>
@@ -92,7 +79,7 @@ export function HUD() {
         ) : (
           <button
             onClick={() => setConfirming(true)}
-            className="text-stone-400 hover:text-red-400 transition-colors"
+            className="btn-pixel-secondary"
           >
             Aufgeben
           </button>
