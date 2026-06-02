@@ -81,7 +81,9 @@ export class ThiefEntity {
     }
     const pulse = 0.4 + 0.3 * Math.sin(Date.now() / 400);
     this.glow.clear();
-    this.glow.ellipse(this.x, this.y - 1, 9, 3).fill({ color: 0xffd700, alpha: pulse });
+    this.glow
+      .ellipse(this.x, this.y - 1, 9, 3)
+      .fill({ color: 0xffd700, alpha: pulse });
     this.glowActive = true;
   }
 
@@ -95,7 +97,8 @@ export class ThiefEntity {
   private draw(): void {
     const frameIndex = Math.floor(this.walkFrame / 8) % FRAME_COUNT;
     // Lv3 full disguise: subtle sinusoidal body bob to hint at nervousness
-    const nervousY = this.disguise === "full" ? Math.sin(this.nervousFrame / 25) * 0.6 : 0;
+    const nervousY =
+      this.disguise === "full" ? Math.sin(this.nervousFrame / 25) * 0.6 : 0;
     this.sprite.texture = this.frames[this.direction][frameIndex];
     this.sprite.x = this.x;
     this.sprite.y = this.y - nervousY;

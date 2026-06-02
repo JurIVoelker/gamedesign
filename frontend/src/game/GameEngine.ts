@@ -281,11 +281,15 @@ export class GameEngine {
     const centerX = (leftX + FARM_W + centerGap / 2) * scale;
     if (this.playerWeatherOverlay) {
       this.playerWeatherOverlay.clear();
-      this.playerWeatherOverlay.rect(0, 0, centerX, h).fill({ color: 0x446688, alpha: 0.35 });
+      this.playerWeatherOverlay
+        .rect(0, 0, centerX, h)
+        .fill({ color: 0x446688, alpha: 0.35 });
     }
     if (this.opponentWeatherOverlay) {
       this.opponentWeatherOverlay.clear();
-      this.opponentWeatherOverlay.rect(centerX, 0, w - centerX, h).fill({ color: 0x446688, alpha: 0.35 });
+      this.opponentWeatherOverlay
+        .rect(centerX, 0, w - centerX, h)
+        .fill({ color: 0x446688, alpha: 0.35 });
     }
     if (this.edgeFade) this.drawEdgeFade(w, h, centerX);
   }
@@ -516,5 +520,4 @@ export class GameEngine {
 
     return { container: farm, fields };
   }
-
 }

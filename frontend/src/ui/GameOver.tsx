@@ -10,7 +10,9 @@ export function GameOver() {
   if (!game || game.phase !== "ended") return null;
 
   const myState = game.players[playerId ?? ""];
-  const opponentState = Object.values(game.players).find((p) => p.id !== playerId);
+  const opponentState = Object.values(game.players).find(
+    (p) => p.id !== playerId,
+  );
   const iWon = game.winnerId === playerId;
   const isDraw = !game.winnerId;
 
@@ -38,13 +40,17 @@ export function GameOver() {
             <span className="text-stone-300">
               {slot === "p1" ? "Spieler 1 (Du)" : "Spieler 2 (Du)"}
             </span>
-            <span className="text-amber-300 font-bold">{myState?.gold ?? 0} Gold</span>
+            <span className="text-amber-300 font-bold">
+              {myState?.gold ?? 0} Gold
+            </span>
           </div>
           <div className="flex justify-between items-center bg-stone-800 rounded-lg px-4 py-2">
             <span className="text-stone-400">
               {slot === "p1" ? "Spieler 2 (Gegner)" : "Spieler 1 (Gegner)"}
             </span>
-            <span className="text-stone-300 font-bold">{opponentState?.gold ?? 0} Gold</span>
+            <span className="text-stone-300 font-bold">
+              {opponentState?.gold ?? 0} Gold
+            </span>
           </div>
         </div>
 

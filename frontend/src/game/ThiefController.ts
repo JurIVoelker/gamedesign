@@ -1,7 +1,15 @@
 import { Container } from "pixi.js";
 import type { ThiefAttack } from "@gamedesign/shared";
 import { ThiefEntity } from "./entities/ThiefEntity";
-import { H_GAP, MARGIN, FARM_W, SCENE_H_INNER, SPEED, ARRIVE_DIST, rowY } from "./layout";
+import {
+  H_GAP,
+  MARGIN,
+  FARM_W,
+  SCENE_H_INNER,
+  SPEED,
+  ARRIVE_DIST,
+  rowY,
+} from "./layout";
 import { FIELD_W } from "./entities/FieldEntity";
 import { HOUSE_W } from "./entities/HouseEntity";
 
@@ -109,7 +117,10 @@ export class ThiefController {
     );
     this.entity.render(this.farmStage);
 
-    this.moveState = { kind: "idle", nextAt: now + this.randBetween(500, 2000) };
+    this.moveState = {
+      kind: "idle",
+      nextAt: now + this.randBetween(500, 2000),
+    };
   }
 
   private emergeFromHouse(): void {
@@ -119,7 +130,10 @@ export class ThiefController {
     this.entity.x = this.houseEntrances[idx].x;
     this.entity.y = this.houseEntrances[idx].y;
     this.entity.isVisible = true;
-    this.moveState = { kind: "idle", nextAt: now + this.randBetween(300, 1000) };
+    this.moveState = {
+      kind: "idle",
+      nextAt: now + this.randBetween(300, 1000),
+    };
   }
 
   private tickMovement(now: number, dt: number): void {
@@ -151,7 +165,10 @@ export class ThiefController {
         const dy = this.moveState.ty - this.entity.y;
 
         if (Math.abs(dx) <= ARRIVE_DIST && Math.abs(dy) <= ARRIVE_DIST) {
-          this.moveState = { kind: "working", doneAt: now + this.randBetween(2000, 5000) };
+          this.moveState = {
+            kind: "working",
+            doneAt: now + this.randBetween(2000, 5000),
+          };
         } else {
           const step = SPEED * dt;
           if (Math.abs(dx) > ARRIVE_DIST) {
@@ -167,7 +184,10 @@ export class ThiefController {
 
       case "working": {
         if (now >= this.moveState.doneAt) {
-          this.moveState = { kind: "idle", nextAt: now + this.randBetween(300, 1200) };
+          this.moveState = {
+            kind: "idle",
+            nextAt: now + this.randBetween(300, 1200),
+          };
         }
         break;
       }

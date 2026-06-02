@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useConnectionStore } from "../state/connectionStore";
 
 export function Lobby() {
-  const { status, slot, roomCode, error, send, playerId, disconnect } = useConnectionStore();
+  const { status, slot, roomCode, error, send, playerId, disconnect } =
+    useConnectionStore();
   const [joinCode, setJoinCode] = useState("");
   const [copied, setCopied] = useState(false);
 
@@ -27,10 +28,13 @@ export function Lobby() {
       setTimeout(() => setCopied(false), 2000);
     };
     if (navigator.clipboard) {
-      navigator.clipboard.writeText(inviteUrl).then(confirm).catch(() => {
-        fallbackCopy(inviteUrl);
-        confirm();
-      });
+      navigator.clipboard
+        .writeText(inviteUrl)
+        .then(confirm)
+        .catch(() => {
+          fallbackCopy(inviteUrl);
+          confirm();
+        });
     } else {
       fallbackCopy(inviteUrl);
       confirm();
@@ -127,12 +131,20 @@ export function Lobby() {
                     {copied ? "✓" : "Kopieren"}
                   </button>
                 </div>
-                <p className="text-stone-500 text-xs font-mono tracking-widest">{roomCode}</p>
+                <p className="text-stone-500 text-xs font-mono tracking-widest">
+                  {roomCode}
+                </p>
               </div>
             )}
             <p className="text-stone-500 text-xs animate-pulse">
               Warte auf Gegner…
             </p>
+            <button
+              onClick={() => disconnect?.()}
+              className="bg-stone-700 hover:bg-stone-600 text-stone-300 text-sm font-semibold py-2 px-4 rounded-lg transition-colors w-full"
+            >
+              Raum verlassen
+            </button>
           </div>
         )}
 

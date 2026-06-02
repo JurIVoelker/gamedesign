@@ -121,8 +121,7 @@ export class FieldEntity extends Entity {
       (stage === "growing" || stage === "ready") &&
       !field?.crowAttack &&
       !targeting.chosen.includes(this.id);
-    const isChosen =
-      targeting.active && targeting.chosen.includes(this.id);
+    const isChosen = targeting.active && targeting.chosen.includes(this.id);
 
     // Normal grow progress (0→1) from sowedAt/readyAt timestamps
     const stageProgress =
@@ -222,7 +221,11 @@ export class FieldEntity extends Entity {
     // Crow animator lifecycle
     if (hasCrow !== this.lastHadCrowAttack) {
       if (hasCrow && this.fieldContainer) {
-        this.crowAnimator = new CrowAnimator(this.fieldContainer, this.owner, field?.crowAttack?.level ?? 1);
+        this.crowAnimator = new CrowAnimator(
+          this.fieldContainer,
+          this.owner,
+          field?.crowAttack?.level ?? 1,
+        );
       } else {
         this.crowAnimator?.startFlyAway();
       }
@@ -255,7 +258,9 @@ export class FieldEntity extends Entity {
       base.removeAllListeners();
       if (isEligibleTarget) {
         base.cursor = "crosshair";
-        base.on("pointerdown", () => useTargetingStore.getState().pick(this.id));
+        base.on("pointerdown", () =>
+          useTargetingStore.getState().pick(this.id),
+        );
       } else if (hasCrow && !isScaring && isOwn && this.onScareCrow) {
         base.cursor = "pointer";
         base.on("pointerdown", this.onScareCrow);

@@ -31,5 +31,6 @@ export const useTargetingStore = create<TargetingState>((set, get) => ({
     }
   },
 
-  cancel: () => set({ active: false, fieldCount: 0, chosen: [], onComplete: null }),
+  cancel: () =>
+    set({ active: false, fieldCount: 0, chosen: [], onComplete: null }),
 }));

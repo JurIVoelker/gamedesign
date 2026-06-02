@@ -1,7 +1,12 @@
 import { create } from "zustand";
 import type { ClientMessage } from "@gamedesign/shared";
 
-export type AppStatus = "disconnected" | "connecting" | "lobby" | "waiting" | "in_game";
+export type AppStatus =
+  | "disconnected"
+  | "connecting"
+  | "lobby"
+  | "waiting"
+  | "in_game";
 
 interface ConnectionState {
   status: AppStatus;

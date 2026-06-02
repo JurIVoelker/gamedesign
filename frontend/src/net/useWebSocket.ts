@@ -33,8 +33,16 @@ export function useWebSocket() {
   const mountedRef = useRef(true);
   const intentionalDisconnectRef = useRef(false);
 
-  const { setStatus, setError, setSend, setDisconnect, setSlot, setPlayerId, setRoomCode, reset } =
-    useConnectionStore.getState();
+  const {
+    setStatus,
+    setError,
+    setSend,
+    setDisconnect,
+    setSlot,
+    setPlayerId,
+    setRoomCode,
+    reset,
+  } = useConnectionStore.getState();
   const { setGame } = useGameStore.getState();
 
   const send = useCallback((msg: ClientMessage) => {
@@ -64,7 +72,8 @@ export function useWebSocket() {
           break;
         case "game_state":
           setGame(msg.state);
-          if (msg.state.phase === "playing" || msg.state.phase === "ended") setStatus("in_game");
+          if (msg.state.phase === "playing" || msg.state.phase === "ended")
+            setStatus("in_game");
           break;
         case "error":
           setError(msg.message);
@@ -138,7 +147,15 @@ export function useWebSocket() {
     ws.onerror = () => {
       setError("Connection error");
     };
-  }, [handleMessage, reset, setError, setStatus, setPlayerId, setRoomCode, send]);
+  }, [
+    handleMessage,
+    reset,
+    setError,
+    setStatus,
+    setPlayerId,
+    setRoomCode,
+    send,
+  ]);
 
   useEffect(() => {
     mountedRef.current = true;

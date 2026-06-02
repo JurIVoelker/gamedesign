@@ -88,7 +88,14 @@ export function FarmCanvas() {
     };
 
     engine
-      .init(containerRef.current!, onSow, onHarvest, onScareCrow, onCatchThief, onVillagersChange)
+      .init(
+        containerRef.current!,
+        onSow,
+        onHarvest,
+        onScareCrow,
+        onCatchThief,
+        onVillagersChange,
+      )
       .then(() => {
         if (!mounted) {
           engine.destroy();

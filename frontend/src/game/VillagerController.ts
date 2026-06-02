@@ -3,13 +3,36 @@ import type { Field } from "@gamedesign/shared";
 import { VillagerEntity } from "./entities/VillagerEntity";
 import { FIELD_W } from "./entities/FieldEntity";
 import { HOUSE_W, HOUSE_H } from "./entities/HouseEntity";
-import { H_GAP, MARGIN, FARM_W, SCENE_H_INNER, SPEED, ARRIVE_DIST, rowY } from "./layout";
+import {
+  H_GAP,
+  MARGIN,
+  FARM_W,
+  SCENE_H_INNER,
+  SPEED,
+  ARRIVE_DIST,
+  rowY,
+} from "./layout";
 
 type VState =
-  | { kind: "wandering"; targetX: number; targetY: number; nextDecisionAt: number }
-  | { kind: "walking_to_field"; fieldIndex: number; targetX: number; targetY: number }
+  | {
+      kind: "wandering";
+      targetX: number;
+      targetY: number;
+      nextDecisionAt: number;
+    }
+  | {
+      kind: "walking_to_field";
+      fieldIndex: number;
+      targetX: number;
+      targetY: number;
+    }
   | { kind: "working_field"; fieldIndex: number; doneAt: number }
-  | { kind: "walking_to_house"; houseIndex: number; targetX: number; targetY: number }
+  | {
+      kind: "walking_to_house";
+      houseIndex: number;
+      targetX: number;
+      targetY: number;
+    }
   | { kind: "inside_house"; houseIndex: number; emergesAt: number };
 
 interface VillagerData {
@@ -176,7 +199,11 @@ export class VillagerController {
       .filter((v) => v.state.kind === "inside_house")
       .map((v) => {
         const s = v.state as Extract<VState, { kind: "inside_house" }>;
-        return { villagerId: v.entity.id, houseIndex: s.houseIndex, emergesAt: s.emergesAt };
+        return {
+          villagerId: v.entity.id,
+          houseIndex: s.houseIndex,
+          emergesAt: s.emergesAt,
+        };
       });
   }
 
@@ -233,10 +260,17 @@ export class VillagerController {
       }
 
       case "walking_to_house": {
-        const arrived = this.moveTowardVFirst(v.entity, s.targetX, s.targetY, dt);
+        const arrived = this.moveTowardVFirst(
+          v.entity,
+          s.targetX,
+          s.targetY,
+          dt,
+        );
         if (arrived) {
           v.entity.isVisible = false;
-          const indoorMs = this.weatherActive ? this.jitter(30_000, 0.2) : this.jitter(15_000, 0.3);
+          const indoorMs = this.weatherActive
+            ? this.jitter(30_000, 0.2)
+            : this.jitter(15_000, 0.3);
           v.state = {
             kind: "inside_house",
             houseIndex: s.houseIndex,
@@ -254,7 +288,11 @@ export class VillagerController {
           v.entity.x = entrance.x;
           v.entity.y = entrance.y;
           v.entity.isVisible = true;
-          v.nextHouseVisitAt = now + (this.weatherActive ? this.jitter(6_000, 0.3) : this.jitter(45_000, 0.3));
+          v.nextHouseVisitAt =
+            now +
+            (this.weatherActive
+              ? this.jitter(6_000, 0.3)
+              : this.jitter(45_000, 0.3));
           v.state = {
             kind: "wandering",
             targetX: this.randomWanderX(),
@@ -269,7 +307,12 @@ export class VillagerController {
     }
   }
 
-  private moveToward(entity: VillagerEntity, tx: number, ty: number, dt: number): boolean {
+  private moveToward(
+    entity: VillagerEntity,
+    tx: number,
+    ty: number,
+    dt: number,
+  ): boolean {
     const dx = tx - entity.x;
     const dy = ty - entity.y;
 
@@ -291,7 +334,12 @@ export class VillagerController {
   // Vertical-first variant: used when approaching the house so the villager
   // aligns to the entrance Y (house bottom) while still in the open field column,
   // then slides horizontally into the door — never clipping through the house body.
-  private moveTowardVFirst(entity: VillagerEntity, tx: number, ty: number, dt: number): boolean {
+  private moveTowardVFirst(
+    entity: VillagerEntity,
+    tx: number,
+    ty: number,
+    dt: number,
+  ): boolean {
     const dx = tx - entity.x;
     const dy = ty - entity.y;
 
