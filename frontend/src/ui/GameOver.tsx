@@ -40,9 +40,7 @@ export function GameOver() {
             <span className="text-parchment">
               {slot === "p1" ? "Spieler 1 (Du)" : "Spieler 2 (Du)"}
             </span>
-            <span className="text-gold">
-              {myState?.gold ?? 0} Gold
-            </span>
+            <span className="text-gold">{myState?.gold ?? 0} Gold</span>
           </div>
           <div className="score-row">
             <span className="text-muted-gold">

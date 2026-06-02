@@ -4,18 +4,6 @@ import { useGameStore } from "../state/gameStore";
 import { useConnectionStore } from "../state/connectionStore";
 import { useTargetingStore } from "../state/targetingStore";
 
-const labelStyle: CSSProperties = {
-  position: "absolute",
-  top: 12,
-  color: "#f0e8c0",
-  fontFamily: "monospace",
-  fontSize: 13,
-  fontWeight: "bold",
-  letterSpacing: 1,
-  pointerEvents: "none",
-  userSelect: "none",
-};
-
 const targetingHintStyle: CSSProperties = {
   position: "absolute",
   top: "50%",
@@ -129,11 +117,39 @@ export function FarmCanvas() {
         ref={containerRef}
         style={{ imageRendering: "pixelated", position: "absolute", inset: 0 }}
       />
-      <span style={{ ...labelStyle, left: 16 }}>Your Farm</span>
-      <span style={{ ...labelStyle, right: 16 }}>Opponent</span>
+      <span
+        className="panel-pixel text-parchment"
+        style={{
+          position: "absolute",
+          top: 12,
+          left: 16,
+          fontFamily: "'Press Start 2P', monospace",
+          fontSize: 8,
+          padding: "5px 10px",
+          pointerEvents: "none",
+          userSelect: "none",
+        }}
+      >
+        Dein Hof
+      </span>
+      <span
+        className="panel-pixel text-parchment"
+        style={{
+          position: "absolute",
+          top: 12,
+          right: 16,
+          fontFamily: "'Press Start 2P', monospace",
+          fontSize: 8,
+          padding: "5px 10px",
+          pointerEvents: "none",
+          userSelect: "none",
+        }}
+      >
+        Gegner
+      </span>
       {targeting && (
         <span style={targetingHintStyle}>
-          Click opponent field ({remaining} left) · Esc to cancel
+          Gegnerfeld wählen ({remaining} übrig) · Esc zum Abbrechen
         </span>
       )}
     </div>
