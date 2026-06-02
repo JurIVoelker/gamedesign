@@ -2,8 +2,16 @@ import { useState } from "react";
 import { useConnectionStore } from "../state/connectionStore";
 
 export function Lobby() {
-  const { status, slot, roomCode, error, send, playerId, disconnect } =
-    useConnectionStore();
+  const {
+    status,
+    slot,
+    roomCode,
+    error,
+    send,
+    playerId,
+    disconnect,
+    setRoomCode,
+  } = useConnectionStore();
   const [joinCode, setJoinCode] = useState("");
   const [copied, setCopied] = useState(false);
 
@@ -18,6 +26,8 @@ export function Lobby() {
   function handleJoinRoom() {
     const code = joinCode.trim().toUpperCase();
     if (!code || !playerId) return;
+    localStorage.setItem("roomCode", code);
+    setRoomCode(code);
     send?.({ type: "hello", playerId, roomCode: code });
   }
 
