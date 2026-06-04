@@ -5,7 +5,6 @@ import { OnboardingModal } from "./OnboardingModal";
 export function Lobby() {
   const {
     status,
-    slot,
     roomCode,
     error,
     send,
@@ -14,7 +13,6 @@ export function Lobby() {
     setRoomCode,
   } = useConnectionStore();
   const [joinCode, setJoinCode] = useState("");
-  const [copied, setCopied] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
@@ -28,10 +26,6 @@ export function Lobby() {
     setShowOnboarding(false);
   }
 
-  const inviteUrl = roomCode
-    ? `${window.location.origin}/?room=${roomCode}`
-    : null;
-
   function handleCreateRoom() {
     send?.({ type: "create_room" });
   }
@@ -42,38 +36,6 @@ export function Lobby() {
     localStorage.setItem("roomCode", code);
     setRoomCode(code);
     send?.({ type: "hello", playerId, roomCode: code });
-  }
-
-  function handleCopy() {
-    if (!inviteUrl) return;
-    const confirm = () => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    };
-    if (navigator.clipboard) {
-      navigator.clipboard
-        .writeText(inviteUrl)
-        .then(confirm)
-        .catch(() => {
-          fallbackCopy(inviteUrl);
-          confirm();
-        });
-    } else {
-      fallbackCopy(inviteUrl);
-      confirm();
-    }
-  }
-
-  function fallbackCopy(text: string) {
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    ta.style.position = "fixed";
-    ta.style.opacity = "0";
-    document.body.appendChild(ta);
-    ta.focus();
-    ta.select();
-    document.execCommand("copy");
-    document.body.removeChild(ta);
   }
 
   return (
@@ -135,34 +97,13 @@ export function Lobby() {
 
         {status === "waiting" && (
           <div className="flex flex-col items-center gap-3">
-            {slot && (
-              <p className="text-muted-gold text-[8px]">
-                Du bist{" "}
-                <span className="text-gold">
-                  {slot === "p1" ? "Spieler 1" : "Spieler 2"}
-                </span>
+            <p className="text-muted-gold text-[8px] text-center">
+              Gib deinem Mitspieler diesen Code:
+            </p>
+            {roomCode && (
+              <p className="text-gold text-[22px] tracking-[0.25em]">
+                {roomCode}
               </p>
-            )}
-            {inviteUrl && (
-              <div className="flex flex-col items-center gap-2 w-full">
-                <p className="text-muted-gold text-[8px]">Lade einen Freund ein:</p>
-                <div className="flex gap-2 w-full">
-                  <input
-                    readOnly
-                    value={inviteUrl}
-                    className="input-pixel flex-1 min-w-0 text-[7px]"
-                  />
-                  <button
-                    onClick={handleCopy}
-                    className="btn-pixel-secondary whitespace-nowrap"
-                  >
-                    {copied ? "✓" : "Kopieren"}
-                  </button>
-                </div>
-                <p className="text-muted-gold text-[9px] tracking-widest">
-                  {roomCode}
-                </p>
-              </div>
             )}
             <p className="text-muted-gold text-[8px] animate-pulse">
               Warte auf Gegner…
