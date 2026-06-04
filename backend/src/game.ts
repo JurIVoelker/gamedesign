@@ -22,7 +22,6 @@ import {
   CROW_UPGRADE_COSTS,
   CROW_SEND_COST,
   CROW_COOLDOWN_MS,
-  CROW_SCARE_MS,
   THIEF_LEVELS,
   MAX_THIEF_LEVEL,
   THIEF_UPGRADE_COSTS,
@@ -370,7 +369,8 @@ export class Game {
 
     const now = Date.now();
     field.scaringAt = now;
-    this.scheduleTimer(`scare:${playerId}:${fieldIndex}`, now + CROW_SCARE_MS, () =>
+    const scareDurationMs = CROW_LEVEL_CONFIG[field.crowAttack.level - 1].scareDurationMs;
+    this.scheduleTimer(`scare:${playerId}:${fieldIndex}`, now + scareDurationMs, () =>
       this.completeScare(playerId, fieldIndex),
     );
 
@@ -475,13 +475,15 @@ export class Game {
       this.rescheduleFieldTimer(opponentState.id, field);
     }
 
-    // Lv3: lightning strikes one random growing or ready field after a short delay
+    // Lv3: lightning strikes the most-grown field after a short delay
     if (cfg.lightning) {
       const eligible = opponentState.fields.filter(
         (f) => f.stage === 'growing' || f.stage === 'ready',
       );
       if (eligible.length > 0) {
-        const target = eligible[Math.floor(Math.random() * eligible.length)];
+        const progress = (f: Field) =>
+          f.stage === 'ready' ? 1 : (now - (f.sowedAt ?? now)) / ((f.readyAt ?? now + 1) - (f.sowedAt ?? now));
+        const target = eligible.reduce((best, f) => progress(f) > progress(best) ? f : best);
         this.cancelTimer(`${opponentState.id}:${target.index}`);
         const strikeAt = now + 2000;
         this.scheduleTimer(`lightning:${opponentState.id}:${target.index}`, strikeAt, () => {

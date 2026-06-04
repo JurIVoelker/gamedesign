@@ -255,9 +255,6 @@ function CrowsHoverCard({ level }: { level: number }) {
             <span className="text-gold">
               {fieldCount} Feld{fieldCount > 1 ? "er" : ""}
             </span>
-            {level === MAX_CROW_LEVEL && (
-              <span className="text-muted-gold ml-1">(reifste zuerst)</span>
-            )}
           </div>
           <div className="text-parchment mt-0.5">
             Frisst volles Feld in:{" "}
@@ -282,10 +279,7 @@ function CrowsHoverCard({ level }: { level: number }) {
             frisst in {formatSeconds(CROW_EAT_DURATIONS_MS[level])}
           </span>
           {level + 1 >= 2 && (
-            <span className="text-muted-gold ml-1">· 2 Felder</span>
-          )}
-          {level + 1 === MAX_CROW_LEVEL && (
-            <span className="text-muted-gold ml-1">· zielt auf reifste</span>
+            <span className="text-muted-gold ml-1">· {CROW_FIELD_COUNTS[level]} Felder</span>
           )}
         </div>
       )}
