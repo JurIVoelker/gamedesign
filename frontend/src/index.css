@@ -211,3 +211,8 @@ body {
 .text-gold       { color: #ffd700; }
 .text-muted-gold { color: #8a7040; }
 .text-danger     { color: #ff4040; }
+
+/* ── Safe-area positioning (iOS notch / home indicator) ──── */
+
+.inset-top-safe    { top:    max(1rem, env(safe-area-inset-top)); }
+.inset-bottom-safe { bottom: max(1rem, env(safe-area-inset-bottom)); }

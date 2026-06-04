@@ -39,7 +39,7 @@ export function HUD() {
   }
 
   return (
-    <div className="absolute top-4 left-0 right-0 flex justify-center pointer-events-none z-10">
+    <div className="absolute inset-top-safe left-0 right-0 flex justify-center pointer-events-none z-10">
       <div className="panel-pixel px-4 py-2 text-parchment text-[8px] flex gap-4 items-center pointer-events-auto">
         <span>
           Slot:{" "}

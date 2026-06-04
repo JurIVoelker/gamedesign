@@ -11,7 +11,7 @@ import {
   rowY,
 } from "./layout";
 import { FIELD_W } from "./entities/FieldEntity";
-import { HOUSE_W } from "./entities/HouseEntity";
+import { HOUSE_W, HOUSE_H } from "./entities/HouseEntity";
 
 type MoveState =
   | { kind: "idle"; nextAt: number }
@@ -45,7 +45,7 @@ export class ThiefController {
 
     this.houseEntrances = Array.from({ length: 4 }, (_, i) => ({
       x: isPlayer ? HOUSE_W / 2 : FIELD_W + H_GAP + HOUSE_W / 2,
-      y: rowY(i),
+      y: rowY(i) + HOUSE_H / 2,
     }));
 
     this.lurkerX = isPlayer ? -10 : FARM_W + 10;
@@ -86,7 +86,7 @@ export class ThiefController {
 
     this.entity.isVisible = true;
     this.tickMovement(now, dt);
-    this.entity.walkFrame++;
+    if (this.moveState.kind === "moving") this.entity.walkFrame++;
     this.entity.showAttackerGlow(this.role === "attacker");
     this.entity.update();
   }
@@ -119,7 +119,7 @@ export class ThiefController {
 
     this.moveState = {
       kind: "idle",
-      nextAt: now + this.randBetween(500, 2000),
+      nextAt: attack.phase === "stealing" ? now : now + this.randBetween(500, 2000),
     };
   }
 
@@ -130,10 +130,7 @@ export class ThiefController {
     this.entity.x = this.houseEntrances[idx].x;
     this.entity.y = this.houseEntrances[idx].y;
     this.entity.isVisible = true;
-    this.moveState = {
-      kind: "idle",
-      nextAt: now + this.randBetween(300, 1000),
-    };
+    this.moveState = { kind: "idle", nextAt: now };
   }
 
   private tickMovement(now: number, dt: number): void {

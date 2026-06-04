@@ -749,7 +749,7 @@ export function UpgradePanel() {
   const opponentHasWeather = opponent?.weatherEffect != null;
 
   return (
-    <div className="absolute bottom-4 left-0 right-0 flex justify-center pointer-events-none">
+    <div className="absolute inset-bottom-safe left-0 right-0 flex justify-center pointer-events-none">
       <div className="flex gap-3 pointer-events-auto">
         <UpgradeCard
           toolId="sow"

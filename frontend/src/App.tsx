@@ -14,7 +14,7 @@ export default function App() {
   const gamePhase = useGameStore((s) => s.game?.phase);
 
   return (
-    <div className="relative w-full h-screen bg-green-950 flex flex-col items-center justify-center gap-6">
+    <div className="relative w-full h-dvh bg-green-950 flex flex-col items-center justify-center gap-6">
       <FarmCanvas />
       {!isInGame && <Lobby />}
       {isInGame && <HUD />}

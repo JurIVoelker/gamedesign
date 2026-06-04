@@ -39,7 +39,17 @@ export class GameEngine {
   private onVillagersChange: ((count: number) => void) | null = null;
   private playerWeatherOverlay: Graphics | null = null;
   private opponentWeatherOverlay: Graphics | null = null;
+  private playerLightningOverlay: Graphics | null = null;
   private opponentLightningOverlay: Graphics | null = null;
+  private playerLightningPhase:
+    | "idle"
+    | "flash1"
+    | "flash1_fade"
+    | "gap"
+    | "flash2"
+    | "flash2_fade" = "idle";
+  private playerLightningTimer = 0;
+  private playerHasLightning = false;
   private lightningPhase:
     | "idle"
     | "flash1"
@@ -130,6 +140,9 @@ export class GameEngine {
     this.opponentWeatherOverlay = new Graphics();
     this.opponentWeatherOverlay.visible = false;
     app.stage.addChild(this.opponentWeatherOverlay);
+    this.playerLightningOverlay = new Graphics();
+    this.playerLightningOverlay.visible = false;
+    app.stage.addChild(this.playerLightningOverlay);
     this.opponentLightningOverlay = new Graphics();
     this.opponentLightningOverlay.visible = false;
     app.stage.addChild(this.opponentLightningOverlay);
@@ -148,6 +161,7 @@ export class GameEngine {
       this.playerThief?.update(app.ticker.deltaMS);
       this.opponentThief?.update(app.ticker.deltaMS);
       this.updateLightning(app.ticker.deltaMS);
+      this.updatePlayerLightning(app.ticker.deltaMS);
     });
 
     this.resizeHandler = () => {
@@ -184,6 +198,7 @@ export class GameEngine {
     this.opponentThief = null;
     this.playerWeatherOverlay = null;
     this.opponentWeatherOverlay = null;
+    this.playerLightningOverlay = null;
     this.opponentLightningOverlay = null;
     this.villagersSeeded = false;
   }
@@ -254,6 +269,11 @@ export class GameEngine {
       if (this.playerWeatherOverlay)
         this.playerWeatherOverlay.visible = myWeather;
       this.playerVillagers?.setWeather(myWeather);
+      const hadPlayerLightning = this.playerHasLightning;
+      this.playerHasLightning = myState.weatherEffect?.lightning ?? false;
+      if (!hadPlayerLightning && this.playerHasLightning) {
+        setTimeout(() => this.triggerPlayerLightningStrike(), 2000);
+      }
     }
     if (opponentState) {
       for (let i = 0; i < this.opponentFields.length; i++) {
@@ -311,6 +331,12 @@ export class GameEngine {
         .rect(centerX, 0, w - centerX, h)
         .fill({ color: 0x446688, alpha: 0.35 });
     }
+    if (this.playerLightningOverlay) {
+      this.playerLightningOverlay.clear();
+      this.playerLightningOverlay
+        .rect(0, 0, centerX, h)
+        .fill({ color: 0xffffff, alpha: 1 });
+    }
     if (this.opponentLightningOverlay) {
       this.opponentLightningOverlay.clear();
       this.opponentLightningOverlay
@@ -320,12 +346,64 @@ export class GameEngine {
     if (this.edgeFade) this.drawEdgeFade(w, h, centerX);
   }
 
+  private triggerPlayerLightningStrike(): void {
+    this.playerLightningPhase = "flash1";
+    this.playerLightningTimer = 50;
+    if (this.playerLightningOverlay) {
+      this.playerLightningOverlay.alpha = 0.85;
+      this.playerLightningOverlay.visible = true;
+    }
+  }
+
   private triggerLightningStrike(): void {
     this.lightningPhase = "flash1";
     this.lightningTimer = 50;
     if (this.opponentLightningOverlay) {
       this.opponentLightningOverlay.alpha = 0.85;
       this.opponentLightningOverlay.visible = true;
+    }
+  }
+
+  private updatePlayerLightning(deltaMS: number): void {
+    const overlay = this.playerLightningOverlay;
+    if (!overlay || this.playerLightningPhase === "idle") return;
+    this.playerLightningTimer -= deltaMS;
+    switch (this.playerLightningPhase) {
+      case "flash1":
+        if (this.playerLightningTimer <= 0) {
+          this.playerLightningPhase = "flash1_fade";
+          this.playerLightningTimer = 80;
+        }
+        break;
+      case "flash1_fade":
+        overlay.alpha = Math.max(0, 0.85 * (this.playerLightningTimer / 80));
+        if (this.playerLightningTimer <= 0) {
+          overlay.visible = false;
+          this.playerLightningPhase = "gap";
+          this.playerLightningTimer = 60;
+        }
+        break;
+      case "gap":
+        if (this.playerLightningTimer <= 0) {
+          this.playerLightningPhase = "flash2";
+          this.playerLightningTimer = 40;
+          overlay.alpha = 0.45;
+          overlay.visible = true;
+        }
+        break;
+      case "flash2":
+        if (this.playerLightningTimer <= 0) {
+          this.playerLightningPhase = "flash2_fade";
+          this.playerLightningTimer = 100;
+        }
+        break;
+      case "flash2_fade":
+        overlay.alpha = Math.max(0, 0.45 * (this.playerLightningTimer / 100));
+        if (this.playerLightningTimer <= 0) {
+          overlay.visible = false;
+          this.playerLightningPhase = "idle";
+        }
+        break;
     }
   }
 

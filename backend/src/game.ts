@@ -418,8 +418,8 @@ export class Game {
     playerState.gold -= cfg.cost;
     thiefTool.cooldownUntil = now + cfg.cooldownMs;
 
-    // Safety-net timer: ensure state is cleaned up even if no actions arrive
-    this.scheduleTimer(`thief_expire:${opponentState.id}`, entryAt + cfg.durationMs, () =>
+    // Safety-net: clean up if the thief never gets to enter (all villagers stay outside)
+    this.scheduleTimer(`thief_expire:${opponentState.id}`, now + cfg.maxWaitMs + cfg.durationMs, () =>
       this.expireThief(opponentState.id),
     );
 
@@ -515,13 +515,16 @@ export class Game {
       const attack = playerState.thiefAttack;
       if (!attack) continue;
 
-      // Transition waiting → stealing: either the full random wait elapsed, or the
-      // minimum wait passed and there is at least one villager inside (<4 outside)
-      const earlyEntry = now >= attack.minEntryAt && playerState.villagersOutside < 4;
-      if (attack.phase === 'waiting' && (now >= attack.entryAt || earlyEntry)) {
+      // Transition waiting → stealing: minimum wait elapsed AND at least one villager is inside
+      const canEnter = now >= attack.minEntryAt && playerState.villagersOutside < 4;
+      if (attack.phase === 'waiting' && canEnter) {
         attack.phase = 'stealing';
-        attack.stealStartedAt = attack.entryAt;
-        attack.lastProcessedAt = attack.entryAt;
+        attack.stealStartedAt = now;
+        attack.lastProcessedAt = now;
+        // Reschedule expiry from when stealing actually starts (house exit)
+        this.scheduleTimer(`thief_expire:${playerId}`, now + attack.durationMs, () =>
+          this.expireThief(playerId),
+        );
         changed = true;
       }
 
