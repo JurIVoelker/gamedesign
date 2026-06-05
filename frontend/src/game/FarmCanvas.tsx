@@ -37,6 +37,7 @@ export function FarmCanvas() {
 
   const [accusationTarget, setAccusationTarget] =
     useState<AccusationTarget | null>(null);
+  const [accusationAnchorY, setAccusationAnchorY] = useState<number | null>(null);
 
   // Anger bubble: shown above the house when sow/harvest is blocked
   const [angerBubble, setAngerBubble] = useState<{ x: number; y: number } | null>(null);
@@ -116,10 +117,13 @@ export function FarmCanvas() {
       const { game: g } = useGameStore.getState();
       const { playerId: pid } = useConnectionStore.getState();
       const disguise = g?.players[pid ?? ""]?.thiefAttack?.disguise ?? "none";
+      setAccusationAnchorY(window.innerHeight / 2);
       setAccusationTarget({ type: "thief", disguise });
     };
 
     const onVillagerClicked = (id: number) => {
+      const pos = engineRef.current?.getPlayerHouseScreenPos(id);
+      setAccusationAnchorY(pos?.y ?? null);
       setAccusationTarget({ type: "villager", villagerId: id });
     };
 
@@ -185,6 +189,7 @@ export function FarmCanvas() {
 
   const handleDismiss = () => {
     setAccusationTarget(null);
+    setAccusationAnchorY(null);
   };
 
   return (
@@ -258,6 +263,7 @@ export function FarmCanvas() {
           key={accusationTarget.type === "villager" ? `v${accusationTarget.villagerId}` : "thief"}
           target={accusationTarget}
           annoyanceLevel={annoyanceLevel}
+          anchorY={accusationAnchorY ?? undefined}
           onAction={handleAction}
           onDismiss={handleDismiss}
         />

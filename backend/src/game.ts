@@ -25,7 +25,6 @@ import {
   THIEF_LEVELS,
   MAX_THIEF_LEVEL,
   THIEF_UPGRADE_COSTS,
-  THIEF_GOLD_RETURN_FRACTION,
   WEATHER_LEVELS,
   MAX_WEATHER_LEVEL,
   WEATHER_UPGRADE_COSTS,
@@ -651,7 +650,7 @@ export class Game {
       const actorState = actorId ? this.state.players[actorId] : null;
       victimState.gold = Math.max(0, victimState.gold - Math.floor(actualStolen));
       if (actorState) {
-        actorState.gold += Math.floor(actualStolen * THIEF_GOLD_RETURN_FRACTION);
+        actorState.gold += Math.floor(actualStolen);
       }
     }
 

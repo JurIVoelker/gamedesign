@@ -10,8 +10,9 @@ const FRAME_H = 23;
 const SCALE = 3;
 const SHEET_W = 62;
 
-// Game background: #a7af4f (0xa7af4f)
-const SCENE_BG = "#a7af4f";
+// Slightly lighter than the raw PixiJS canvas color (#a7af4f) to compensate
+// for the perceived darkening caused by the surrounding dark border.
+const SCENE_BG = "#b4bc54";
 
 const DECO_SCALE = 3;
 
@@ -59,6 +60,7 @@ function villagerResponse(levelBeforeAccuse: number): string {
 interface Props {
   target: AccusationTarget;
   annoyanceLevel: number;
+  anchorY?: number;
   onAction: () => void;
   onDismiss: () => void;
 }
@@ -66,6 +68,7 @@ interface Props {
 export function AccusationModal({
   target,
   annoyanceLevel,
+  anchorY,
   onAction,
   onDismiss,
 }: Props) {
@@ -122,12 +125,18 @@ export function AccusationModal({
   const charW = FRAME_W * SCALE;
   const charH = FRAME_H * SCALE;
 
+  const MODAL_H = 295;
+  const vPos =
+    anchorY !== undefined
+      ? { top: Math.max(16, Math.min(anchorY - MODAL_H / 2, window.innerHeight - MODAL_H - 16)) }
+      : { bottom: 160 };
+
   return (
     <div
       style={{
         position: "absolute",
-        bottom: 160,
-        right: 16,
+        ...vPos,
+        left: "calc(50% - 180px)",
         zIndex: 40,
         width: 360,
       }}

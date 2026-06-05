@@ -97,13 +97,9 @@ export class VillagerController {
         clickable,
         clickable
           ? () => {
-              // Ignore clicks when this villager is angry (walking home or inside)
-              const v = this.villagers.find((v) => v.entity.id === villagerId);
-              if (
-                v?.state.kind === "walking_to_house" ||
-                v?.state.kind === "inside_house"
-              )
-                return;
+              // Ignore clicks when this villager is forced inside (angry)
+              const isAngry = this.forcedInsideUntil[villagerId] > Date.now();
+              if (isAngry) return;
               // Freeze and turn immediately — don't wait for the React effect
               this.frozenVillagerId = villagerId;
               entity.direction = "right";
@@ -160,6 +156,7 @@ export class VillagerController {
       if (v.entity.id !== this.frozenVillagerId) {
         this.tickVillager(v, now, dt);
       }
+      v.entity.selected = v.entity.id === this.frozenVillagerId;
       v.entity.update();
     }
   }

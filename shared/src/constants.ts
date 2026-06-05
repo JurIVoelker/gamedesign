@@ -44,14 +44,13 @@ export const CROW_COOLDOWN_MS = 35_000;
 // Thief sabotage tool: sneaks onto opponent farm disguised as a villager.
 // cost — gold deducted per send; disguise — visual level on the client.
 export const THIEF_LEVELS = [
-  { cost: 15, cooldownMs: 60_000, stealPerSecond: 4, minWaitMs: 5_000, maxWaitMs: 20_000, durationMs: 15_000, disguise: 'none' as const },
-  { cost: 25, cooldownMs: 60_000, stealPerSecond: 6, minWaitMs: 5_000, maxWaitMs: 25_000, durationMs: 20_000, disguise: 'partial' as const },
-  { cost: 35, cooldownMs: 60_000, stealPerSecond: 9, minWaitMs: 5_000, maxWaitMs: 30_000, durationMs: 25_000, disguise: 'full' as const },
+  { cost: 15, cooldownMs: 60_000, stealPerSecond: 3, minWaitMs: 5_000, maxWaitMs: 20_000, durationMs: 20_000, disguise: 'none' as const },
+  { cost: 25, cooldownMs: 60_000, stealPerSecond: 4, minWaitMs: 5_000, maxWaitMs: 25_000, durationMs: 20_000, disguise: 'partial' as const },
+  { cost: 35, cooldownMs: 60_000, stealPerSecond: 5, minWaitMs: 5_000, maxWaitMs: 30_000, durationMs: 20_000, disguise: 'full' as const },
 ] as const;
 
 export const MAX_THIEF_LEVEL = 3;
 export const THIEF_UPGRADE_COSTS = [35, 80, 150] as const;  // to Lv1, Lv2, Lv3
-export const THIEF_GOLD_RETURN_FRACTION = 0.60; // fraction of stolen gold that reaches the saboteur
 
 // slowFactor       — fraction of growth speed removed (0.30 → crops grow at 70%)
 // actionSlowFactor — fraction of sow/harvest speed removed (steeper than slowFactor)

@@ -1,4 +1,5 @@
 import { Container, Sprite, Texture } from "pixi.js";
+import { OutlineFilter } from "pixi-filters";
 import type { Direction, Owner } from "./Entity";
 import { FRAME_COUNT, buildFrames } from "./spriteSheet";
 
@@ -10,11 +11,13 @@ export class VillagerEntity {
   direction: Direction = "down";
   walkFrame: number = 0;
   isVisible: boolean = true;
+  selected: boolean = false;
 
   private sprite: Sprite;
   private frames: Record<Direction, Texture[]>;
   private clickable: boolean;
   private onClick: (() => void) | null;
+  private outlineFilter: OutlineFilter;
 
   constructor(
     id: number,
@@ -30,6 +33,7 @@ export class VillagerEntity {
     this.y = y;
     this.clickable = clickable;
     this.onClick = onClick;
+    this.outlineFilter = new OutlineFilter({ thickness: 3, color: 0xffdd00 });
     this.sprite = new Sprite();
     this.sprite.anchor.set(0.5, 1);
     this.sprite.scale.set(0.8);
@@ -49,9 +53,14 @@ export class VillagerEntity {
   update(): void {
     if (!this.isVisible) {
       this.sprite.visible = false;
+      this.sprite.filters = [];
       return;
     }
     this.sprite.visible = true;
+    this.sprite.filters =
+      this.selected && Math.floor(Date.now() / 300) % 2 === 0
+        ? [this.outlineFilter]
+        : [];
     this.draw();
   }
 
