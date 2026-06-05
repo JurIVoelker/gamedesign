@@ -10,7 +10,7 @@ function formatTime(ms: number): string {
 }
 
 export function HUD() {
-  const { slot, playerId, send, disconnect } = useConnectionStore();
+  const { playerId, send, disconnect } = useConnectionStore();
   const game = useGameStore((s) => s.game);
   const [remaining, setRemaining] = useState<number | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -41,13 +41,6 @@ export function HUD() {
   return (
     <div className="absolute inset-top-safe left-0 right-0 flex justify-center pointer-events-none z-10">
       <div className="panel-pixel px-4 py-2 text-parchment text-[8px] flex gap-4 items-center pointer-events-auto">
-        <span>
-          Slot:{" "}
-          <span className="text-gold">
-            {slot === "p1" ? "Spieler 1" : "Spieler 2"}
-          </span>
-        </span>
-        <span className="text-muted-gold">|</span>
         <span>
           Gold: <span className="text-gold">{gold}</span>
         </span>

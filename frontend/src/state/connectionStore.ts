@@ -14,6 +14,7 @@ interface ConnectionState {
   slot: "p1" | "p2" | null;
   roomCode: string | null;
   error: string | null;
+  opponentLeft: boolean;
   send: ((msg: ClientMessage) => void) | null;
   disconnect: (() => void) | null;
 
@@ -22,6 +23,7 @@ interface ConnectionState {
   setPlayerId: (id: string) => void;
   setRoomCode: (code: string | null) => void;
   setError: (error: string | null) => void;
+  setOpponentLeft: (value: boolean) => void;
   setSend: (fn: (msg: ClientMessage) => void) => void;
   setDisconnect: (fn: () => void) => void;
   reset: () => void;
@@ -33,6 +35,7 @@ export const useConnectionStore = create<ConnectionState>((set) => ({
   slot: null,
   roomCode: null,
   error: null,
+  opponentLeft: false,
   send: null,
   disconnect: null,
 
@@ -41,6 +44,7 @@ export const useConnectionStore = create<ConnectionState>((set) => ({
   setPlayerId: (id) => set({ playerId: id }),
   setRoomCode: (code) => set({ roomCode: code }),
   setError: (error) => set({ error }),
+  setOpponentLeft: (value) => set({ opponentLeft: value }),
   setSend: (fn) => set({ send: fn }),
   setDisconnect: (fn) => set({ disconnect: fn }),
   reset: () =>
@@ -49,5 +53,6 @@ export const useConnectionStore = create<ConnectionState>((set) => ({
       slot: null,
       roomCode: null,
       error: null,
+      opponentLeft: false,
     }),
 }));

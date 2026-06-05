@@ -3,7 +3,7 @@ import { useConnectionStore } from "../state/connectionStore";
 import { useGameStore } from "../state/gameStore";
 
 export function GameOver() {
-  const { playerId, slot, send, disconnect } = useConnectionStore();
+  const { playerId, slot, send, disconnect, opponentLeft } = useConnectionStore();
   const game = useGameStore((s) => s.game);
   const [clicked, setClicked] = useState(false);
 
@@ -52,24 +52,40 @@ export function GameOver() {
           </div>
         </div>
 
-        <div className="flex gap-2">
-          <button
-            onClick={handlePlayAgain}
-            disabled={clicked}
-            className="btn-pixel flex-1"
-          >
-            {clicked ? "✓ Bereit!" : "Nochmal spielen"}
-          </button>
-          <button
-            onClick={() => disconnect?.()}
-            className="btn-pixel-secondary"
-          >
-            Verlassen
-          </button>
-        </div>
-        <p className="text-muted-gold text-[7px] text-center">
-          Warte, bis beide Spieler bereit sind…
-        </p>
+        {opponentLeft ? (
+          <>
+            <p className="text-danger text-[8px] text-center">
+              Gegner hat das Spiel verlassen.
+            </p>
+            <button
+              onClick={() => disconnect?.()}
+              className="btn-pixel-secondary w-full"
+            >
+              Zum Hauptmenü
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="flex gap-2">
+              <button
+                onClick={handlePlayAgain}
+                disabled={clicked}
+                className="btn-pixel flex-1"
+              >
+                {clicked ? "✓ Bereit!" : "Nochmal spielen"}
+              </button>
+              <button
+                onClick={() => disconnect?.()}
+                className="btn-pixel-secondary"
+              >
+                Verlassen
+              </button>
+            </div>
+            <p className="text-muted-gold text-[7px] text-center">
+              Warte, bis beide Spieler bereit sind…
+            </p>
+          </>
+        )}
       </div>
     </div>
   );

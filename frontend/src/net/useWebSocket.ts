@@ -41,6 +41,7 @@ export function useWebSocket() {
     setSlot,
     setPlayerId,
     setRoomCode,
+    setOpponentLeft,
     reset,
   } = useConnectionStore.getState();
   const { setGame } = useGameStore.getState();
@@ -67,9 +68,15 @@ export function useWebSocket() {
         case "game_ready":
           setStatus("in_game");
           break;
-        case "opponent_left":
-          setStatus("waiting");
+        case "opponent_left": {
+          const phase = useGameStore.getState().game?.phase;
+          if (phase === "ended") {
+            setOpponentLeft(true);
+          } else {
+            setStatus("waiting");
+          }
           break;
+        }
         case "game_state":
           setGame(msg.state);
           if (msg.state.phase === "playing" || msg.state.phase === "ended")
@@ -83,7 +90,7 @@ export function useWebSocket() {
           break;
       }
     },
-    [send, setGame, setSlot, setError, setStatus, setPlayerId, setRoomCode],
+    [send, setGame, setSlot, setError, setStatus, setPlayerId, setRoomCode, setOpponentLeft],
   );
 
   const connect = useCallback(() => {
