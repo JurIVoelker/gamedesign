@@ -29,6 +29,8 @@ export interface Field {
   readyAt: number | null;
   crowAttack: CrowAttack | null;
   scaringAt: number | null;
+  growthPausedUntil?: number;
+  fieldBlockedUntil?: number;
 }
 
 export interface Tool {
@@ -61,6 +63,7 @@ export interface PlayerState {
   thiefAttack: ThiefAttack | null;
   weatherEffect: WeatherEffect | null;
   villagersOutside: number;
+  wrongAccusationCount: number;
 }
 
 export interface GameState {

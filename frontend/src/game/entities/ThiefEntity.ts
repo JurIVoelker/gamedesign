@@ -22,6 +22,7 @@ export class ThiefEntity {
   private frames: Record<Direction, Texture[]>;
   private glowActive: boolean = false;
   private nervousFrame: number = 0;
+  private frozen: boolean = false;
   readonly disguise: ThiefDisguise;
   readonly owner: Owner;
   private clickable: boolean;
@@ -59,8 +60,12 @@ export class ThiefEntity {
     this.draw();
   }
 
+  setFrozen(v: boolean): void {
+    this.frozen = v;
+  }
+
   update(): void {
-    this.nervousFrame++;
+    if (!this.frozen) this.nervousFrame++;
     if (!this.isVisible) {
       this.sprite.visible = false;
       this.glow.visible = false;

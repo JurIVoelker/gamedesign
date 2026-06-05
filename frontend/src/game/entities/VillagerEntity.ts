@@ -13,12 +13,23 @@ export class VillagerEntity {
 
   private sprite: Sprite;
   private frames: Record<Direction, Texture[]>;
+  private clickable: boolean;
+  private onClick: (() => void) | null;
 
-  constructor(id: number, owner: Owner, x: number, y: number) {
+  constructor(
+    id: number,
+    owner: Owner,
+    x: number,
+    y: number,
+    clickable: boolean = false,
+    onClick: (() => void) | null = null,
+  ) {
     this.id = id;
     this.owner = owner;
     this.x = x;
     this.y = y;
+    this.clickable = clickable;
+    this.onClick = onClick;
     this.sprite = new Sprite();
     this.sprite.anchor.set(0.5, 1);
     this.sprite.scale.set(0.8);
@@ -27,6 +38,11 @@ export class VillagerEntity {
 
   render(stage: Container): void {
     stage.addChild(this.sprite);
+    if (this.clickable) {
+      this.sprite.eventMode = "static";
+      this.sprite.cursor = "pointer";
+      this.sprite.on("pointerdown", () => this.onClick?.());
+    }
     this.draw();
   }
 

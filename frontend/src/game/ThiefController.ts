@@ -24,6 +24,7 @@ export class ThiefController {
   private role: "victim" | "attacker" | null = null;
   private moveState: MoveState = { kind: "idle", nextAt: 0 };
   private rand: () => number;
+  private frozen: boolean = false;
 
   private readonly fieldCenters: { x: number; y: number }[];
   private readonly houseEntrances: { x: number; y: number }[];
@@ -32,7 +33,7 @@ export class ThiefController {
   constructor(
     private readonly owner: "player" | "opponent",
     private readonly farmStage: Container,
-    private readonly onCatch?: () => void,
+    private readonly onThiefClicked?: () => void,
     rand: () => number = Math.random,
   ) {
     this.rand = rand;
@@ -85,8 +86,10 @@ export class ThiefController {
     }
 
     this.entity.isVisible = true;
-    this.tickMovement(now, dt);
-    if (this.moveState.kind === "moving") this.entity.walkFrame++;
+    if (!this.frozen) {
+      this.tickMovement(now, dt);
+      if (this.moveState.kind === "moving") this.entity.walkFrame++;
+    }
     this.entity.showAttackerGlow(this.role === "attacker");
     this.entity.update();
   }
@@ -113,7 +116,7 @@ export class ThiefController {
       attack.disguise,
       this.owner,
       isClickable,
-      isClickable ? () => this.onCatch?.() : null,
+      isClickable ? () => this.onThiefClicked?.() : null,
     );
     this.entity.render(this.farmStage);
 
@@ -193,6 +196,11 @@ export class ThiefController {
 
   private randBetween(min: number, max: number): number {
     return min + this.rand() * (max - min);
+  }
+
+  setModalOpen(v: boolean): void {
+    this.frozen = v;
+    this.entity?.setFrozen(v);
   }
 
   private destroyEntity(): void {

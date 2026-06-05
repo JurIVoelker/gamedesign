@@ -12,7 +12,7 @@ import { HouseEntity, HOUSE_W, HOUSE_H } from "./entities/HouseEntity";
 import { VillagerController } from "./VillagerController";
 import { ThiefController } from "./ThiefController";
 import { SeededRandom, hashStr } from "./SeededRandom";
-import { H_GAP, ROW_GAP, MARGIN, FARM_W, SCENE_H_INNER } from "./layout";
+import { H_GAP, ROW_GAP, MARGIN, FARM_W, SCENE_H_INNER, rowY } from "./layout";
 
 const FIELD_COUNT = 4;
 const OUTER_MARGIN = 60;
@@ -35,7 +35,8 @@ export class GameEngine {
   private opponentVillagers: VillagerController | null = null;
   private playerThief: ThiefController | null = null;
   private opponentThief: ThiefController | null = null;
-  private onCatchThief: (() => void) | null = null;
+  private onThiefClicked: (() => void) | null = null;
+  private onVillagerClicked: ((id: number) => void) | null = null;
   private onVillagersChange: ((count: number) => void) | null = null;
   private playerWeatherOverlay: Graphics | null = null;
   private opponentWeatherOverlay: Graphics | null = null;
@@ -68,10 +69,12 @@ export class GameEngine {
     onSow: (fieldIndex: number) => void,
     onHarvest: (fieldIndex: number) => void,
     onScareCrow: (fieldIndex: number) => void,
-    onCatchThief: () => void,
+    onThiefClicked: () => void,
+    onVillagerClicked: (id: number) => void,
     onVillagersChange: (count: number) => void,
   ): Promise<void> {
-    this.onCatchThief = onCatchThief;
+    this.onThiefClicked = onThiefClicked;
+    this.onVillagerClicked = onVillagerClicked;
     this.onVillagersChange = onVillagersChange;
 
     TextureStyle.defaultOptions.scaleMode = "nearest";
@@ -174,6 +177,22 @@ export class GameEngine {
     window.addEventListener("resize", this.resizeHandler);
   }
 
+  getPlayerHouseScreenPos(fieldIndex: number): { x: number; y: number } | null {
+    if (!this.playerFarm) return null;
+    const global = this.playerFarm.toGlobal({
+      x: HOUSE_W / 2,
+      y: rowY(fieldIndex) - HOUSE_H / 2,
+    });
+    return { x: global.x, y: global.y };
+  }
+
+  setModalTarget(target: { type: "thief" } | { type: "villager"; villagerId: number } | null): void {
+    this.playerThief?.setModalOpen(target?.type === "thief");
+    this.playerVillagers?.setFrozenVillager(
+      target?.type === "villager" ? target.villagerId : null,
+    );
+  }
+
   destroy(): void {
     if (this.rafId !== null) {
       cancelAnimationFrame(this.rafId);
@@ -237,6 +256,7 @@ export class GameEngine {
         () => myRand.next(),
         4,
         this.onVillagersChange ?? undefined,
+        this.onVillagerClicked ?? undefined,
       );
       this.opponentVillagers = new VillagerController(
         "opponent",
@@ -247,7 +267,7 @@ export class GameEngine {
       this.playerThief = new ThiefController(
         "player",
         this.playerFarm,
-        this.onCatchThief ?? undefined,
+        this.onThiefClicked ?? undefined,
         () => myThiefRand.next(),
       );
       this.opponentThief = new ThiefController(

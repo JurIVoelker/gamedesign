@@ -30,6 +30,7 @@ import {
   MAX_WEATHER_LEVEL,
   WEATHER_UPGRADE_COSTS,
   WEATHER_MAX_EXTRA_MS,
+  ACCUSATION_PAUSE_MS,
 } from './constants.js';
 
 type Slot = 'p1' | 'p2';
@@ -87,6 +88,7 @@ function createPlayerState(playerId: string): PlayerState {
     thiefAttack: null,
     weatherEffect: null,
     villagersOutside: 4,
+    wrongAccusationCount: 0,
   };
 }
 
@@ -233,7 +235,7 @@ export class Game {
     playerId: string,
     fieldIndex: number,
     cropType: string,
-  ): 'ok' | 'not_empty' | 'not_found' {
+  ): 'ok' | 'not_empty' | 'not_found' | 'field_paused' {
     if (!this.state) return 'not_found';
 
     const playerState = this.state.players[playerId];
@@ -241,6 +243,7 @@ export class Game {
 
     const field = playerState.fields[fieldIndex];
     if (!field) return 'not_found';
+    if (field.fieldBlockedUntil && field.fieldBlockedUntil > Date.now()) return 'field_paused';
     if (field.stage !== 'empty') return 'not_empty';
 
     const startedAt = Date.now();
@@ -261,7 +264,7 @@ export class Game {
     return 'ok';
   }
 
-  harvestField(playerId: string, fieldIndex: number): 'ok' | 'not_ready' | 'not_found' {
+  harvestField(playerId: string, fieldIndex: number): 'ok' | 'not_ready' | 'not_found' | 'field_paused' {
     if (!this.state) return 'not_found';
 
     const playerState = this.state.players[playerId];
@@ -269,6 +272,7 @@ export class Game {
 
     const field = playerState.fields[fieldIndex];
     if (!field) return 'not_found';
+    if (field.fieldBlockedUntil && field.fieldBlockedUntil > Date.now()) return 'field_paused';
     if (field.stage !== 'ready') return 'not_ready';
 
     const startedAt = Date.now();
@@ -440,6 +444,50 @@ export class Game {
     this.drainThief(playerId, now);
     playerState.thiefAttack = null;
     this.cancelTimer(`thief_expire:${playerId}`);
+
+    this.broadcast({ type: 'game_state', state: this.state });
+    return 'ok';
+  }
+
+  accuseVillager(
+    playerId: string,
+    villagerId: number,
+  ): 'ok' | 'not_found' | 'invalid_field' {
+    if (!this.state) return 'not_found';
+    const playerState = this.state.players[playerId];
+    if (!playerState) return 'not_found';
+
+    const field = playerState.fields[villagerId];
+    if (!field) return 'invalid_field';
+
+    playerState.wrongAccusationCount++;
+
+    const now = Date.now();
+
+    if (playerState.wrongAccusationCount >= 3) {
+      playerState.wrongAccusationCount = 0;
+
+      const unblockAt = now + ACCUSATION_PAUSE_MS;
+      field.fieldBlockedUntil = unblockAt;
+
+      if (field.stage === 'growing' && field.readyAt !== null) {
+        field.growthPausedUntil = unblockAt;
+        field.readyAt += ACCUSATION_PAUSE_MS;
+        this.rescheduleFieldTimer(playerId, field);
+      }
+
+      // Single timer clears both flags when punishment expires
+      this.scheduleTimer(`accusation_pause:${playerId}:${villagerId}`, unblockAt, () => {
+        if (this.state) {
+          const f = this.state.players[playerId]?.fields[villagerId];
+          if (f) {
+            delete f.fieldBlockedUntil;
+            delete f.growthPausedUntil;
+          }
+          this.broadcast({ type: 'game_state', state: this.state });
+        }
+      });
+    }
 
     this.broadcast({ type: 'game_state', state: this.state });
     return 'ok';

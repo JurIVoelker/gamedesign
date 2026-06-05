@@ -139,6 +139,11 @@ export function handleMessage(session: Session, raw: string | Buffer): void {
         if (result !== 'ok') {
           session.send({ type: 'error', message: `SendWeather failed: ${result}` });
         }
+      } else if (action.kind === 'AccuseVillager') {
+        const result = game.accuseVillager(session.playerId, action.villagerId);
+        if (result !== 'ok') {
+          session.send({ type: 'error', message: `AccuseVillager failed: ${result}` });
+        }
       }
       break;
     }

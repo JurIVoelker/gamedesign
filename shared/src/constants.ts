@@ -65,3 +65,5 @@ export const MAX_WEATHER_LEVEL = 3;
 export const WEATHER_UPGRADE_COSTS = [30, 80, 140] as const;  // to Lv1, Lv2, Lv3
 // Max extra ms added to a growing field's readyAt when weather is applied
 export const WEATHER_MAX_EXTRA_MS = 20_000;
+
+export const ACCUSATION_PAUSE_MS = 20_000;

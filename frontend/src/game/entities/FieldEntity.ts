@@ -1,5 +1,6 @@
 import { Assets, Container, Graphics, Rectangle, Sprite } from "pixi.js";
 import type { CropStage, Field } from "@gamedesign/shared";
+import { ACCUSATION_PAUSE_MS } from "@gamedesign/shared";
 import { Entity } from "./Entity";
 import { useTargetingStore } from "../../state/targetingStore";
 import { CrowAnimator } from "./CrowAnimator";
@@ -123,20 +124,29 @@ export class FieldEntity extends Entity {
       !targeting.chosen.includes(this.id);
     const isChosen = targeting.active && targeting.chosen.includes(this.id);
 
+    const now = Date.now();
     // Normal grow progress (0→1) from sowedAt/readyAt timestamps
-    const stageProgress =
+    let stageProgress =
       field?.sowedAt && field?.readyAt
-        ? Math.min(
-            1,
-            (Date.now() - field.sowedAt) / (field.readyAt - field.sowedAt),
-          )
+        ? Math.min(1, (now - field.sowedAt) / (field.readyAt - field.sowedAt))
         : 0;
+
+    // Freeze progress bar while growth is paused (villager forced inside).
+    // readyAt was already extended by 20s when the pause was set, so use
+    // the pre-extension value to avoid the bar jumping backward.
+    if (field?.growthPausedUntil && field.growthPausedUntil > now) {
+      const pausedAt = field.growthPausedUntil - ACCUSATION_PAUSE_MS;
+      const originalReadyAt = field.readyAt ? field.readyAt - ACCUSATION_PAUSE_MS : null;
+      stageProgress = field.sowedAt && originalReadyAt
+        ? Math.min(1, Math.max(0, (pausedAt - field.sowedAt) / (originalReadyAt - field.sowedAt)))
+        : stageProgress;
+    }
 
     // Effective progress accounts for crows eating backwards in real-time
     let effectiveProgress: number;
     if (hasCrow && field?.crowAttack) {
       const { startedAt, eatRatePerMs, baseProgress } = field.crowAttack;
-      const eaten = (Date.now() - startedAt) * eatRatePerMs;
+      const eaten = (now - startedAt) * eatRatePerMs;
       effectiveProgress = Math.max(0, baseProgress - eaten);
     } else {
       effectiveProgress = isReady ? 1 : stageProgress;

@@ -1,8 +1,13 @@
-import { CSSProperties, useEffect, useRef } from "react";
+import { CSSProperties, useEffect, useRef, useState } from "react";
 import { GameEngine } from "./GameEngine";
 import { useGameStore } from "../state/gameStore";
 import { useConnectionStore } from "../state/connectionStore";
 import { useTargetingStore } from "../state/targetingStore";
+import { AccusationModal } from "../ui/AccusationModal";
+
+export type AccusationTarget =
+  | { type: "thief"; disguise: "none" | "partial" | "full" }
+  | { type: "villager"; villagerId: number };
 
 const targetingHintStyle: CSSProperties = {
   position: "absolute",
@@ -29,21 +34,60 @@ export function FarmCanvas() {
   const game = useGameStore((s) => s.game);
   const { playerId } = useConnectionStore();
   const { active: targeting, chosen, fieldCount } = useTargetingStore();
-  // Escape cancels targeting mode
+
+  const [accusationTarget, setAccusationTarget] =
+    useState<AccusationTarget | null>(null);
+
+  // Anger bubble: shown above the house when sow/harvest is blocked
+  const [angerBubble, setAngerBubble] = useState<{ x: number; y: number } | null>(null);
+  const angerBubbleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const myPlayerState =
+    game && playerId ? game.players[playerId] : undefined;
+  const annoyanceLevel = myPlayerState?.wrongAccusationCount ?? 0;
+
+  // ESC — cancel targeting OR dismiss accusation modal
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") useTargetingStore.getState().cancel();
+      if (e.key === "Escape") {
+        useTargetingStore.getState().cancel();
+        setAccusationTarget(null);
+      }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  // Freeze only the accused entity while the modal is open
+  useEffect(() => {
+    engineRef.current?.setModalTarget(accusationTarget ?? null);
+  }, [accusationTarget]);
 
   useEffect(() => {
     let mounted = true;
     const engine = new GameEngine();
     engineRef.current = engine;
 
+    const isFieldBlocked = (fieldIndex: number): boolean => {
+      const { game: g } = useGameStore.getState();
+      const { playerId: pid } = useConnectionStore.getState();
+      const field = pid ? g?.players[pid]?.fields[fieldIndex] : null;
+      return !!(field?.fieldBlockedUntil && field.fieldBlockedUntil > Date.now());
+    };
+
+    const showAngerBubble = (fieldIndex: number) => {
+      const pos = engineRef.current?.getPlayerHouseScreenPos(fieldIndex);
+      if (!pos) return;
+      setAngerBubble(pos);
+      if (angerBubbleTimerRef.current) clearTimeout(angerBubbleTimerRef.current);
+      angerBubbleTimerRef.current = setTimeout(() => setAngerBubble(null), 2500);
+    };
+
     const onSow = (fieldIndex: number) => {
+      if (isFieldBlocked(fieldIndex)) {
+        showAngerBubble(fieldIndex);
+        return;
+      }
       useConnectionStore.getState().send?.({
         type: "player_action",
         action: { kind: "SowField", fieldIndex, cropType: "wheat" },
@@ -51,6 +95,10 @@ export function FarmCanvas() {
     };
 
     const onHarvest = (fieldIndex: number) => {
+      if (isFieldBlocked(fieldIndex)) {
+        showAngerBubble(fieldIndex);
+        return;
+      }
       useConnectionStore.getState().send?.({
         type: "player_action",
         action: { kind: "HarvestField", fieldIndex },
@@ -64,11 +112,15 @@ export function FarmCanvas() {
       });
     };
 
-    const onCatchThief = () => {
-      useConnectionStore.getState().send?.({
-        type: "player_action",
-        action: { kind: "CatchThief" },
-      });
+    const onThiefClicked = () => {
+      const { game: g } = useGameStore.getState();
+      const { playerId: pid } = useConnectionStore.getState();
+      const disguise = g?.players[pid ?? ""]?.thiefAttack?.disguise ?? "none";
+      setAccusationTarget({ type: "thief", disguise });
+    };
+
+    const onVillagerClicked = (id: number) => {
+      setAccusationTarget({ type: "villager", villagerId: id });
     };
 
     const onVillagersChange = (count: number) => {
@@ -81,7 +133,8 @@ export function FarmCanvas() {
         onSow,
         onHarvest,
         onScareCrow,
-        onCatchThief,
+        onThiefClicked,
+        onVillagerClicked,
         onVillagersChange,
       )
       .then(() => {
@@ -89,7 +142,6 @@ export function FarmCanvas() {
           engine.destroy();
           return;
         }
-        // Game state may have arrived while assets were loading; apply it now.
         const { game } = useGameStore.getState();
         const { playerId } = useConnectionStore.getState();
         if (game && playerId) engine.updateGameState(game, playerId);
@@ -110,6 +162,30 @@ export function FarmCanvas() {
   }, [game, playerId]);
 
   const remaining = fieldCount - chosen.length;
+
+  const handleAction = () => {
+    if (!accusationTarget) return;
+    // Unfreeze the entity immediately so they resume walking during the response
+    engineRef.current?.setModalTarget(null);
+    if (accusationTarget.type === "thief") {
+      useConnectionStore.getState().send?.({
+        type: "player_action",
+        action: { kind: "CatchThief" },
+      });
+    } else {
+      useConnectionStore.getState().send?.({
+        type: "player_action",
+        action: {
+          kind: "AccuseVillager",
+          villagerId: accusationTarget.villagerId,
+        },
+      });
+    }
+  };
+
+  const handleDismiss = () => {
+    setAccusationTarget(null);
+  };
 
   return (
     <div style={{ position: "absolute", inset: 0 }}>
@@ -151,6 +227,40 @@ export function FarmCanvas() {
         <span style={targetingHintStyle}>
           Gegnerfeld wählen ({remaining} übrig) · Esc zum Abbrechen
         </span>
+      )}
+
+      {/* Anger speech bubble above the villager's house */}
+      {angerBubble && (
+        <div
+          style={{
+            position: "absolute",
+            left: angerBubble.x,
+            top: angerBubble.y - 36,
+            transform: "translateX(-50%)",
+            background: "#fff",
+            boxShadow: "0 0 0 2px #000",
+            padding: "5px 8px",
+            fontFamily: "'Press Start 2P', monospace",
+            fontSize: 7,
+            color: "#111",
+            lineHeight: 1.5,
+            pointerEvents: "none",
+            whiteSpace: "nowrap",
+            zIndex: 30,
+          }}
+        >
+          Ich helfe dir nicht!
+        </div>
+      )}
+
+      {accusationTarget && (
+        <AccusationModal
+          key={accusationTarget.type === "villager" ? `v${accusationTarget.villagerId}` : "thief"}
+          target={accusationTarget}
+          annoyanceLevel={annoyanceLevel}
+          onAction={handleAction}
+          onDismiss={handleDismiss}
+        />
       )}
     </div>
   );

@@ -49,6 +49,11 @@ export type SendWeather = {
   kind: 'SendWeather';
 };
 
+export type AccuseVillager = {
+  kind: 'AccuseVillager';
+  villagerId: number;
+};
+
 export type PlayerAction =
   | SowField
   | HarvestField
@@ -59,4 +64,5 @@ export type PlayerAction =
   | ScareCrow
   | SendThief
   | CatchThief
-  | SendWeather;
+  | SendWeather
+  | AccuseVillager;

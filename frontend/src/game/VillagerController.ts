@@ -51,6 +51,9 @@ export class VillagerController {
   private isPlayer: boolean;
   private outsideCount: number;
   private onOutsideCountChange: ((count: number) => void) | undefined;
+  private onVillagerClicked: ((id: number) => void) | undefined;
+  private forcedInsideUntil: number[] = [0, 0, 0, 0];
+  private frozenVillagerId: number | null = null;
 
   constructor(
     owner: "player" | "opponent",
@@ -58,11 +61,13 @@ export class VillagerController {
     rand: () => number = Math.random,
     initialOutsideCount: number = 4,
     onOutsideCountChange?: (count: number) => void,
+    onVillagerClicked?: (id: number) => void,
   ) {
     this.rand = rand;
     this.isPlayer = owner === "player";
     this.outsideCount = Math.max(0, Math.min(4, initialOutsideCount));
     this.onOutsideCountChange = onOutsideCountChange;
+    this.onVillagerClicked = onVillagerClicked;
 
     this.fieldCenters = Array.from({ length: 4 }, (_, i) => ({
       x: this.isPlayer ? HOUSE_W + H_GAP + FIELD_W / 2 : FIELD_W / 2,
@@ -82,7 +87,31 @@ export class VillagerController {
     for (let i = 0; i < 4; i++) {
       const startX = this.houseEntrances[i].x;
       const startY = this.houseEntrances[i].y;
-      const entity = new VillagerEntity(i, owner, startX, startY);
+      const clickable = this.isPlayer && !!this.onVillagerClicked;
+      const villagerId = i;
+      const entity = new VillagerEntity(
+        i,
+        owner,
+        startX,
+        startY,
+        clickable,
+        clickable
+          ? () => {
+              // Ignore clicks when this villager is angry (walking home or inside)
+              const v = this.villagers.find((v) => v.entity.id === villagerId);
+              if (
+                v?.state.kind === "walking_to_house" ||
+                v?.state.kind === "inside_house"
+              )
+                return;
+              // Freeze and turn immediately — don't wait for the React effect
+              this.frozenVillagerId = villagerId;
+              entity.direction = "right";
+              entity.walkFrame = 0;
+              this.onVillagerClicked?.(villagerId);
+            }
+          : null,
+      );
       entity.render(farmStage);
 
       const initialDelay = i * 1500;
@@ -112,12 +141,25 @@ export class VillagerController {
     }
   }
 
+  setFrozenVillager(id: number | null): void {
+    this.frozenVillagerId = id;
+    if (id !== null) {
+      const v = this.villagers.find((v) => v.entity.id === id);
+      if (v) {
+        v.entity.direction = "right";
+        v.entity.walkFrame = 0;
+      }
+    }
+  }
+
   update(deltaMs: number): void {
     const now = Date.now();
     const dt = deltaMs / 1000;
 
     for (const v of this.villagers) {
-      this.tickVillager(v, now, dt);
+      if (v.entity.id !== this.frozenVillagerId) {
+        this.tickVillager(v, now, dt);
+      }
       v.entity.update();
     }
   }
@@ -128,6 +170,15 @@ export class VillagerController {
     for (let i = 0; i < fields.length; i++) {
       const prev = this.prevFields[i];
       const curr = fields[i];
+
+      // Update forced-inside deadline regardless of stage change
+      if (curr) {
+        const until = Math.max(curr.growthPausedUntil ?? 0, curr.fieldBlockedUntil ?? 0);
+        if (until > this.forcedInsideUntil[i]) {
+          this.forcedInsideUntil[i] = until;
+        }
+      }
+
       if (!curr || !prev) continue;
 
       const stageChanged = prev.stage !== curr.stage;
@@ -208,6 +259,20 @@ export class VillagerController {
   }
 
   private tickVillager(v: VillagerData, now: number, dt: number): void {
+    const id = v.entity.id;
+    if (
+      now < this.forcedInsideUntil[id] &&
+      v.state.kind !== "inside_house" &&
+      v.state.kind !== "walking_to_house"
+    ) {
+      v.state = {
+        kind: "walking_to_house",
+        houseIndex: id,
+        targetX: this.houseEntrances[id].x,
+        targetY: this.houseEntrances[id].y,
+      };
+    }
+
     const s = v.state;
 
     switch (s.kind) {
@@ -271,10 +336,15 @@ export class VillagerController {
           const indoorMs = this.weatherActive
             ? this.jitter(30_000, 0.2)
             : this.jitter(15_000, 0.3);
+          const id = v.entity.id;
+          const emergesAt = Math.max(
+            now + indoorMs,
+            this.forcedInsideUntil[id] ?? 0,
+          );
           v.state = {
             kind: "inside_house",
             houseIndex: s.houseIndex,
-            emergesAt: now + indoorMs,
+            emergesAt,
           };
           this.outsideCount--;
           this.onOutsideCountChange?.(this.outsideCount);

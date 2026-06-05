@@ -118,15 +118,7 @@ export function Lobby() {
         )}
 
         {error && (
-          <div className="flex flex-col items-center gap-2">
-            <p className="text-danger text-[8px] text-center">{error}</p>
-            <button
-              onClick={() => disconnect?.()}
-              className="btn-pixel-secondary"
-            >
-              Zurück zum Menü
-            </button>
-          </div>
+          <p className="text-danger text-[8px] text-center">{error}</p>
         )}
       </div>
     </div>
