@@ -122,7 +122,8 @@ export class ThiefController {
 
     this.moveState = {
       kind: "idle",
-      nextAt: attack.phase === "stealing" ? now : now + this.randBetween(500, 2000),
+      nextAt:
+        attack.phase === "stealing" ? now : now + this.randBetween(500, 2000),
     };
   }
 

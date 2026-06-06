@@ -186,7 +186,9 @@ export class GameEngine {
     return { x: global.x, y: global.y };
   }
 
-  setModalTarget(target: { type: "thief" } | { type: "villager"; villagerId: number } | null): void {
+  setModalTarget(
+    target: { type: "thief" } | { type: "villager"; villagerId: number } | null,
+  ): void {
     this.playerThief?.setModalOpen(target?.type === "thief");
     this.playerVillagers?.setFrozenVillager(
       target?.type === "villager" ? target.villagerId : null,
@@ -309,7 +311,8 @@ export class GameEngine {
         this.opponentWeatherOverlay.visible = oppWeather;
       this.opponentVillagers?.setWeather(oppWeather);
       const hadLightning = this.opponentHasLightning;
-      this.opponentHasLightning = opponentState.weatherEffect?.lightning ?? false;
+      this.opponentHasLightning =
+        opponentState.weatherEffect?.lightning ?? false;
       if (!hadLightning && this.opponentHasLightning) {
         setTimeout(() => this.triggerLightningStrike(), 2000);
       }

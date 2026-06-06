@@ -37,14 +37,20 @@ export function FarmCanvas() {
 
   const [accusationTarget, setAccusationTarget] =
     useState<AccusationTarget | null>(null);
-  const [accusationAnchorY, setAccusationAnchorY] = useState<number | null>(null);
+  const [accusationAnchorY, setAccusationAnchorY] = useState<number | null>(
+    null,
+  );
 
   // Anger bubble: shown above the house when sow/harvest is blocked
-  const [angerBubble, setAngerBubble] = useState<{ x: number; y: number } | null>(null);
-  const angerBubbleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [angerBubble, setAngerBubble] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const angerBubbleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
-  const myPlayerState =
-    game && playerId ? game.players[playerId] : undefined;
+  const myPlayerState = game && playerId ? game.players[playerId] : undefined;
   const annoyanceLevel = myPlayerState?.wrongAccusationCount ?? 0;
 
   // ESC — cancel targeting OR dismiss accusation modal
@@ -73,15 +79,21 @@ export function FarmCanvas() {
       const { game: g } = useGameStore.getState();
       const { playerId: pid } = useConnectionStore.getState();
       const field = pid ? g?.players[pid]?.fields[fieldIndex] : null;
-      return !!(field?.fieldBlockedUntil && field.fieldBlockedUntil > Date.now());
+      return !!(
+        field?.fieldBlockedUntil && field.fieldBlockedUntil > Date.now()
+      );
     };
 
     const showAngerBubble = (fieldIndex: number) => {
       const pos = engineRef.current?.getPlayerHouseScreenPos(fieldIndex);
       if (!pos) return;
       setAngerBubble(pos);
-      if (angerBubbleTimerRef.current) clearTimeout(angerBubbleTimerRef.current);
-      angerBubbleTimerRef.current = setTimeout(() => setAngerBubble(null), 2500);
+      if (angerBubbleTimerRef.current)
+        clearTimeout(angerBubbleTimerRef.current);
+      angerBubbleTimerRef.current = setTimeout(
+        () => setAngerBubble(null),
+        2500,
+      );
     };
 
     const onSow = (fieldIndex: number) => {
@@ -260,7 +272,11 @@ export function FarmCanvas() {
 
       {accusationTarget && (
         <AccusationModal
-          key={accusationTarget.type === "villager" ? `v${accusationTarget.villagerId}` : "thief"}
+          key={
+            accusationTarget.type === "villager"
+              ? `v${accusationTarget.villagerId}`
+              : "thief"
+          }
           target={accusationTarget}
           annoyanceLevel={annoyanceLevel}
           anchorY={accusationAnchorY ?? undefined}

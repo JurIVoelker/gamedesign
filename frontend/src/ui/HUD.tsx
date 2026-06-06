@@ -20,14 +20,13 @@ export function HUD() {
       setRemaining(null);
       return;
     }
-    let id: ReturnType<typeof setInterval>;
     const update = () => {
       const next = Math.max(0, game.endsAt! - Date.now());
       setRemaining(next);
       if (next === 0) clearInterval(id);
     };
     update();
-    id = setInterval(update, 1_000);
+    const id = setInterval(update, 1_000);
     return () => clearInterval(id);
   }, [game?.endsAt]);
 
@@ -49,7 +48,9 @@ export function HUD() {
             <span className="text-muted-gold">|</span>
             <span>
               Zeit:{" "}
-              <span className={remaining <= 60_000 ? "text-danger" : "text-gold"}>
+              <span
+                className={remaining <= 60_000 ? "text-danger" : "text-gold"}
+              >
                 {formatTime(remaining)}
               </span>
             </span>

@@ -5,7 +5,7 @@ import { FarmCanvas } from "./game/FarmCanvas";
 import { Lobby } from "./ui/Lobby";
 import { HUD } from "./ui/HUD";
 import { UpgradePanel } from "./ui/UpgradePanel";
-import { GameOver } from "./ui/GameOver";
+import { EndScreen } from "./ui/EndScreen";
 
 export default function App() {
   useWebSocket();
@@ -19,7 +19,7 @@ export default function App() {
       {!isInGame && <Lobby />}
       {isInGame && <HUD />}
       {isInGame && gamePhase !== "ended" && <UpgradePanel />}
-      {isInGame && gamePhase === "ended" && <GameOver />}
+      {isInGame && gamePhase === "ended" && <EndScreen />}
     </div>
   );
 }

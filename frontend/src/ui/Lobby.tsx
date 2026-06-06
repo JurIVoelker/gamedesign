@@ -3,15 +3,8 @@ import { useConnectionStore } from "../state/connectionStore";
 import { OnboardingModal } from "./OnboardingModal";
 
 export function Lobby() {
-  const {
-    status,
-    roomCode,
-    error,
-    send,
-    playerId,
-    disconnect,
-    setRoomCode,
-  } = useConnectionStore();
+  const { status, roomCode, error, send, playerId, disconnect, setRoomCode } =
+    useConnectionStore();
   const [joinCode, setJoinCode] = useState("");
   const [showOnboarding, setShowOnboarding] = useState(false);
 
@@ -117,9 +110,7 @@ export function Lobby() {
           </div>
         )}
 
-        {error && (
-          <p className="text-danger text-[8px] text-center">{error}</p>
-        )}
+        {error && <p className="text-danger text-[8px] text-center">{error}</p>}
       </div>
     </div>
   );

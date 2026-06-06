@@ -170,7 +170,10 @@ export class VillagerController {
 
       // Update forced-inside deadline regardless of stage change
       if (curr) {
-        const until = Math.max(curr.growthPausedUntil ?? 0, curr.fieldBlockedUntil ?? 0);
+        const until = Math.max(
+          curr.growthPausedUntil ?? 0,
+          curr.fieldBlockedUntil ?? 0,
+        );
         if (until > this.forcedInsideUntil[i]) {
           this.forcedInsideUntil[i] = until;
         }

@@ -136,10 +136,19 @@ export class FieldEntity extends Entity {
     // the pre-extension value to avoid the bar jumping backward.
     if (field?.growthPausedUntil && field.growthPausedUntil > now) {
       const pausedAt = field.growthPausedUntil - ACCUSATION_PAUSE_MS;
-      const originalReadyAt = field.readyAt ? field.readyAt - ACCUSATION_PAUSE_MS : null;
-      stageProgress = field.sowedAt && originalReadyAt
-        ? Math.min(1, Math.max(0, (pausedAt - field.sowedAt) / (originalReadyAt - field.sowedAt)))
-        : stageProgress;
+      const originalReadyAt = field.readyAt
+        ? field.readyAt - ACCUSATION_PAUSE_MS
+        : null;
+      stageProgress =
+        field.sowedAt && originalReadyAt
+          ? Math.min(
+              1,
+              Math.max(
+                0,
+                (pausedAt - field.sowedAt) / (originalReadyAt - field.sowedAt),
+              ),
+            )
+          : stageProgress;
     }
 
     // Effective progress accounts for crows eating backwards in real-time

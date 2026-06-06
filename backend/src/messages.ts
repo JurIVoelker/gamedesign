@@ -100,8 +100,7 @@ export function handleMessage(session: Session, raw: string | Buffer): void {
         }
       } else if (action.kind === 'UpgradeTool') {
         if (
-          action.toolId !== 'sow' &&
-          action.toolId !== 'harvest' &&
+          action.toolId !== 'tools' &&
           action.toolId !== 'fertilizer' &&
           action.toolId !== 'crows' &&
           action.toolId !== 'thief' &&

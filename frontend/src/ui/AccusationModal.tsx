@@ -18,35 +18,35 @@ const DECO_SCALE = 3;
 
 // Grass and flowers spread across the whole frame (top + left as %)
 const DECORATIONS = [
-  { src: "/assets/grass.png",  top: "6%",  left: "4%"  },
-  { src: "/assets/grass.png",  top: "18%", left: "62%" },
-  { src: "/assets/grass.png",  top: "38%", left: "82%" },
-  { src: "/assets/grass.png",  top: "52%", left: "12%" },
-  { src: "/assets/grass.png",  top: "72%", left: "48%" },
-  { src: "/assets/grass.png",  top: "78%", left: "4%"  },
-  { src: "/assets/grass.png",  top: "80%", left: "82%" },
+  { src: "/assets/grass.png", top: "6%", left: "4%" },
+  { src: "/assets/grass.png", top: "18%", left: "62%" },
+  { src: "/assets/grass.png", top: "38%", left: "82%" },
+  { src: "/assets/grass.png", top: "52%", left: "12%" },
+  { src: "/assets/grass.png", top: "72%", left: "48%" },
+  { src: "/assets/grass.png", top: "78%", left: "4%" },
+  { src: "/assets/grass.png", top: "80%", left: "82%" },
   { src: "/assets/flower.png", top: "10%", left: "38%" },
-  { src: "/assets/flower.png", top: "8%",  left: "78%" },
+  { src: "/assets/flower.png", top: "8%", left: "78%" },
   { src: "/assets/flower.png", top: "30%", left: "28%" },
   { src: "/assets/flower.png", top: "48%", left: "68%" },
   { src: "/assets/flower.png", top: "68%", left: "22%" },
   { src: "/assets/flower.png", top: "74%", left: "62%" },
 ] as const;
 
-const GRASS_W  = Math.round(8  * DECO_SCALE);
-const GRASS_H  = Math.round(6  * DECO_SCALE);
+const GRASS_W = Math.round(8 * DECO_SCALE);
+const GRASS_H = Math.round(6 * DECO_SCALE);
 const FLOWER_W = Math.round(11 * DECO_SCALE);
-const FLOWER_H = Math.round(8  * DECO_SCALE);
+const FLOWER_H = Math.round(8 * DECO_SCALE);
 
 function decorSize(src: string) {
   return src.includes("flower")
     ? { width: FLOWER_W, height: FLOWER_H }
-    : { width: GRASS_W,  height: GRASS_H  };
+    : { width: GRASS_W, height: GRASS_H };
 }
 
 function portraitSrc(target: AccusationTarget): string {
   if (target.type === "villager") return "/assets/villager-front-right.png";
-  if (target.disguise === "none")    return "/assets/theif-1-front-right.png";
+  if (target.disguise === "none") return "/assets/theif-1-front-right.png";
   if (target.disguise === "partial") return "/assets/theif-2-front-right.png";
   return "/assets/villager-front-right.png";
 }
@@ -128,7 +128,12 @@ export function AccusationModal({
   const MODAL_H = 295;
   const vPos =
     anchorY !== undefined
-      ? { top: Math.max(16, Math.min(anchorY - MODAL_H / 2, window.innerHeight - MODAL_H - 16)) }
+      ? {
+          top: Math.max(
+            16,
+            Math.min(anchorY - MODAL_H / 2, window.innerHeight - MODAL_H - 16),
+          ),
+        }
       : { bottom: 160 };
 
   return (
@@ -143,13 +148,28 @@ export function AccusationModal({
     >
       <div
         className="panel-pixel text-parchment"
-        style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}
+        style={{
+          padding: "14px 16px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 10,
+        }}
       >
         {/* Title row: question + timer */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
           <div
             className="text-gold"
-            style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 7, lineHeight: 1.6 }}
+            style={{
+              fontFamily: "'Press Start 2P', monospace",
+              fontSize: 7,
+              lineHeight: 1.6,
+            }}
           >
             Ist das ein Dieb?
           </div>
@@ -247,7 +267,9 @@ export function AccusationModal({
             style={{ flex: 1 }}
           >
             Nein
-            <span style={{ fontSize: 5, opacity: 0.6, marginLeft: 4 }}>[ESC]</span>
+            <span style={{ fontSize: 5, opacity: 0.6, marginLeft: 4 }}>
+              [ESC]
+            </span>
           </button>
           <button
             className="btn-pixel"

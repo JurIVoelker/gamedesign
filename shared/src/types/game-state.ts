@@ -1,4 +1,25 @@
+import type { ToolId } from './actions.js';
+
 export type CropStage = 'empty' | 'sowing' | 'growing' | 'ready' | 'harvesting';
+
+export interface MatchStats {
+  goldEarnedHarvest: number;
+  goldStolenByThief: number;
+  goldLostToThief: number;
+  goldSpentUpgradesByTool: Record<ToolId, number>;
+  goldSpentCrows: number;
+  goldSpentThief: number;
+  goldSpentWeather: number;
+  crowGoldDestroyed: number;
+  weatherGoldDestroyed: number;
+  upgradeExtraProfitFertilizer: number;
+  upgradeExtraProfitSpeed: number;
+  fieldsHarvested: number;
+  crowsSent: number;
+  thievesSent: number;
+  weatherSent: number;
+  finalToolLevels: Record<ToolId, number>;
+}
 
 export interface CrowAttack {
   startedAt: number;
@@ -64,6 +85,7 @@ export interface PlayerState {
   weatherEffect: WeatherEffect | null;
   villagersOutside: number;
   wrongAccusationCount: number;
+  stats: MatchStats;
 }
 
 export interface GameState {

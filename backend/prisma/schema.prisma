@@ -1,0 +1,28 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./farmyard.db"
+}
+
+model Match {
+  id         String             @id @default(cuid())
+  roomCode   String
+  startedAt  DateTime
+  endedAt    DateTime           @default(now())
+  winnerId   String?
+  durationMs Int
+  players    PlayerMatchStats[]
+}
+
+model PlayerMatchStats {
+  id        String @id @default(cuid())
+  matchId   String
+  match     Match  @relation(fields: [matchId], references: [id])
+  playerId  String
+  slot      String
+  finalGold Int
+  statsJson String
+}

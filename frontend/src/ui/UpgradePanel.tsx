@@ -3,11 +3,8 @@ import {
   UPGRADE_SPEED_MULTIPLIERS,
   MAX_TOOL_LEVEL,
   SOW_DURATION_MS,
-  SOW_UPGRADE_COSTS,
-  SOW_GROW_MULTIPLIERS,
+  TOOLS_UPGRADE_COSTS,
   HARVEST_DURATION_MS,
-  HARVEST_UPGRADE_COSTS,
-  HARVEST_GOLD_MULTIPLIERS,
   FERTILIZER_GROW_MULTIPLIERS,
   FERTILIZER_GOLD_MULTIPLIERS,
   MAX_FERTILIZER_LEVEL,
@@ -80,26 +77,15 @@ function formatSeconds(ms: number): string {
 function HoverCardWrapper({ children }: { children: React.ReactNode }) {
   return (
     <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-max pointer-events-none opacity-0 group-hover:opacity-100 z-10">
-      <div className="hover-card-pixel">
-        {children}
-      </div>
+      <div className="hover-card-pixel">{children}</div>
     </div>
   );
 }
 
-function SowHoverCard({
-  level,
-  fertLevel = 0,
-}: {
-  level: number;
-  fertLevel?: number;
-}) {
+function ToolsHoverCard({ level }: { level: number }) {
   const isMaxed = level >= MAX_TOOL_LEVEL;
   const sowMs = SOW_DURATION_MS * UPGRADE_SPEED_MULTIPLIERS[level];
-  const growMs =
-    BASE_GROW_MS *
-    SOW_GROW_MULTIPLIERS[level] *
-    FERTILIZER_GROW_MULTIPLIERS[fertLevel];
+  const harvestMs = HARVEST_DURATION_MS * UPGRADE_SPEED_MULTIPLIERS[level];
 
   return (
     <HoverCardWrapper>
@@ -107,24 +93,19 @@ function SowHoverCard({
         Säen: <span className="text-gold">{formatSeconds(sowMs)}</span>
       </div>
       <div className="text-parchment mt-0.5">
-        Wachstum:{" "}
-        <span className="text-gold">{formatSeconds(growMs)}</span>
+        Ernten: <span className="text-gold">{formatSeconds(harvestMs)}</span>
       </div>
       {!isMaxed && (
         <div className="text-muted-gold mt-1">
-          {"→ "}
+          {"→ Säen "}
           <span className="text-green-400">
-            {formatSeconds(
-              SOW_DURATION_MS * UPGRADE_SPEED_MULTIPLIERS[level + 1],
-            )}
+            {formatSeconds(SOW_DURATION_MS * UPGRADE_SPEED_MULTIPLIERS[level + 1])}
           </span>
           <span className="text-muted-gold ml-1">
-            {"· Wachstum "}
-            {formatSeconds(
-              BASE_GROW_MS *
-                SOW_GROW_MULTIPLIERS[level + 1] *
-                FERTILIZER_GROW_MULTIPLIERS[fertLevel],
-            )}
+            {"· Ernten "}
+            <span className="text-green-400">
+              {formatSeconds(HARVEST_DURATION_MS * UPGRADE_SPEED_MULTIPLIERS[level + 1])}
+            </span>
           </span>
         </div>
       )}
@@ -133,82 +114,12 @@ function SowHoverCard({
   );
 }
 
-function HarvestHoverCard({
-  level,
-  fertLevel = 0,
-}: {
-  level: number;
-  fertLevel?: number;
-}) {
-  const isMaxed = level >= MAX_TOOL_LEVEL;
-  const harvestMs = HARVEST_DURATION_MS * UPGRADE_SPEED_MULTIPLIERS[level];
-  const goldPerHarvest = Math.round(
-    GOLD_PER_HARVEST *
-      HARVEST_GOLD_MULTIPLIERS[level] *
-      FERTILIZER_GOLD_MULTIPLIERS[fertLevel],
-  );
-  const nextGold = Math.round(
-    GOLD_PER_HARVEST *
-      HARVEST_GOLD_MULTIPLIERS[level + 1] *
-      FERTILIZER_GOLD_MULTIPLIERS[fertLevel],
-  );
-
-  return (
-    <HoverCardWrapper>
-      <div className="text-parchment">
-        Ernten:{" "}
-        <span className="text-gold">{formatSeconds(harvestMs)}</span>
-      </div>
-      <div className="text-parchment mt-0.5">
-        Gold: <span className="text-gold">{goldPerHarvest}g</span>
-      </div>
-      {!isMaxed && (
-        <div className="text-muted-gold mt-1">
-          {"→ "}
-          <span className="text-green-400">
-            {formatSeconds(
-              HARVEST_DURATION_MS * UPGRADE_SPEED_MULTIPLIERS[level + 1],
-            )}
-          </span>
-          <span className="text-muted-gold ml-1">
-            {"· "}
-            {nextGold}g
-          </span>
-        </div>
-      )}
-      {isMaxed && <div className="text-gold mt-1">Max. Stufe</div>}
-    </HoverCardWrapper>
-  );
-}
-
-function FertilizerHoverCard({
-  level,
-  sowLevel = 0,
-  harvestLevel = 0,
-}: {
-  level: number;
-  sowLevel?: number;
-  harvestLevel?: number;
-}) {
+function FertilizerHoverCard({ level }: { level: number }) {
   const isMaxed = level >= MAX_FERTILIZER_LEVEL;
-  const currentGrowMs =
-    BASE_GROW_MS *
-    FERTILIZER_GROW_MULTIPLIERS[level] *
-    SOW_GROW_MULTIPLIERS[sowLevel];
-  const currentGold = Math.round(
-    GOLD_PER_HARVEST *
-      FERTILIZER_GOLD_MULTIPLIERS[level] *
-      HARVEST_GOLD_MULTIPLIERS[harvestLevel],
-  );
-  const nextGrowMs =
-    BASE_GROW_MS *
-    FERTILIZER_GROW_MULTIPLIERS[level + 1] *
-    SOW_GROW_MULTIPLIERS[sowLevel];
-  const nextGold = Math.round(
-    GOLD_PER_HARVEST *
-      FERTILIZER_GOLD_MULTIPLIERS[level + 1] *
-      HARVEST_GOLD_MULTIPLIERS[harvestLevel],
-  );
+  const currentGrowMs = BASE_GROW_MS * FERTILIZER_GROW_MULTIPLIERS[level];
+  const currentGold = Math.round(GOLD_PER_HARVEST * FERTILIZER_GOLD_MULTIPLIERS[level]);
+  const nextGrowMs = BASE_GROW_MS * FERTILIZER_GROW_MULTIPLIERS[level + 1];
+  const nextGold = Math.round(GOLD_PER_HARVEST * FERTILIZER_GOLD_MULTIPLIERS[level + 1]);
 
   return (
     <HoverCardWrapper>
@@ -264,8 +175,7 @@ function CrowsHoverCard({ level }: { level: number }) {
             Frisch gesäte Felder (~0%) sofort zerstört
           </div>
           <div className="text-parchment mt-0.5">
-            Sendekosten:{" "}
-            <span className="text-gold">{CROW_SEND_COST}g</span>
+            Sendekosten: <span className="text-gold">{CROW_SEND_COST}g</span>
             <span className="text-muted-gold ml-1">
               · Abklingzeit {formatSeconds(CROW_COOLDOWN_MS)}
             </span>
@@ -279,7 +189,9 @@ function CrowsHoverCard({ level }: { level: number }) {
             frisst in {formatSeconds(CROW_EAT_DURATIONS_MS[level])}
           </span>
           {level + 1 >= 2 && (
-            <span className="text-muted-gold ml-1">· {CROW_FIELD_COUNTS[level]} Felder</span>
+            <span className="text-muted-gold ml-1">
+              · {CROW_FIELD_COUNTS[level]} Felder
+            </span>
           )}
         </div>
       )}
@@ -295,22 +207,9 @@ interface UpgradeCardProps {
   gold: number;
   costs: number[];
   maxLevel: number;
-  fertLevel?: number;
-  sowLevel?: number;
-  harvestLevel?: number;
 }
 
-function UpgradeCard({
-  toolId,
-  label,
-  level,
-  gold,
-  costs,
-  maxLevel,
-  fertLevel = 0,
-  sowLevel = 0,
-  harvestLevel = 0,
-}: UpgradeCardProps) {
+function UpgradeCard({ toolId, label, level, gold, costs, maxLevel }: UpgradeCardProps) {
   const isMaxed = level >= maxLevel;
   const nextCost = isMaxed ? null : costs[level];
   const canAfford = nextCost !== null && gold >= nextCost;
@@ -319,15 +218,9 @@ function UpgradeCard({
   return (
     <div className="relative group">
       {toolId === "fertilizer" ? (
-        <FertilizerHoverCard
-          level={level}
-          sowLevel={sowLevel}
-          harvestLevel={harvestLevel}
-        />
-      ) : toolId === "sow" ? (
-        <SowHoverCard level={level} fertLevel={fertLevel} />
-      ) : toolId === "harvest" ? (
-        <HarvestHoverCard level={level} fertLevel={fertLevel} />
+        <FertilizerHoverCard level={level} />
+      ) : toolId === "tools" ? (
+        <ToolsHoverCard level={level} />
       ) : null}
       <div className="upgrade-card text-parchment flex flex-col items-center gap-2 min-w-35">
         <div className="flex items-center justify-between w-full">
@@ -456,9 +349,7 @@ function ThiefHoverCard({ level }: { level: number }) {
         <>
           <div className="text-parchment">
             Stiehlt:{" "}
-            <span className="text-gold">
-              {THIEF_STEAL_PER_SEC[lvIdx]}g/s
-            </span>
+            <span className="text-gold">{THIEF_STEAL_PER_SEC[lvIdx]}g/s</span>
             <span className="text-muted-gold ml-1">
               · max. {THIEF_MAX_STOLEN[lvIdx]}g
             </span>
@@ -726,8 +617,7 @@ export function UpgradePanel() {
     ? Object.values(game?.players ?? {}).find((p) => p.id !== playerId)
     : null;
   const gold = me?.gold ?? 0;
-  const sowLevel = me?.tools.find((t) => t.id === "sow")?.level ?? 0;
-  const harvestLevel = me?.tools.find((t) => t.id === "harvest")?.level ?? 0;
+  const toolsLevel = me?.tools.find((t) => t.id === "tools")?.level ?? 0;
   const fertilizerLevel =
     me?.tools.find((t) => t.id === "fertilizer")?.level ?? 0;
   const crowsTool = me?.tools.find((t) => t.id === "crows");
@@ -746,22 +636,12 @@ export function UpgradePanel() {
     <div className="absolute inset-bottom-safe left-0 right-0 flex justify-center pointer-events-none">
       <div className="flex gap-3 pointer-events-auto">
         <UpgradeCard
-          toolId="sow"
-          label="SÄEN"
-          level={sowLevel}
+          toolId="tools"
+          label="WERKZEUG"
+          level={toolsLevel}
           gold={gold}
-          costs={SOW_UPGRADE_COSTS}
+          costs={TOOLS_UPGRADE_COSTS}
           maxLevel={MAX_TOOL_LEVEL}
-          fertLevel={fertilizerLevel}
-        />
-        <UpgradeCard
-          toolId="harvest"
-          label="ERNTEN"
-          level={harvestLevel}
-          gold={gold}
-          costs={HARVEST_UPGRADE_COSTS}
-          maxLevel={MAX_TOOL_LEVEL}
-          fertLevel={fertilizerLevel}
         />
         <UpgradeCard
           toolId="fertilizer"
@@ -770,8 +650,6 @@ export function UpgradePanel() {
           gold={gold}
           costs={FERTILIZER_UPGRADE_COSTS}
           maxLevel={MAX_FERTILIZER_LEVEL}
-          sowLevel={sowLevel}
-          harvestLevel={harvestLevel}
         />
         <CrowsCard
           level={crowsLevel}

@@ -1,4 +1,5 @@
-import type { ServerMessage, GameState, Field, PlayerState, ToolId, ThiefAttack } from '@gamedesign/shared';
+import type { ServerMessage, GameState, Field, PlayerState, ToolId, ThiefAttack, MatchStats } from '@gamedesign/shared';
+import { persistMatch } from './persistence.js';
 import { Session } from './session.js';
 import {
   SOW_DURATION_MS,
@@ -9,10 +10,7 @@ import {
   STARTING_GOLD,
   UPGRADE_SPEED_MULTIPLIERS,
   MAX_TOOL_LEVEL,
-  SOW_UPGRADE_COSTS,
-  SOW_GROW_MULTIPLIERS,
-  HARVEST_UPGRADE_COSTS,
-  HARVEST_GOLD_MULTIPLIERS,
+  TOOLS_UPGRADE_COSTS,
   FERTILIZER_GROW_MULTIPLIERS,
   FERTILIZER_GOLD_MULTIPLIERS,
   MAX_FERTILIZER_LEVEL,
@@ -39,8 +37,7 @@ const MATCH_DURATION_MS = 8 * 60 * 1000;
 const ROOM_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 const TOOL_COSTS: Record<ToolId, readonly number[]> = {
-  sow: SOW_UPGRADE_COSTS,
-  harvest: HARVEST_UPGRADE_COSTS,
+  tools: TOOLS_UPGRADE_COSTS,
   fertilizer: FERTILIZER_UPGRADE_COSTS,
   crows: CROW_UPGRADE_COSTS,
   thief: THIEF_UPGRADE_COSTS,
@@ -55,6 +52,46 @@ function rollGrowDuration(fertMultiplier: number): number {
   return (
     BASE_GROW_MS * fertMultiplier * (1 - GROW_VARIANCE + Math.random() * 2 * GROW_VARIANCE)
   );
+}
+
+function goldYield(ps: PlayerState): number {
+  const fertLevel = ps.tools.find(t => t.id === 'fertilizer')?.level ?? 0;
+  return Math.round(GOLD_PER_HARVEST * FERTILIZER_GOLD_MULTIPLIERS[fertLevel]);
+}
+
+function growMs(ps: PlayerState): number {
+  const fertLevel = ps.tools.find(t => t.id === 'fertilizer')?.level ?? 0;
+  return BASE_GROW_MS * FERTILIZER_GROW_MULTIPLIERS[fertLevel];
+}
+
+function effectiveGrowMs(ps: PlayerState): number {
+  const w = ps.weatherEffect;
+  return w ? growMs(ps) / (1 - w.slowFactor) : growMs(ps);
+}
+
+function goldPerSec(ps: PlayerState): number {
+  return goldYield(ps) / (effectiveGrowMs(ps) / 1000);
+}
+
+function createEmptyStats(): MatchStats {
+  return {
+    goldEarnedHarvest: 0,
+    goldStolenByThief: 0,
+    goldLostToThief: 0,
+    goldSpentUpgradesByTool: { tools: 0, fertilizer: 0, crows: 0, thief: 0, weather: 0 },
+    goldSpentCrows: 0,
+    goldSpentThief: 0,
+    goldSpentWeather: 0,
+    crowGoldDestroyed: 0,
+    weatherGoldDestroyed: 0,
+    upgradeExtraProfitFertilizer: 0,
+    upgradeExtraProfitSpeed: 0,
+    fieldsHarvested: 0,
+    crowsSent: 0,
+    thievesSent: 0,
+    weatherSent: 0,
+    finalToolLevels: { tools: 0, fertilizer: 0, crows: 0, thief: 0, weather: 0 },
+  };
 }
 
 function createField(index: number): Field {
@@ -76,8 +113,7 @@ function createPlayerState(playerId: string): PlayerState {
     score: 0,
     fields: [0, 1, 2, 3].map(createField),
     tools: [
-      { id: 'sow',        level: 0, cooldownUntil: 0 },
-      { id: 'harvest',    level: 0, cooldownUntil: 0 },
+      { id: 'tools',      level: 0, cooldownUntil: 0 },
       { id: 'fertilizer', level: 0, cooldownUntil: 0 },
       { id: 'crows',      level: 0, cooldownUntil: 0 },
       { id: 'thief',      level: 0, cooldownUntil: 0 },
@@ -88,6 +124,7 @@ function createPlayerState(playerId: string): PlayerState {
     weatherEffect: null,
     villagersOutside: 4,
     wrongAccusationCount: 0,
+    stats: createEmptyStats(),
   };
 }
 
@@ -96,6 +133,7 @@ export class Game {
   private slots: { p1: Session | null; p2: Session | null } = { p1: null, p2: null };
   private state: GameState | null = null;
   private timers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private persisted = false;
 
   constructor(id: string) {
     this.id = id;
@@ -169,6 +207,7 @@ export class Game {
   }
 
   startGame(): void {
+    this.persisted = false;
     const p1Id = this.slots.p1!.playerId;
     const p2Id = this.slots.p2!.playerId;
     const startedAt = Date.now();
@@ -191,10 +230,27 @@ export class Game {
 
   private endMatch(): void {
     if (!this.state || this.state.phase !== 'playing') return;
+    this.cleanupOnEnd();
     const [a, b] = Object.values(this.state.players);
+    for (const ps of [a, b]) {
+      for (const tool of ps.tools) {
+        (ps.stats.finalToolLevels as Record<string, number>)[tool.id] = tool.level;
+      }
+    }
     this.state.phase = 'ended';
     this.state.winnerId = a.gold > b.gold ? a.id : b.gold > a.gold ? b.id : null;
+    if (!this.persisted) {
+      this.persisted = true;
+      void persistMatch(this.state, this.getSlotMap()).catch(console.error);
+    }
     this.broadcast({ type: 'game_state', state: this.state });
+  }
+
+  private getSlotMap(): Record<string, string> {
+    const map: Record<string, string> = {};
+    if (this.slots.p1) map[this.slots.p1.playerId] = 'p1';
+    if (this.slots.p2) map[this.slots.p2.playerId] = 'p2';
+    return map;
   }
 
   private playAgainVotes: Set<string> = new Set();
@@ -219,9 +275,34 @@ export class Game {
     if (!this.state || this.state.phase !== 'playing') return;
     const opponentId = Object.keys(this.state.players).find((id) => id !== playerId);
     this.cancelTimer('match_end');
+    this.cleanupOnEnd();
+    for (const ps of Object.values(this.state.players)) {
+      for (const tool of ps.tools) {
+        (ps.stats.finalToolLevels as Record<string, number>)[tool.id] = tool.level;
+      }
+    }
     this.state.phase = 'ended';
     this.state.winnerId = opponentId ?? null;
+    if (!this.persisted) {
+      this.persisted = true;
+      void persistMatch(this.state, this.getSlotMap()).catch(console.error);
+    }
     this.broadcast({ type: 'game_state', state: this.state });
+  }
+
+  private cleanupOnEnd(): void {
+    if (!this.state) return;
+    for (const [playerId, ps] of Object.entries(this.state.players)) {
+      if (ps.thiefAttack !== null) {
+        this.cancelTimer(`thief_expire:${playerId}`);
+        ps.thiefAttack = null;
+      }
+      for (const field of ps.fields) {
+        if (field.stage === 'harvesting') {
+          this.cancelTimer(`${playerId}:${field.index}`);
+        }
+      }
+    }
   }
 
   private resetAndRestart(): void {
@@ -247,7 +328,7 @@ export class Game {
 
     const startedAt = Date.now();
     let duration =
-      SOW_DURATION_MS * UPGRADE_SPEED_MULTIPLIERS[this.getToolLevel(playerState, 'sow')];
+      SOW_DURATION_MS * UPGRADE_SPEED_MULTIPLIERS[this.getToolLevel(playerState, 'tools')];
     if (playerState.weatherEffect)
       duration += weatherExtra(duration, playerState.weatherEffect.actionSlowFactor);
     field.stage = 'sowing';
@@ -272,12 +353,13 @@ export class Game {
     const field = playerState.fields[fieldIndex];
     if (!field) return 'not_found';
     if (field.fieldBlockedUntil && field.fieldBlockedUntil > Date.now()) return 'field_paused';
+    if (field.crowAttack !== null) return 'field_paused';
     if (field.stage !== 'ready') return 'not_ready';
 
     const startedAt = Date.now();
     let duration =
       HARVEST_DURATION_MS *
-      UPGRADE_SPEED_MULTIPLIERS[this.getToolLevel(playerState, 'harvest')];
+      UPGRADE_SPEED_MULTIPLIERS[this.getToolLevel(playerState, 'tools')];
     if (playerState.weatherEffect)
       duration += weatherExtra(duration, playerState.weatherEffect.actionSlowFactor);
     field.stage = 'harvesting';
@@ -336,6 +418,10 @@ export class Game {
       const totalGrowMs =
         field.stage === 'ready' ? BASE_GROW_MS : field.readyAt! - field.sowedAt!;
 
+      if (field.stage === 'growing') {
+        this.cancelTimer(`${opponentState.id}:${field.index}`);
+      }
+
       field.crowAttack = {
         startedAt: now,
         eatRatePerMs: config.eatRatePerMs,
@@ -351,6 +437,8 @@ export class Game {
     }
 
     playerState.gold -= CROW_SEND_COST;
+    playerState.stats.goldSpentCrows += CROW_SEND_COST;
+    playerState.stats.crowsSent++;
     crowTool.cooldownUntil = now + CROW_COOLDOWN_MS;
 
     this.broadcast({ type: 'game_state', state: this.state });
@@ -419,6 +507,8 @@ export class Game {
 
     opponentState.thiefAttack = attack;
     playerState.gold -= cfg.cost;
+    playerState.stats.goldSpentThief += cfg.cost;
+    playerState.stats.thievesSent++;
     thiefTool.cooldownUntil = now + cfg.cooldownMs;
 
     // Safety-net: clean up if the thief never gets to enter (all villagers stay outside)
@@ -518,7 +608,9 @@ export class Game {
     for (const field of opponentState.fields) {
       if (field.readyAt === null) continue;
       const sf = field.stage === 'growing' ? cfg.slowFactor : cfg.actionSlowFactor;
-      field.readyAt += weatherExtra(field.readyAt - now, sf);
+      const extraMs = weatherExtra(field.readyAt - now, sf);
+      playerState.stats.weatherGoldDestroyed += goldPerSec(opponentState) * (extraMs / 1000);
+      field.readyAt += extraMs;
       this.rescheduleFieldTimer(opponentState.id, field);
     }
 
@@ -534,6 +626,22 @@ export class Game {
         this.cancelTimer(`${opponentState.id}:${target.index}`);
         const strikeAt = now + 2000;
         this.scheduleTimer(`lightning:${opponentState.id}:${target.index}`, strikeAt, () => {
+          if (!this.state) return;
+          const oState = this.state.players[opponentState.id];
+          const strikeField = oState?.fields[target.index];
+          if (oState && strikeField && (strikeField.stage === 'growing' || strikeField.stage === 'ready')) {
+            const aState = this.state.players[playerId];
+            if (aState) {
+              const strikeNow = Date.now();
+              const prog = strikeField.stage === 'ready' ? 1 :
+                Math.max(0, Math.min(1, (strikeNow - (strikeField.sowedAt ?? strikeNow)) / ((strikeField.readyAt ?? strikeNow + 1) - (strikeField.sowedAt ?? strikeNow))));
+              const toolsLvl = oState.tools.find(t => t.id === 'tools')?.level ?? 0;
+              let resowMs = SOW_DURATION_MS * UPGRADE_SPEED_MULTIPLIERS[toolsLvl];
+              if (oState.weatherEffect) resowMs += weatherExtra(resowMs, oState.weatherEffect.actionSlowFactor);
+              const extraRegrowMs = prog * (effectiveGrowMs(oState) - growMs(oState));
+              aState.stats.weatherGoldDestroyed += prog * goldYield(oState) + goldPerSec(oState) * ((resowMs + extraRegrowMs) / 1000);
+            }
+          }
           this.destroyField(target);
           this.broadcast({ type: 'game_state', state: this.state! });
         });
@@ -541,6 +649,8 @@ export class Game {
     }
 
     playerState.gold -= cfg.cost;
+    playerState.stats.goldSpentWeather += cfg.cost;
+    playerState.stats.weatherSent++;
     weatherTool.cooldownUntil = now + cfg.cooldownMs;
 
     this.scheduleTimer(`weather_expire:${opponentState.id}`, endsAt, () =>
@@ -552,7 +662,7 @@ export class Game {
   }
 
   processSabotages(): void {
-    if (!this.state) return;
+    if (!this.state || this.state.phase !== 'playing') return;
     const now = Date.now();
     let changed = false;
 
@@ -620,6 +730,8 @@ export class Game {
     if (playerState.gold < cost) return 'insufficient_gold';
 
     playerState.gold -= cost;
+    (playerState.stats.goldSpentUpgradesByTool as Record<string, number>)[toolId] =
+      ((playerState.stats.goldSpentUpgradesByTool as Record<string, number>)[toolId] ?? 0) + cost;
     tool.level += 1;
     this.broadcast({ type: 'game_state', state: this.state });
 
@@ -628,6 +740,11 @@ export class Game {
 
   private getPlayerIdBySlot(slot: Slot): string | null {
     return this.slots[slot]?.playerId ?? null;
+  }
+
+  private opponentId(playerId: string): string | null {
+    if (!this.state) return null;
+    return Object.keys(this.state.players).find(id => id !== playerId) ?? null;
   }
 
   private drainThief(victimId: string, now: number): boolean {
@@ -648,9 +765,12 @@ export class Game {
     if (actualStolen > 0) {
       const actorId = this.getPlayerIdBySlot(attack.actorSlot);
       const actorState = actorId ? this.state.players[actorId] : null;
-      victimState.gold = Math.max(0, victimState.gold - Math.floor(actualStolen));
+      const stolen = Math.floor(actualStolen);
+      victimState.gold = Math.max(0, victimState.gold - stolen);
+      victimState.stats.goldLostToThief += stolen;
       if (actorState) {
-        actorState.gold += Math.floor(actualStolen);
+        actorState.gold += stolen;
+        actorState.stats.goldStolenByThief += stolen;
       }
     }
 
@@ -701,6 +821,21 @@ export class Game {
     const progressEaten = (now - startedAt) * eatRatePerMs;
     const effectiveProgress = Math.max(0, baseProgress - progressEaten);
 
+    const victimState = this.state.players[playerId];
+    const attackerId = this.opponentId(playerId);
+    const attackerState = attackerId ? this.state.players[attackerId] : null;
+    if (victimState && attackerState) {
+      if (effectiveProgress <= 0) {
+        const toolsLevel = this.getToolLevel(victimState, 'tools');
+        let resowMs = SOW_DURATION_MS * UPGRADE_SPEED_MULTIPLIERS[toolsLevel];
+        if (victimState.weatherEffect) resowMs += weatherExtra(resowMs, victimState.weatherEffect.actionSlowFactor);
+        const extraRegrowMs = baseProgress * (effectiveGrowMs(victimState) - growMs(victimState));
+        attackerState.stats.crowGoldDestroyed += baseProgress * goldYield(victimState) + goldPerSec(victimState) * ((resowMs + extraRegrowMs) / 1000);
+      } else {
+        attackerState.stats.crowGoldDestroyed += Math.min(progressEaten, baseProgress) * goldYield(victimState);
+      }
+    }
+
     this.cancelTimer(`crow:${playerId}:${fieldIndex}`);
     field.crowAttack = null;
     field.scaringAt = null;
@@ -724,6 +859,18 @@ export class Game {
     if (!this.state) return;
     const field = this.state.players[playerId]?.fields[fieldIndex];
     if (!field || !field.crowAttack) return;
+
+    const victimState = this.state.players[playerId];
+    const attackerId = this.opponentId(playerId);
+    const attackerState = attackerId ? this.state.players[attackerId] : null;
+    if (victimState && attackerState) {
+      const { baseProgress } = field.crowAttack;
+      const toolsLevel = this.getToolLevel(victimState, 'tools');
+      let resowMs = SOW_DURATION_MS * UPGRADE_SPEED_MULTIPLIERS[toolsLevel];
+      if (victimState.weatherEffect) resowMs += weatherExtra(resowMs, victimState.weatherEffect.actionSlowFactor);
+      const extraRegrowMs = baseProgress * (effectiveGrowMs(victimState) - growMs(victimState));
+      attackerState.stats.crowGoldDestroyed += baseProgress * goldYield(victimState) + goldPerSec(victimState) * ((resowMs + extraRegrowMs) / 1000);
+    }
 
     this.cancelTimer(`scare:${playerId}:${fieldIndex}`);
     this.cancelTimer(`${playerId}:${fieldIndex}`);
@@ -766,8 +913,7 @@ export class Game {
     const playerState = this.state.players[playerId];
     if (!playerState) return;
     const fertLevel = this.getToolLevel(playerState, 'fertilizer');
-    const sowLevel = this.getToolLevel(playerState, 'sow');
-    let growDuration = rollGrowDuration(FERTILIZER_GROW_MULTIPLIERS[fertLevel] * SOW_GROW_MULTIPLIERS[sowLevel]);
+    let growDuration = rollGrowDuration(FERTILIZER_GROW_MULTIPLIERS[fertLevel]);
 
     if (playerState.weatherEffect)
       growDuration += weatherExtra(growDuration, playerState.weatherEffect.slowFactor);
@@ -800,8 +946,19 @@ export class Game {
     if (!playerState || !field || field.stage !== 'harvesting') return;
 
     const fertLevel = this.getToolLevel(playerState, 'fertilizer');
-    const harvestLevel = this.getToolLevel(playerState, 'harvest');
-    playerState.gold += Math.round(GOLD_PER_HARVEST * FERTILIZER_GOLD_MULTIPLIERS[fertLevel] * HARVEST_GOLD_MULTIPLIERS[harvestLevel]);
+    const toolsLevel = this.getToolLevel(playerState, 'tools');
+    const fullGold = Math.round(GOLD_PER_HARVEST * FERTILIZER_GOLD_MULTIPLIERS[fertLevel]);
+    playerState.gold += fullGold;
+
+    playerState.stats.fieldsHarvested++;
+    playerState.stats.goldEarnedHarvest += fullGold;
+    playerState.stats.upgradeExtraProfitFertilizer += fullGold - GOLD_PER_HARVEST;
+    let actionSaved = (SOW_DURATION_MS + HARVEST_DURATION_MS) * (1 - UPGRADE_SPEED_MULTIPLIERS[toolsLevel]);
+    if (playerState.weatherEffect) actionSaved += weatherExtra(actionSaved, playerState.weatherEffect.actionSlowFactor);
+    if (actionSaved > 0) {
+      playerState.stats.upgradeExtraProfitSpeed += goldPerSec(playerState) * (actionSaved / 1000);
+    }
+
     this.destroyField(field);
     this.broadcast({ type: 'game_state', state: this.state });
   }

@@ -90,7 +90,16 @@ export function useWebSocket() {
           break;
       }
     },
-    [send, setGame, setSlot, setError, setStatus, setPlayerId, setRoomCode, setOpponentLeft],
+    [
+      send,
+      setGame,
+      setSlot,
+      setError,
+      setStatus,
+      setPlayerId,
+      setRoomCode,
+      setOpponentLeft,
+    ],
   );
 
   const connect = useCallback(() => {

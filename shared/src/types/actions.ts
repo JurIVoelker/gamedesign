@@ -20,7 +20,7 @@ export type UseItem = {
   targetFieldIndex?: number;
 };
 
-export type ToolId = 'sow' | 'harvest' | 'fertilizer' | 'crows' | 'thief' | 'weather';
+export type ToolId = 'tools' | 'fertilizer' | 'crows' | 'thief' | 'weather';
 
 export type UpgradeTool = {
   kind: 'UpgradeTool';

@@ -6,22 +6,16 @@ export const GOLD_PER_HARVEST = 40;
 export const STARTING_GOLD = 150;
 
 // Index n = duration multiplier at tool level n.
-// 1.0 / 0.7 / 0.4 / 0.1 → 0% / 30% / 60% / 90% faster.
-export const UPGRADE_SPEED_MULTIPLIERS = [1.0, 0.7, 0.4, 0.1];
+// 1.0 / 0.45 / 0.2 / 0.05 → 0% / 55% / 80% / 95% faster.
+export const UPGRADE_SPEED_MULTIPLIERS = [1.0, 0.45, 0.2, 0.05];
 export const MAX_TOOL_LEVEL = 3;
 
-// Cost to reach lvl 1, 2, 3 respectively (index = target level - 1).
-// Sow: each level also reduces grow time by 8% (stacks multiplicatively with fertilizer).
-export const SOW_UPGRADE_COSTS = [50, 150, 200];
-export const SOW_GROW_MULTIPLIERS = [1.0, 0.92, 0.84, 0.76];
+// Combined sow+harvest action-speed tool (id: 'tools'). Cheap because it only saves action time.
+export const TOOLS_UPGRADE_COSTS = [20, 40, 80];
 
-// Harvest: each level also adds 10% gold per harvest (stacks multiplicatively with fertilizer).
-export const HARVEST_UPGRADE_COSTS = [50, 150, 200];
-export const HARVEST_GOLD_MULTIPLIERS = [1.0, 1.10, 1.20, 1.30];
-
-// Fertilizer: capped at level 3 — levels 4 & 5 removed in favour of stronger sabotage tools.
-export const FERTILIZER_GROW_MULTIPLIERS = [1.0, 0.88, 0.77, 0.67, 0.57, 0.5];
-export const FERTILIZER_GOLD_MULTIPLIERS = [1.0, 1.12, 1.25, 1.4, 1.58, 1.8];
+// Fertilizer absorbs the old sow grow-time and harvest gold bonuses.
+export const FERTILIZER_GROW_MULTIPLIERS = [1.0, 0.80, 0.64, 0.51];
+export const FERTILIZER_GOLD_MULTIPLIERS = [1.0, 1.28, 1.55, 1.82];
 export const MAX_FERTILIZER_LEVEL = 3;
 export const FERTILIZER_UPGRADE_COSTS = [100, 250, 500];
 

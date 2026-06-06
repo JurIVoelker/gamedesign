@@ -19,7 +19,7 @@ const SLIDES = [
     bullets: [
       "4 Felder: Aussäen → Wachsen → Ernten.",
       "Jede Ernte bringt Gold.",
-      "Verbessere Säen, Ernten und Dünger für mehr Effizienz.",
+      "Verbessere Werkzeug und Dünger für mehr Effizienz.",
     ],
   },
   {
@@ -64,10 +64,16 @@ export function OnboardingModal({ open, onClose }: Props) {
 
   return (
     <div className="absolute inset-0 flex items-center justify-center z-50 bg-black/60">
-      <div className="panel-pixel flex flex-col gap-4 text-parchment" style={{ minWidth: 260, maxWidth: 320, padding: 24 }}>
+      <div
+        className="panel-pixel flex flex-col gap-4 text-parchment"
+        style={{ minWidth: 260, maxWidth: 320, padding: 24 }}
+      >
         <div className="relative flex flex-col items-center gap-1">
           <button
-            onClick={() => { onClose(); setSlide(0); }}
+            onClick={() => {
+              onClose();
+              setSlide(0);
+            }}
             className="absolute -top-1 -right-1 text-muted-gold hover:text-gold text-[14px] leading-none cursor-pointer"
             title="Schließen"
           >
@@ -94,7 +100,10 @@ export function OnboardingModal({ open, onClose }: Props) {
                 key={i}
                 className="w-2 h-2"
                 style={{
-                  background: i === slide ? "var(--color-gold, #ffd700)" : "var(--color-muted-gold, #8a7040)",
+                  background:
+                    i === slide
+                      ? "var(--color-gold, #ffd700)"
+                      : "var(--color-muted-gold, #8a7040)",
                   imageRendering: "pixelated",
                 }}
               />
