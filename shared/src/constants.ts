@@ -60,3 +60,60 @@ export const WEATHER_UPGRADE_COSTS = [30, 80, 140] as const;  // to Lv1, Lv2, Lv
 export const WEATHER_MAX_EXTRA_MS = 20_000;
 
 export const ACCUSATION_PAUSE_MS = 20_000;
+
+// ---------------------------------------------------------------------------
+// Items & Merchant
+// ---------------------------------------------------------------------------
+
+export type ItemId =
+  | "blindness_potion"
+  | "paranoia_curse"
+  | "crystal_ball"
+  | "swap_potion"
+  | "mirror_curse"
+  | "fake_merchant"
+  | "spy_glass"
+  | "pointless_potion"
+  | "halving_brew";
+
+export interface ItemDef {
+  id: ItemId;
+  name: string;
+  price: number;
+  rarityWeight: number;
+  maxPerMatch: number | null;
+  target: "none" | "opponent_field" | "own_and_opponent_field";
+  durationMs: number | null;
+}
+
+export const ITEM_DEFS: Record<ItemId, ItemDef> = {
+  pointless_potion:  { id: "pointless_potion",  name: "Trank der Unnötigkeit", price: 20,  rarityWeight: 14, maxPerMatch: null, target: "none",                    durationMs: null    },
+  blindness_potion:  { id: "blindness_potion",  name: "Blindheitstrank",        price: 45,  rarityWeight: 18, maxPerMatch: null, target: "none",                    durationMs: 20_000  },
+  spy_glass:         { id: "spy_glass",         name: "Spion",                  price: 50,  rarityWeight: 14, maxPerMatch: 2,    target: "none",                    durationMs: 120_000 },
+  fake_merchant:     { id: "fake_merchant",     name: "Falscher Händler",       price: 55,  rarityWeight: 10, maxPerMatch: 2,    target: "none",                    durationMs: null    },
+  paranoia_curse:    { id: "paranoia_curse",    name: "Paranoia-Fluch",         price: 60,  rarityWeight: 12, maxPerMatch: 2,    target: "none",                    durationMs: 60_000  },
+  mirror_curse:      { id: "mirror_curse",      name: "Spiegelfluch",           price: 70,  rarityWeight: 10, maxPerMatch: 2,    target: "none",                    durationMs: 30_000  },
+  swap_potion:       { id: "swap_potion",       name: "Tauschtrank",            price: 80,  rarityWeight: 7,  maxPerMatch: 1,    target: "own_and_opponent_field",  durationMs: null    },
+  crystal_ball:      { id: "crystal_ball",      name: "Zauberkugel",            price: 100, rarityWeight: 6,  maxPerMatch: 1,    target: "none",                    durationMs: null    },
+  halving_brew:      { id: "halving_brew",      name: "Halbierungstrunk",       price: 120, rarityWeight: 4,  maxPerMatch: 1,    target: "none",                    durationMs: null    },
+};
+
+export const MERCHANT_VISITS = [
+  { atMs: 120_000, jitterMs: 25_000 },
+  { atMs: 270_000, jitterMs: 25_000 },
+  { atMs: 390_000, jitterMs: 20_000 },
+] as const;
+
+export const MERCHANT_STAY_MS = 40_000;
+export const MERCHANT_OFFER_COUNT = 3;
+export const MERCHANT_HEAD_START_MS = 10_000;
+export const MERCHANT_DISCOUNT_PCT = 0.20;
+export const MERCHANT_MIN_SCORE_GAP = 20;
+export const MERCHANT_OVERSTAY_MAX_MS = 60_000;
+export const MERCHANT_WINDOW_RECHECK_MS = 3_000;
+
+export const MERCHANT_CATCHUP_STAGES = [
+  { untilMs: 180_000, cumWeight: 1.0, balWeight: 0.0 },
+  { untilMs: 330_000, cumWeight: 0.5, balWeight: 0.5 },
+  { untilMs: Infinity, cumWeight: 0.2, balWeight: 0.8 },
+] as const;

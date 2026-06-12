@@ -44,8 +44,7 @@ export function handleMessage(session: Session, raw: string | Buffer): void {
       session.send({ type: 'assigned', slot, playerId: session.playerId });
 
       if (result === 'rejoined') {
-        const st = game.getState();
-        if (st) game.broadcast({ type: 'game_state', state: st });
+        game.sendStateTo(session.playerId);
       }
 
       if (game.isFull() && result === 'assigned') {
@@ -143,6 +142,16 @@ export function handleMessage(session: Session, raw: string | Buffer): void {
         if (result !== 'ok') {
           session.send({ type: 'error', message: `AccuseVillager failed: ${result}` });
         }
+      } else if (action.kind === 'BuyItem') {
+        const result = game.buyItem(session.playerId, action.itemId);
+        if (result !== 'ok') {
+          session.send({ type: 'error', message: `BuyItem failed: ${result}` });
+        }
+      } else if (action.kind === 'UseItem') {
+        const result = game.useItem(session.playerId, action.itemId, action.targetFieldIndex, action.secondTargetFieldIndex);
+        if (result !== 'ok' && result !== 'not_implemented') {
+          session.send({ type: 'error', message: `UseItem failed: ${result}` });
+        }
       }
       break;
     }
@@ -162,6 +171,14 @@ export function handleMessage(session: Session, raw: string | Buffer): void {
       if (!roomCode) return;
       const game = gameManager.getGame(roomCode);
       game?.reportVillagersOutside(session.playerId, parsed.count);
+      break;
+    }
+
+    case 'merchant_window': {
+      const roomCode = gameManager.getRoomCodeOf(session.playerId);
+      if (!roomCode) return;
+      const game = gameManager.getGame(roomCode);
+      game?.setMerchantWindow(session.playerId, parsed.open);
       break;
     }
 

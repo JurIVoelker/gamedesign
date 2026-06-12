@@ -9,6 +9,7 @@ import {
 import type { GameState } from "@gamedesign/shared";
 import { FieldEntity, FIELD_W, FIELD_H } from "./entities/FieldEntity";
 import { HouseEntity, HOUSE_W, HOUSE_H } from "./entities/HouseEntity";
+import { MerchantEntity } from "./entities/MerchantEntity";
 import { VillagerController } from "./VillagerController";
 import { ThiefController } from "./ThiefController";
 import { SeededRandom, hashStr } from "./SeededRandom";
@@ -38,6 +39,8 @@ export class GameEngine {
   private onThiefClicked: (() => void) | null = null;
   private onVillagerClicked: ((id: number) => void) | null = null;
   private onVillagersChange: ((count: number) => void) | null = null;
+  private onMerchantClicked: (() => void) | null = null;
+  private merchantEntity: MerchantEntity | null = null;
   private playerWeatherOverlay: Graphics | null = null;
   private opponentWeatherOverlay: Graphics | null = null;
   private playerLightningOverlay: Graphics | null = null;
@@ -72,10 +75,12 @@ export class GameEngine {
     onThiefClicked: () => void,
     onVillagerClicked: (id: number) => void,
     onVillagersChange: (count: number) => void,
+    onMerchantClicked: () => void,
   ): Promise<void> {
     this.onThiefClicked = onThiefClicked;
     this.onVillagerClicked = onVillagerClicked;
     this.onVillagersChange = onVillagersChange;
+    this.onMerchantClicked = onMerchantClicked;
 
     TextureStyle.defaultOptions.scaleMode = "nearest";
     await Assets.load([
@@ -163,6 +168,7 @@ export class GameEngine {
       this.opponentVillagers?.update(app.ticker.deltaMS);
       this.playerThief?.update(app.ticker.deltaMS);
       this.opponentThief?.update(app.ticker.deltaMS);
+      this.merchantEntity?.update(app.ticker.deltaMS);
       this.updateLightning(app.ticker.deltaMS);
       this.updatePlayerLightning(app.ticker.deltaMS);
     });
@@ -221,6 +227,8 @@ export class GameEngine {
     this.opponentWeatherOverlay = null;
     this.playerLightningOverlay = null;
     this.opponentLightningOverlay = null;
+    this.merchantEntity?.destroy();
+    this.merchantEntity = null;
     this.villagersSeeded = false;
   }
 
@@ -279,12 +287,23 @@ export class GameEngine {
         () => oppThiefRand.next(),
       );
       this.villagersSeeded = true;
+
+      // Create merchant entity on the player farm (left edge, lower area)
+      if (this.playerFarm && !this.merchantEntity) {
+        this.merchantEntity = new MerchantEntity(
+          this.playerFarm,
+          -36,
+          SCENE_H_INNER - 20,
+          this.onMerchantClicked ?? (() => {}),
+        );
+      }
     }
 
     if (myState) {
       for (let i = 0; i < this.playerFields.length; i++) {
         this.playerFields[i].setField(myState.fields[i] ?? null);
       }
+      this.merchantEntity?.setVisit(myState.merchant ?? null);
       this.playerVillagers?.setFields(myState.fields);
       this.playerThief?.setAttack(myState.thiefAttack ?? null, "victim");
       const myWeather = myState.weatherEffect != null;

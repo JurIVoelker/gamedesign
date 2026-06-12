@@ -1,6 +1,37 @@
 import type { ToolId } from './actions.js';
+import type { ItemId } from '../constants.js';
 
 export type CropStage = 'empty' | 'sowing' | 'growing' | 'ready' | 'harvesting';
+
+export type EffectVisibility = 'both' | 'owner' | 'source';
+
+export interface ActiveEffect {
+  id: string;
+  itemId: ItemId;
+  sourcePlayerId: string;
+  startedAt: number;
+  endsAt: number | null;
+  visibility: EffectVisibility;
+  data?: Record<string, unknown>;
+}
+
+export interface MerchantOffer {
+  itemId: ItemId;
+  basePrice: number;
+  price: number;
+  bought: boolean;
+}
+
+export interface MerchantVisit {
+  visitIndex: number;
+  arrivesAt: number;
+  leavesAt: number;
+  discountPct: number;
+  offers: MerchantOffer[];
+  windowOpen: boolean;
+  notice?: string;
+  fake?: { byPlayerId: string; feeStep: number; drained: number };
+}
 
 export interface MatchStats {
   goldEarnedHarvest: number;
@@ -10,6 +41,7 @@ export interface MatchStats {
   goldSpentCrows: number;
   goldSpentThief: number;
   goldSpentWeather: number;
+  goldSpentMerchant: number;
   crowGoldDestroyed: number;
   weatherGoldDestroyed: number;
   upgradeExtraProfitFertilizer: number;
@@ -18,6 +50,8 @@ export interface MatchStats {
   crowsSent: number;
   thievesSent: number;
   weatherSent: number;
+  itemsBought: Partial<Record<ItemId, number>>;
+  itemsUsed: number;
   finalToolLevels: Record<ToolId, number>;
 }
 
@@ -40,6 +74,7 @@ export interface ThiefAttack {
   stealPerSecond: number;
   disguise: 'none' | 'partial' | 'full';
   actorSlot: 'p1' | 'p2';   // who sent the thief (routes stolen gold)
+  beneficiaryId?: string;    // drain credit target (used by Mirror Curse)
 }
 
 export interface Field {
@@ -86,6 +121,8 @@ export interface PlayerState {
   villagersOutside: number;
   wrongAccusationCount: number;
   stats: MatchStats;
+  merchant: MerchantVisit | null;
+  activeEffects: ActiveEffect[];
 }
 
 export interface GameState {

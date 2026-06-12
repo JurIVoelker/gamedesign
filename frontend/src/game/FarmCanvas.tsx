@@ -4,6 +4,7 @@ import { useGameStore } from "../state/gameStore";
 import { useConnectionStore } from "../state/connectionStore";
 import { useTargetingStore } from "../state/targetingStore";
 import { AccusationModal } from "../ui/AccusationModal";
+import { MerchantShopModal } from "../ui/MerchantShopModal";
 
 export type AccusationTarget =
   | { type: "thief"; disguise: "none" | "partial" | "full" }
@@ -40,6 +41,7 @@ export function FarmCanvas() {
   const [accusationAnchorY, setAccusationAnchorY] = useState<number | null>(
     null,
   );
+  const [merchantOpen, setMerchantOpen] = useState(false);
 
   // Anger bubble: shown above the house when sow/harvest is blocked
   const [angerBubble, setAngerBubble] = useState<{
@@ -53,17 +55,23 @@ export function FarmCanvas() {
   const myPlayerState = game && playerId ? game.players[playerId] : undefined;
   const annoyanceLevel = myPlayerState?.wrongAccusationCount ?? 0;
 
-  // ESC — cancel targeting OR dismiss accusation modal
+  // ESC — cancel targeting OR dismiss accusation/merchant modal
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         useTargetingStore.getState().cancel();
         setAccusationTarget(null);
+        setMerchantOpen(false);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  // Auto-close merchant modal when merchant leaves
+  useEffect(() => {
+    if (!myPlayerState?.merchant) setMerchantOpen(false);
+  }, [myPlayerState?.merchant]);
 
   // Freeze only the accused entity while the modal is open
   useEffect(() => {
@@ -143,6 +151,10 @@ export function FarmCanvas() {
       useConnectionStore.getState().send?.({ type: "villagers", count });
     };
 
+    const onMerchantClicked = () => {
+      setMerchantOpen(true);
+    };
+
     engine
       .init(
         containerRef.current!,
@@ -152,6 +164,7 @@ export function FarmCanvas() {
         onThiefClicked,
         onVillagerClicked,
         onVillagersChange,
+        onMerchantClicked,
       )
       .then(() => {
         if (!mounted) {
@@ -282,6 +295,23 @@ export function FarmCanvas() {
           anchorY={accusationAnchorY ?? undefined}
           onAction={handleAction}
           onDismiss={handleDismiss}
+        />
+      )}
+
+      {merchantOpen && myPlayerState?.merchant && (
+        <MerchantShopModal
+          visit={myPlayerState.merchant}
+          gold={myPlayerState.gold}
+          onBuy={(itemId) => {
+            useConnectionStore.getState().send?.({
+              type: "player_action",
+              action: {
+                kind: "BuyItem",
+                itemId: itemId as import("@gamedesign/shared").ItemId,
+              },
+            });
+          }}
+          onDismiss={() => setMerchantOpen(false)}
         />
       )}
     </div>

@@ -1,4 +1,4 @@
-import type { ServerMessage, GameState, Field, PlayerState, ToolId, ThiefAttack, MatchStats } from '@gamedesign/shared';
+import type { ServerMessage, GameState, Field, PlayerState, ToolId, ThiefAttack, MatchStats, MerchantVisit, MerchantOffer, ActiveEffect, ItemId } from '@gamedesign/shared';
 import { persistMatch } from './persistence.js';
 import { Session } from './session.js';
 import {
@@ -28,7 +28,18 @@ import {
   WEATHER_UPGRADE_COSTS,
   WEATHER_MAX_EXTRA_MS,
   ACCUSATION_PAUSE_MS,
+  ITEM_DEFS,
+  MERCHANT_VISITS,
+  MERCHANT_STAY_MS,
+  MERCHANT_OFFER_COUNT,
+  MERCHANT_HEAD_START_MS,
+  MERCHANT_DISCOUNT_PCT,
+  MERCHANT_MIN_SCORE_GAP,
+  MERCHANT_OVERSTAY_MAX_MS,
+  MERCHANT_WINDOW_RECHECK_MS,
+  MERCHANT_CATCHUP_STAGES,
 } from './constants.js';
+import { ITEM_HANDLERS } from './items.js';
 
 type Slot = 'p1' | 'p2';
 
@@ -82,6 +93,7 @@ function createEmptyStats(): MatchStats {
     goldSpentCrows: 0,
     goldSpentThief: 0,
     goldSpentWeather: 0,
+    goldSpentMerchant: 0,
     crowGoldDestroyed: 0,
     weatherGoldDestroyed: 0,
     upgradeExtraProfitFertilizer: 0,
@@ -90,6 +102,8 @@ function createEmptyStats(): MatchStats {
     crowsSent: 0,
     thievesSent: 0,
     weatherSent: 0,
+    itemsBought: {},
+    itemsUsed: 0,
     finalToolLevels: { tools: 0, fertilizer: 0, crows: 0, thief: 0, weather: 0 },
   };
 }
@@ -125,6 +139,8 @@ function createPlayerState(playerId: string): PlayerState {
     villagersOutside: 4,
     wrongAccusationCount: 0,
     stats: createEmptyStats(),
+    merchant: null,
+    activeEffects: [],
   };
 }
 
@@ -134,6 +150,7 @@ export class Game {
   private state: GameState | null = null;
   private timers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private persisted = false;
+  private effectCounter = 0;
 
   constructor(id: string) {
     this.id = id;
@@ -159,6 +176,10 @@ export class Game {
     for (const slot of ['p1', 'p2'] as Slot[]) {
       if (this.slots[slot]?.playerId === playerId) {
         this.slots[slot] = null;
+        // Reset merchant window on disconnect so departure is not pinned
+        if (this.state?.players[playerId]?.merchant) {
+          this.state.players[playerId].merchant!.windowOpen = false;
+        }
         return slot;
       }
     }
@@ -225,7 +246,16 @@ export class Game {
     };
 
     this.scheduleTimer('match_end', startedAt + MATCH_DURATION_MS, () => this.endMatch());
-    this.broadcast({ type: 'game_state', state: this.state });
+
+    // Schedule merchant visits (same jitter for both players)
+    for (let i = 0; i < MERCHANT_VISITS.length; i++) {
+      const visit = MERCHANT_VISITS[i];
+      const jitter = (Math.random() * 2 - 1) * visit.jitterMs;
+      const firesAt = startedAt + visit.atMs + jitter;
+      this.scheduleTimer(`merchant_visit:${i}`, firesAt, () => this.beginMerchantVisit(i));
+    }
+
+    this.broadcastState();
   }
 
   private endMatch(): void {
@@ -243,7 +273,7 @@ export class Game {
       this.persisted = true;
       void persistMatch(this.state, this.getSlotMap()).catch(console.error);
     }
-    this.broadcast({ type: 'game_state', state: this.state });
+    this.broadcastState();
   }
 
   private getSlotMap(): Record<string, string> {
@@ -268,7 +298,7 @@ export class Game {
     const playerState = this.state.players[playerId];
     if (!playerState) return;
     playerState.villagersOutside = Math.max(0, Math.min(4, count));
-    this.broadcast({ type: 'game_state', state: this.state });
+    this.broadcastState();
   }
 
   forfeit(playerId: string): void {
@@ -287,7 +317,7 @@ export class Game {
       this.persisted = true;
       void persistMatch(this.state, this.getSlotMap()).catch(console.error);
     }
-    this.broadcast({ type: 'game_state', state: this.state });
+    this.broadcastState();
   }
 
   private cleanupOnEnd(): void {
@@ -297,11 +327,22 @@ export class Game {
         this.cancelTimer(`thief_expire:${playerId}`);
         ps.thiefAttack = null;
       }
+      if (ps.merchant !== null) {
+        this.cancelTimer(`merchant_leave:${playerId}`);
+        ps.merchant = null;
+      }
+      for (const effect of ps.activeEffects) {
+        if (effect.endsAt !== null) this.cancelTimer(`effect_expire:${effect.id}`);
+      }
+      ps.activeEffects = [];
       for (const field of ps.fields) {
         if (field.stage === 'harvesting') {
           this.cancelTimer(`${playerId}:${field.index}`);
         }
       }
+    }
+    for (let i = 0; i < MERCHANT_VISITS.length; i++) {
+      this.cancelTimer(`merchant_visit:${i}`);
     }
   }
 
@@ -339,7 +380,7 @@ export class Game {
     this.scheduleTimer(`${playerId}:${fieldIndex}`, field.readyAt, () =>
       this.completeSow(playerId, fieldIndex),
     );
-    this.broadcast({ type: 'game_state', state: this.state });
+    this.broadcastState();
 
     return 'ok';
   }
@@ -369,7 +410,7 @@ export class Game {
     this.scheduleTimer(`${playerId}:${fieldIndex}`, field.readyAt, () =>
       this.completeHarvest(playerId, fieldIndex),
     );
-    this.broadcast({ type: 'game_state', state: this.state });
+    this.broadcastState();
 
     return 'ok';
   }
@@ -441,7 +482,7 @@ export class Game {
     playerState.stats.crowsSent++;
     crowTool.cooldownUntil = now + CROW_COOLDOWN_MS;
 
-    this.broadcast({ type: 'game_state', state: this.state });
+    this.broadcastState();
     return 'ok';
   }
 
@@ -465,7 +506,7 @@ export class Game {
       this.completeScare(playerId, fieldIndex),
     );
 
-    this.broadcast({ type: 'game_state', state: this.state });
+    this.broadcastState();
     return 'ok';
   }
 
@@ -516,7 +557,7 @@ export class Game {
       this.expireThief(opponentState.id),
     );
 
-    this.broadcast({ type: 'game_state', state: this.state });
+    this.broadcastState();
     return 'ok';
   }
 
@@ -534,7 +575,7 @@ export class Game {
     playerState.thiefAttack = null;
     this.cancelTimer(`thief_expire:${playerId}`);
 
-    this.broadcast({ type: 'game_state', state: this.state });
+    this.broadcastState();
     return 'ok';
   }
 
@@ -573,12 +614,12 @@ export class Game {
             delete f.fieldBlockedUntil;
             delete f.growthPausedUntil;
           }
-          this.broadcast({ type: 'game_state', state: this.state });
+          this.broadcastState();
         }
       });
     }
 
-    this.broadcast({ type: 'game_state', state: this.state });
+    this.broadcastState();
     return 'ok';
   }
 
@@ -643,7 +684,7 @@ export class Game {
             }
           }
           this.destroyField(target);
-          this.broadcast({ type: 'game_state', state: this.state! });
+          this.broadcastState();
         });
       }
     }
@@ -657,7 +698,7 @@ export class Game {
       this.expireWeather(opponentState.id),
     );
 
-    this.broadcast({ type: 'game_state', state: this.state });
+    this.broadcastState();
     return 'ok';
   }
 
@@ -670,6 +711,22 @@ export class Game {
       // Safety-net: expire weather if scheduled timer was missed (expireWeather broadcasts itself)
       if (playerState.weatherEffect && now >= playerState.weatherEffect.endsAt)
         this.expireWeather(playerId);
+
+      // Safety-net: merchant departure if timer was missed
+      if (playerState.merchant && !playerState.merchant.windowOpen && now >= playerState.merchant.leavesAt) {
+        playerState.merchant = null;
+        changed = true;
+      }
+
+      // Safety-net: effect expiry if timer was missed
+      for (const effect of [...playerState.activeEffects]) {
+        if (effect.endsAt !== null && now >= effect.endsAt) {
+          const idx = playerState.activeEffects.findIndex(e => e.id === effect.id);
+          if (idx !== -1) playerState.activeEffects.splice(idx, 1);
+          this.cancelTimer(`effect_expire:${effect.id}`);
+          changed = true;
+        }
+      }
 
       const attack = playerState.thiefAttack;
       if (!attack) continue;
@@ -702,7 +759,7 @@ export class Game {
     }
 
     if (changed) {
-      this.broadcast({ type: 'game_state', state: this.state });
+      this.broadcastState();
     }
   }
 
@@ -733,7 +790,7 @@ export class Game {
     (playerState.stats.goldSpentUpgradesByTool as Record<string, number>)[toolId] =
       ((playerState.stats.goldSpentUpgradesByTool as Record<string, number>)[toolId] ?? 0) + cost;
     tool.level += 1;
-    this.broadcast({ type: 'game_state', state: this.state });
+    this.broadcastState();
 
     return 'ok';
   }
@@ -795,7 +852,7 @@ export class Game {
       this.rescheduleFieldTimer(victimId, field);
     }
 
-    this.broadcast({ type: 'game_state', state: this.state });
+    this.broadcastState();
   }
 
   private expireThief(victimId: string): void {
@@ -808,7 +865,7 @@ export class Game {
       this.drainThief(victimId, now);
     }
     victimState.thiefAttack = null;
-    this.broadcast({ type: 'game_state', state: this.state });
+    this.broadcastState();
   }
 
   private completeScare(playerId: string, fieldIndex: number): void {
@@ -852,7 +909,7 @@ export class Game {
       );
     }
 
-    this.broadcast({ type: 'game_state', state: this.state });
+    this.broadcastState();
   }
 
   private expireCrowAttack(playerId: string, fieldIndex: number): void {
@@ -876,7 +933,7 @@ export class Game {
     this.cancelTimer(`${playerId}:${fieldIndex}`);
     this.destroyField(field);
 
-    this.broadcast({ type: 'game_state', state: this.state });
+    this.broadcastState();
   }
 
   private destroyField(field: Field): void {
@@ -925,7 +982,7 @@ export class Game {
     this.scheduleTimer(`${playerId}:${fieldIndex}`, field.readyAt, () =>
       this.completeGrowth(playerId, fieldIndex),
     );
-    this.broadcast({ type: 'game_state', state: this.state });
+    this.broadcastState();
   }
 
   private completeGrowth(playerId: string, fieldIndex: number): void {
@@ -936,7 +993,7 @@ export class Game {
     field.stage = 'ready';
     field.sowedAt = null;
     field.readyAt = null;
-    this.broadcast({ type: 'game_state', state: this.state });
+    this.broadcastState();
   }
 
   private completeHarvest(playerId: string, fieldIndex: number): void {
@@ -960,7 +1017,7 @@ export class Game {
     }
 
     this.destroyField(field);
-    this.broadcast({ type: 'game_state', state: this.state });
+    this.broadcastState();
   }
 
   private scheduleTimer(key: string, firesAt: number, onFire: () => void): void {
@@ -976,6 +1033,264 @@ export class Game {
       clearTimeout(existing);
       this.timers.delete(key);
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Per-player redacted broadcast
+  // ---------------------------------------------------------------------------
+
+  private redactStateFor(recipientId: string): GameState {
+    const clone = structuredClone(this.state!) as GameState;
+    for (const [pid, ps] of Object.entries(clone.players)) {
+      ps.activeEffects = ps.activeEffects.filter(e => {
+        if (e.visibility === 'both') return true;
+        if (e.visibility === 'owner') return pid === recipientId;
+        if (e.visibility === 'source') return e.sourcePlayerId === recipientId;
+        return false;
+      });
+      if (pid !== recipientId) {
+        ps.merchant = null;
+      } else if (ps.merchant?.fake) {
+        delete ps.merchant.fake;
+      }
+    }
+    return clone;
+  }
+
+  broadcastState(): void {
+    if (!this.state) return;
+    for (const session of this.getSessions()) {
+      session.send({ type: 'game_state', state: this.redactStateFor(session.playerId) });
+    }
+  }
+
+  sendStateTo(playerId: string): void {
+    if (!this.state) return;
+    const session = this.getSessions().find(s => s.playerId === playerId);
+    if (session) {
+      session.send({ type: 'game_state', state: this.redactStateFor(playerId) });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Merchant visit scheduling + catch-up
+  // ---------------------------------------------------------------------------
+
+  private beginMerchantVisit(visitIndex: number): void {
+    if (!this.state || this.state.phase !== 'playing') return;
+    const now = Date.now();
+    if (this.state.endsAt && this.state.endsAt - now < 25_000) return;
+
+    const elapsed = now - (this.state.startedAt ?? now);
+    const stage = MERCHANT_CATCHUP_STAGES.find(s => elapsed <= s.untilMs) ?? MERCHANT_CATCHUP_STAGES[MERCHANT_CATCHUP_STAGES.length - 1];
+
+    const players = Object.values(this.state.players);
+    if (players.length < 2) return;
+    const [pa, pb] = players as [PlayerState, PlayerState];
+
+    const catchupScore = (ps: PlayerState) => {
+      const cum = ps.stats.goldEarnedHarvest + ps.stats.goldStolenByThief;
+      return stage.cumWeight * cum + stage.balWeight * ps.gold;
+    };
+
+    const scoreA = catchupScore(pa);
+    const scoreB = catchupScore(pb);
+    const gap = Math.abs(scoreA - scoreB);
+
+    if (gap < MERCHANT_MIN_SCORE_GAP) {
+      this.setMerchantForPlayer(pa.id, visitIndex, now, 0);
+      this.setMerchantForPlayer(pb.id, visitIndex, now, 0);
+    } else {
+      const worse = scoreA < scoreB ? pa : pb;
+      const better = scoreA < scoreB ? pb : pa;
+      this.setMerchantForPlayer(worse.id, visitIndex, now, MERCHANT_DISCOUNT_PCT);
+      this.setMerchantForPlayer(better.id, visitIndex, now + MERCHANT_HEAD_START_MS, 0);
+    }
+
+    this.broadcastState();
+  }
+
+  private setMerchantForPlayer(playerId: string, visitIndex: number, arrivesAt: number, discountPct: number): void {
+    if (!this.state) return;
+    const ps = this.state.players[playerId];
+    if (!ps) return;
+    const leavesAt = arrivesAt + MERCHANT_STAY_MS;
+    ps.merchant = {
+      visitIndex,
+      arrivesAt,
+      leavesAt,
+      discountPct,
+      offers: this.rollOffers(ps, discountPct),
+      windowOpen: false,
+    };
+    this.scheduleTimer(`merchant_leave:${playerId}`, leavesAt, () => this.tryMerchantDepart(playerId));
+  }
+
+  private rollOffers(ps: PlayerState, discountPct: number): MerchantOffer[] {
+    const pool = Object.values(ITEM_DEFS).filter(def => {
+      if (!ITEM_HANDLERS[def.id]) return false;
+      if (def.maxPerMatch === null) return true;
+      const bought = (ps.stats.itemsBought as Record<string, number>)[def.id] ?? 0;
+      return bought < def.maxPerMatch;
+    });
+
+    const offers: MerchantOffer[] = [];
+    const remaining = [...pool];
+    for (let i = 0; i < MERCHANT_OFFER_COUNT && remaining.length > 0; i++) {
+      const totalWeight = remaining.reduce((s, d) => s + d.rarityWeight, 0);
+      let rand = Math.random() * totalWeight;
+      let chosenIdx = remaining.length - 1;
+      for (let j = 0; j < remaining.length; j++) {
+        rand -= remaining[j].rarityWeight;
+        if (rand <= 0) { chosenIdx = j; break; }
+      }
+      const chosen = remaining[chosenIdx];
+      remaining.splice(chosenIdx, 1);
+      offers.push({
+        itemId: chosen.id,
+        basePrice: chosen.price,
+        price: Math.round(chosen.price * (1 - discountPct)),
+        bought: false,
+      });
+    }
+    return offers;
+  }
+
+  private tryMerchantDepart(playerId: string): void {
+    if (!this.state) return;
+    const ps = this.state.players[playerId];
+    if (!ps?.merchant) return;
+    const now = Date.now();
+    if (ps.merchant.windowOpen && now < ps.merchant.leavesAt + MERCHANT_OVERSTAY_MAX_MS) {
+      this.scheduleTimer(`merchant_leave:${playerId}`, now + MERCHANT_WINDOW_RECHECK_MS, () => this.tryMerchantDepart(playerId));
+      return;
+    }
+    ps.merchant = null;
+    this.broadcastState();
+  }
+
+  setMerchantWindow(playerId: string, open: boolean): void {
+    if (!this.state) return;
+    const ps = this.state.players[playerId];
+    if (!ps?.merchant) return;
+    const now = Date.now();
+    if (open && now < ps.merchant.arrivesAt) return;
+    ps.merchant.windowOpen = open;
+    if (!open && now >= ps.merchant.leavesAt) {
+      ps.merchant = null;
+      this.broadcastState();
+      return;
+    }
+    this.broadcastState();
+  }
+
+  // ---------------------------------------------------------------------------
+  // BuyItem
+  // ---------------------------------------------------------------------------
+
+  buyItem(
+    playerId: string,
+    itemId: ItemId,
+  ): 'ok' | 'no_merchant' | 'not_offered' | 'already_bought' | 'insufficient_gold' {
+    if (!this.state) return 'no_merchant';
+    const ps = this.state.players[playerId];
+    if (!ps) return 'no_merchant';
+    const now = Date.now();
+    if (!ps.merchant || now < ps.merchant.arrivesAt) return 'no_merchant';
+
+    const offer = ps.merchant.offers.find(o => o.itemId === itemId);
+    if (!offer) return 'not_offered';
+    if (offer.bought) return 'already_bought';
+    if (ps.gold < offer.price) return 'insufficient_gold';
+
+    ps.gold -= offer.price;
+    offer.bought = true;
+    ps.stats.goldSpentMerchant += offer.price;
+    (ps.stats.itemsBought as Record<string, number>)[itemId] =
+      ((ps.stats.itemsBought as Record<string, number>)[itemId] ?? 0) + 1;
+
+    const existing = ps.items.find(i => i.id === itemId);
+    if (existing) {
+      existing.count++;
+    } else {
+      const def = ITEM_DEFS[itemId];
+      ps.items.push({ id: itemId, name: def.name, count: 1, cooldownUntil: 0 });
+    }
+
+    this.broadcastState();
+    return 'ok';
+  }
+
+  // ---------------------------------------------------------------------------
+  // UseItem + effect registry
+  // ---------------------------------------------------------------------------
+
+  useItem(
+    playerId: string,
+    itemId: ItemId,
+    targetFieldIndex?: number,
+    secondTargetFieldIndex?: number,
+  ): 'ok' | 'not_found' | 'no_item' | 'not_implemented' | 'invalid_target' | 'not_applicable' {
+    if (!this.state || this.state.phase !== 'playing') return 'not_found';
+    const ps = this.state.players[playerId];
+    if (!ps) return 'not_found';
+
+    const item = ps.items.find(i => i.id === itemId);
+    if (!item || item.count <= 0) return 'no_item';
+
+    const opponentId = this.opponentId(playerId);
+    const opponent = opponentId ? this.state.players[opponentId] : null;
+    if (!opponent) return 'not_found';
+
+    const handler = ITEM_HANDLERS[itemId];
+    if (!handler) return 'not_implemented';
+
+    const now = Date.now();
+    const ctx = {
+      state: this.state,
+      user: ps,
+      opponent,
+      targetFieldIndex,
+      secondTargetFieldIndex,
+      now,
+      addEffect: (owner: PlayerState, e: Omit<ActiveEffect, 'id' | 'startedAt'>) => this.addEffect(owner, e),
+      scheduleTimer: (key: string, firesAt: number, onFire: () => void) => this.scheduleTimer(key, firesAt, onFire),
+      cancelTimer: (key: string) => this.cancelTimer(key),
+      rescheduleFieldTimer: (pid: string, fieldIndex: number) => {
+        const field = this.state?.players[pid]?.fields[fieldIndex];
+        if (field) this.rescheduleFieldTimer(pid, field);
+      },
+      broadcastState: () => this.broadcastState(),
+    };
+
+    const result = handler(ctx);
+    if (result === 'ok') {
+      item.count--;
+      ps.stats.itemsUsed++;
+      this.broadcastState();
+    }
+    return result;
+  }
+
+  private addEffect(owner: PlayerState, e: Omit<ActiveEffect, 'id' | 'startedAt'>): ActiveEffect {
+    const id = `${owner.id}_fx_${this.effectCounter++}`;
+    const now = Date.now();
+    const effect: ActiveEffect = { ...e, id, startedAt: now };
+    owner.activeEffects.push(effect);
+    if (effect.endsAt !== null) {
+      this.scheduleTimer(`effect_expire:${id}`, effect.endsAt, () => {
+        if (!this.state) return;
+        for (const ps of Object.values(this.state.players)) {
+          const idx = ps.activeEffects.findIndex(ef => ef.id === id);
+          if (idx !== -1) {
+            ps.activeEffects.splice(idx, 1);
+            this.broadcastState();
+            break;
+          }
+        }
+      });
+    }
+    return effect;
   }
 }
 

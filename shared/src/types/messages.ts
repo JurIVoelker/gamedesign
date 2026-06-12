@@ -12,8 +12,9 @@ export type PlayerActionMsg = { type: 'player_action'; action: PlayerAction };
 export type PongMsg = { type: 'pong' };
 export type LeaveGameMsg = { type: 'leave_game' };
 export type VillagersMsg = { type: 'villagers'; count: number };
+export type MerchantWindowMsg = { type: 'merchant_window'; open: boolean };
 
-export type ClientMessage = HelloMsg | CreateRoomMsg | PlayAgainMsg | PlayerActionMsg | PongMsg | LeaveGameMsg | VillagersMsg;
+export type ClientMessage = HelloMsg | CreateRoomMsg | PlayAgainMsg | PlayerActionMsg | PongMsg | LeaveGameMsg | VillagersMsg | MerchantWindowMsg;
 
 // ---------------------------------------------------------------------------
 // Server → Client
@@ -43,7 +44,7 @@ export type ServerMessage =
 export function isClientMessage(msg: unknown): msg is ClientMessage {
   if (typeof msg !== 'object' || msg === null) return false;
   const t = (msg as { type?: unknown }).type;
-  return t === 'hello' || t === 'create_room' || t === 'play_again' || t === 'player_action' || t === 'pong' || t === 'leave_game' || t === 'villagers';
+  return t === 'hello' || t === 'create_room' || t === 'play_again' || t === 'player_action' || t === 'pong' || t === 'leave_game' || t === 'villagers' || t === 'merchant_window';
 }
 
 export function isServerMessage(msg: unknown): msg is ServerMessage {

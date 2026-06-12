@@ -33,6 +33,7 @@ function emptyStats(): MatchStats {
     goldSpentCrows: 0,
     goldSpentThief: 0,
     goldSpentWeather: 0,
+    goldSpentMerchant: 0,
     crowGoldDestroyed: 0,
     weatherGoldDestroyed: 0,
     upgradeExtraProfitFertilizer: 0,
@@ -41,6 +42,8 @@ function emptyStats(): MatchStats {
     crowsSent: 0,
     thievesSent: 0,
     weatherSent: 0,
+    itemsBought: {},
+    itemsUsed: 0,
     finalToolLevels: {
       tools: 0,
       fertilizer: 0,
@@ -203,6 +206,7 @@ function totalSpent(stats: MatchStats): number {
     stats.goldSpentCrows +
     stats.goldSpentThief +
     stats.goldSpentWeather +
+    stats.goldSpentMerchant +
     totalUpgradeSpend(stats)
   );
 }
@@ -286,6 +290,15 @@ export function StatsPanel() {
         estimated
       />
 
+      <SectionHeader label="HÄNDLER" />
+      <StatRow
+        label="Händler-Einkäufe"
+        myVal={my.goldSpentMerchant}
+        oppVal={opp.goldSpentMerchant}
+        myColor="text-danger"
+        oppColor="text-danger"
+      />
+
       <SectionHeader label="ZÄHLER" />
       <StatRow
         label="Felder geerntet"
@@ -317,16 +330,14 @@ export function StatsPanel() {
       />
 
       <SectionHeader label="UPGRADES (ENDSTAND)" />
-      {["tools", "fertilizer", "crows", "thief", "weather"].map(
-        (toolId) => (
-          <ToolLevelRow
-            key={toolId}
-            toolId={toolId}
-            myLevel={myToolLevels[toolId] ?? 0}
-            oppLevel={oppToolLevels[toolId] ?? 0}
-          />
-        ),
-      )}
+      {["tools", "fertilizer", "crows", "thief", "weather"].map((toolId) => (
+        <ToolLevelRow
+          key={toolId}
+          toolId={toolId}
+          myLevel={myToolLevels[toolId] ?? 0}
+          oppLevel={oppToolLevels[toolId] ?? 0}
+        />
+      ))}
 
       <SectionHeader label="RENTABILITÄT" />
       <div className="score-row text-[6px] text-muted-gold flex justify-between items-center gap-1 mb-1">

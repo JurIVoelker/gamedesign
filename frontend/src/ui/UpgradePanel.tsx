@@ -99,12 +99,16 @@ function ToolsHoverCard({ level }: { level: number }) {
         <div className="text-muted-gold mt-1">
           {"→ Säen "}
           <span className="text-green-400">
-            {formatSeconds(SOW_DURATION_MS * UPGRADE_SPEED_MULTIPLIERS[level + 1])}
+            {formatSeconds(
+              SOW_DURATION_MS * UPGRADE_SPEED_MULTIPLIERS[level + 1],
+            )}
           </span>
           <span className="text-muted-gold ml-1">
             {"· Ernten "}
             <span className="text-green-400">
-              {formatSeconds(HARVEST_DURATION_MS * UPGRADE_SPEED_MULTIPLIERS[level + 1])}
+              {formatSeconds(
+                HARVEST_DURATION_MS * UPGRADE_SPEED_MULTIPLIERS[level + 1],
+              )}
             </span>
           </span>
         </div>
@@ -117,9 +121,13 @@ function ToolsHoverCard({ level }: { level: number }) {
 function FertilizerHoverCard({ level }: { level: number }) {
   const isMaxed = level >= MAX_FERTILIZER_LEVEL;
   const currentGrowMs = BASE_GROW_MS * FERTILIZER_GROW_MULTIPLIERS[level];
-  const currentGold = Math.round(GOLD_PER_HARVEST * FERTILIZER_GOLD_MULTIPLIERS[level]);
+  const currentGold = Math.round(
+    GOLD_PER_HARVEST * FERTILIZER_GOLD_MULTIPLIERS[level],
+  );
   const nextGrowMs = BASE_GROW_MS * FERTILIZER_GROW_MULTIPLIERS[level + 1];
-  const nextGold = Math.round(GOLD_PER_HARVEST * FERTILIZER_GOLD_MULTIPLIERS[level + 1]);
+  const nextGold = Math.round(
+    GOLD_PER_HARVEST * FERTILIZER_GOLD_MULTIPLIERS[level + 1],
+  );
 
   return (
     <HoverCardWrapper>
@@ -209,7 +217,14 @@ interface UpgradeCardProps {
   maxLevel: number;
 }
 
-function UpgradeCard({ toolId, label, level, gold, costs, maxLevel }: UpgradeCardProps) {
+function UpgradeCard({
+  toolId,
+  label,
+  level,
+  gold,
+  costs,
+  maxLevel,
+}: UpgradeCardProps) {
   const isMaxed = level >= maxLevel;
   const nextCost = isMaxed ? null : costs[level];
   const canAfford = nextCost !== null && gold >= nextCost;

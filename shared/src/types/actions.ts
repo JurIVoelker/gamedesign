@@ -1,3 +1,5 @@
+import type { ItemId } from '../constants.js';
+
 export type SowField = {
   kind: 'SowField';
   fieldIndex: number;
@@ -11,13 +13,14 @@ export type HarvestField = {
 
 export type BuyItem = {
   kind: 'BuyItem';
-  itemId: string;
+  itemId: ItemId;
 };
 
 export type UseItem = {
   kind: 'UseItem';
-  itemId: string;
+  itemId: ItemId;
   targetFieldIndex?: number;
+  secondTargetFieldIndex?: number;
 };
 
 export type ToolId = 'tools' | 'fertilizer' | 'crows' | 'thief' | 'weather';

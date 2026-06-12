@@ -5,6 +5,7 @@ import { FarmCanvas } from "./game/FarmCanvas";
 import { Lobby } from "./ui/Lobby";
 import { HUD } from "./ui/HUD";
 import { UpgradePanel } from "./ui/UpgradePanel";
+import { ItemBar } from "./ui/ItemBar";
 import { EndScreen } from "./ui/EndScreen";
 
 export default function App() {
@@ -19,6 +20,7 @@ export default function App() {
       {!isInGame && <Lobby />}
       {isInGame && <HUD />}
       {isInGame && gamePhase !== "ended" && <UpgradePanel />}
+      {isInGame && gamePhase !== "ended" && <ItemBar />}
       {isInGame && gamePhase === "ended" && <EndScreen />}
     </div>
   );
