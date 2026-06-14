@@ -100,6 +100,7 @@ export interface Item {
   name: string;
   count: number;
   cooldownUntil: number;
+  pricePaid?: number;
 }
 
 export interface WeatherEffect {

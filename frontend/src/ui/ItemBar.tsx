@@ -1,103 +1,254 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { Item, ActiveEffect, ItemId } from "@gamedesign/shared";
-import { ITEM_DEFS, SPY_REPORT_INTERVAL_MS } from "@gamedesign/shared";
+import { ITEM_DEFS } from "@gamedesign/shared";
 import { useConnectionStore } from "../state/connectionStore";
 import { useGameStore } from "../state/gameStore";
 import { useTargetingStore } from "../state/targetingStore";
 import { useNow } from "../hooks/useNow";
+import { ItemIcon } from "./ItemIcons";
 
-function EffectChip({ effect, now }: { effect: ActiveEffect; now: number }) {
-  const remaining = effect.endsAt
-    ? Math.max(0, Math.ceil((effect.endsAt - now) / 1000))
-    : null;
-  const def = ITEM_DEFS[effect.itemId];
-  return (
-    <div
-      className="upgrade-card text-parchment"
-      style={{ padding: "4px 8px", minWidth: "unset", gap: 4 }}
-    >
-      <div
-        style={{
-          fontFamily: "'Press Start 2P', monospace",
-          fontSize: 6,
-          color: "#c8a84b",
-        }}
-      >
-        {def?.name ?? effect.itemId}
-      </div>
-      <div
-        style={{
-          fontFamily: "'Press Start 2P', monospace",
-          fontSize: 6,
-          color: "#888",
-        }}
-      >
-        {remaining !== null ? `${remaining}s` : "bis Spielende"}
-      </div>
-    </div>
-  );
-}
+const SLOT_STYLE = {
+  width: 72,
+  minHeight: 72,
+  padding: "6px 4px",
+  minWidth: "unset",
+  justifyContent: "center",
+  gap: 4,
+} as const;
 
-function SpyChip({ effect, now }: { effect: ActiveEffect; now: number }) {
-  const [displayedGold, setDisplayedGold] = useState<number | null>(null);
+const NAME_STYLE = {
+  fontFamily: "'Press Start 2P', monospace",
+  fontSize: 5,
+  textAlign: "center" as const,
+  lineHeight: 1.4,
+  overflowWrap: "break-word" as const,
+  hyphens: "auto" as const,
+  maxWidth: 64,
+};
 
-  useEffect(() => {
-    const snapshot = () => {
-      const { game } = useGameStore.getState();
-      const { playerId } = useConnectionStore.getState();
-      const opponentId = Object.keys(game?.players ?? {}).find(
-        (id) => id !== playerId,
-      );
-      if (opponentId != null && game) {
-        setDisplayedGold(game.players[opponentId]?.gold ?? null);
-      }
-    };
-    snapshot();
-    const id = setInterval(snapshot, SPY_REPORT_INTERVAL_MS);
-    return () => clearInterval(id);
-  }, []);
-
-  const remaining = effect.endsAt
-    ? Math.max(0, Math.ceil((effect.endsAt - now) / 1000))
-    : null;
+function ItemSlot({
+  item,
+  onUse,
+}: {
+  item: Item;
+  onUse: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const def = ITEM_DEFS[item.id as ItemId];
 
   return (
-    <div
-      className="upgrade-card text-parchment"
-      style={{ padding: "4px 8px", minWidth: "unset", gap: 4 }}
-    >
+    <div style={{ position: "relative" }}>
       <div
-        style={{
-          fontFamily: "'Press Start 2P', monospace",
-          fontSize: 6,
-          color: "#c8a84b",
-        }}
+        className="upgrade-card"
+        style={{ ...SLOT_STYLE, cursor: "pointer" }}
+        onClick={onUse}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
       >
-        {"\u{1F575}️"} Gegner:{" "}
-        {displayedGold !== null ? `${displayedGold} G` : "?"}
+        <ItemIcon itemId={item.id as ItemId} size={36} />
+        {def && (
+          <div lang="de" style={{ ...NAME_STYLE, color: "#c8a84b" }}>
+            {def.name}
+          </div>
+        )}
       </div>
-      {remaining !== null && (
+      {hovered && def && (
         <div
+          className="panel-pixel"
           style={{
-            fontFamily: "'Press Start 2P', monospace",
-            fontSize: 6,
-            color: "#888",
+            position: "absolute",
+            left: "calc(100% + 8px)",
+            top: 0,
+            width: 168,
+            padding: "8px 10px",
+            zIndex: 50,
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+            pointerEvents: "none",
           }}
         >
-          {remaining}s
+          <div
+            style={{
+              fontFamily: "'Press Start 2P', monospace",
+              fontSize: 7,
+              color: "#c8a84b",
+            }}
+          >
+            {def.name}
+          </div>
+          <div
+            style={{
+              fontFamily: "'Press Start 2P', monospace",
+              fontSize: 6,
+              color: "#a08060",
+              lineHeight: 1.6,
+            }}
+          >
+            {def.description}
+          </div>
+          <div
+            style={{
+              fontFamily: "'Press Start 2P', monospace",
+              fontSize: 5,
+              color: "#555",
+            }}
+          >
+            Klicken zum Benutzen
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-function ItemCard({ item, isActive }: { item: Item; isActive: boolean }) {
+function ActiveSlot({
+  effect,
+  now,
+}: {
+  effect: ActiveEffect;
+  now: number;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const def = ITEM_DEFS[effect.itemId as ItemId];
+  const remaining = Math.max(
+    0,
+    Math.ceil(((effect.endsAt ?? 0) - now) / 1000),
+  );
+
+  return (
+    <div style={{ position: "relative" }}>
+      <div
+        className="upgrade-card"
+        style={{ ...SLOT_STYLE, cursor: "default" }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      >
+        <div style={{ position: "relative", display: "flex" }}>
+          <div style={{ opacity: 0.3 }}>
+            <ItemIcon itemId={effect.itemId as ItemId} size={36} />
+          </div>
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontFamily: "'Press Start 2P', monospace",
+              fontSize: 8,
+              color: "#fff",
+              textShadow: "0 0 4px #000, 0 0 8px #000",
+            }}
+          >
+            {remaining}s
+          </div>
+        </div>
+        {def && (
+          <div lang="de" style={{ ...NAME_STYLE, color: "#6a5030" }}>
+            {def.name}
+          </div>
+        )}
+      </div>
+      {hovered && def && (
+        <div
+          className="panel-pixel"
+          style={{
+            position: "absolute",
+            left: "calc(100% + 8px)",
+            top: 0,
+            width: 168,
+            padding: "8px 10px",
+            zIndex: 50,
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+            pointerEvents: "none",
+          }}
+        >
+          <div
+            style={{
+              fontFamily: "'Press Start 2P', monospace",
+              fontSize: 7,
+              color: "#c8a84b",
+            }}
+          >
+            {def.name}
+          </div>
+          <div
+            style={{
+              fontFamily: "'Press Start 2P', monospace",
+              fontSize: 6,
+              color: "#a08060",
+              lineHeight: 1.6,
+            }}
+          >
+            {def.description}
+          </div>
+          <div
+            style={{
+              fontFamily: "'Press Start 2P', monospace",
+              fontSize: 5,
+              color: "#6cde6c",
+            }}
+          >
+            Aktiv: {remaining}s
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EmptySlot() {
+  return (
+    <div className="upgrade-card" style={SLOT_STYLE}>
+      <ItemIcon size={36} />
+    </div>
+  );
+}
+
+export function ItemBar() {
+  const game = useGameStore((s) => s.game);
+  const playerId = useConnectionStore((s) => s.playerId);
   const send = useConnectionStore((s) => s.send);
-  const def = ITEM_DEFS[item.id as ItemId];
-  const targetType = def?.target ?? "none";
+  const now = useNow(1_000);
   const targetingStart = useTargetingStore((s) => s.start);
 
-  const handleUse = () => {
+  const me = playerId ? game?.players[playerId] : null;
+  const opponent =
+    Object.values(game?.players ?? {}).find((p) => p.id !== playerId) ?? null;
+
+  if (!me) return null;
+
+  const heldItems = me.items.filter((i) => i.count > 0);
+
+  // Effects I cast on the opponent that are still running → shown as faded timer slots
+  const activeSourceEffects = (opponent?.activeEffects ?? []).filter(
+    (e) =>
+      e.sourcePlayerId === playerId &&
+      e.endsAt !== null &&
+      (e.endsAt ?? 0) > now &&
+      !heldItems.some((i) => i.id === e.itemId),
+  );
+
+  // Build 3 slots: held items first, then active-effect placeholders, then empty
+  type Slot =
+    | { kind: "held"; item: Item }
+    | { kind: "active"; effect: ActiveEffect }
+    | { kind: "empty" };
+
+  const slots: Slot[] = [
+    ...heldItems.slice(0, 3).map((item) => ({ kind: "held" as const, item })),
+    ...activeSourceEffects
+      .slice(0, 3 - Math.min(heldItems.length, 3))
+      .map((effect) => ({ kind: "active" as const, effect })),
+  ];
+  while (slots.length < 3) slots.push({ kind: "empty" });
+
+  const handleUse = (item: Item) => {
+    const def = ITEM_DEFS[item.id as ItemId];
+    const targetType = def?.target ?? "none";
     if (targetType === "none") {
       send?.({
         type: "player_action",
@@ -115,7 +266,6 @@ function ItemCard({ item, isActive }: { item: Item; isActive: boolean }) {
         });
       });
     } else if (targetType === "own_and_opponent_field") {
-      // Phase 1: pick own field; phase 2: pick opponent field
       targetingStart(
         1,
         (ownIndices) => {
@@ -142,118 +292,31 @@ function ItemCard({ item, isActive }: { item: Item; isActive: boolean }) {
 
   return (
     <div
-      className="upgrade-card text-parchment flex flex-col items-center gap-2"
-      style={{ minWidth: "unset", padding: "6px 10px" }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          width: "100%",
-          gap: 8,
-        }}
-      >
-        <span
-          style={{
-            fontFamily: "'Press Start 2P', monospace",
-            fontSize: 6,
-            color: "#c8a84b",
-          }}
-        >
-          {def?.name ?? item.id}
-        </span>
-        <span
-          style={{
-            fontFamily: "'Press Start 2P', monospace",
-            fontSize: 6,
-            color: "#e8d8a0",
-          }}
-        >
-          ×{item.count}
-        </span>
-      </div>
-      <button
-        className="btn-upgrade-action"
-        style={{ fontSize: 6, padding: "2px 8px", width: "100%" }}
-        disabled={item.count <= 0 || isActive}
-        onClick={handleUse}
-      >
-        {isActive ? "Aktiv" : "Benutzen"}
-      </button>
-    </div>
-  );
-}
-
-export function ItemBar() {
-  const game = useGameStore((s) => s.game);
-  const playerId = useConnectionStore((s) => s.playerId);
-  const now = useNow(1_000);
-
-  const me = playerId ? game?.players[playerId] : null;
-  const opponent =
-    Object.values(game?.players ?? {}).find((p) => p.id !== playerId) ?? null;
-
-  const items = me?.items.filter((i) => i.count > 0) ?? [];
-  const ownEffects = me?.activeEffects ?? [];
-  // Effects this player cast on the opponent (visible via visibility:'source')
-  const sourceEffects = (opponent?.activeEffects ?? []).filter(
-    (e) => e.sourcePlayerId === playerId,
-  );
-  const effects = [...ownEffects, ...sourceEffects];
-  const activeItemIds = new Set(effects.map((e) => e.itemId));
-
-  if (items.length === 0 && effects.length === 0) return null;
-
-  return (
-    <div
       className="absolute"
       style={{
-        bottom: 160,
-        right: 16,
+        left: 16,
+        top: "50%",
+        transform: "translateY(-50%)",
         display: "flex",
         flexDirection: "column",
         gap: 6,
-        alignItems: "flex-end",
+        alignItems: "flex-start",
         pointerEvents: "auto",
       }}
     >
-      {effects.length > 0 && (
-        <div
-          style={{
-            display: "flex",
-            gap: 4,
-            flexWrap: "wrap",
-            justifyContent: "flex-end",
-          }}
-        >
-          {effects.map((e) =>
-            e.itemId === "spy_glass" ? (
-              <SpyChip key={e.id} effect={e} now={now} />
-            ) : (
-              <EffectChip key={e.id} effect={e} now={now} />
-            ),
-          )}
-        </div>
-      )}
-      {items.length > 0 && (
-        <div
-          style={{
-            display: "flex",
-            gap: 6,
-            flexWrap: "wrap",
-            justifyContent: "flex-end",
-          }}
-        >
-          {items.map((item) => (
-            <ItemCard
-              key={item.id}
-              item={item}
-              isActive={activeItemIds.has(item.id as ItemId)}
+      {slots.map((slot, i) => {
+        if (slot.kind === "held")
+          return (
+            <ItemSlot
+              key={i}
+              item={slot.item}
+              onUse={() => handleUse(slot.item)}
             />
-          ))}
-        </div>
-      )}
+          );
+        if (slot.kind === "active")
+          return <ActiveSlot key={i} effect={slot.effect} now={now} />;
+        return <EmptySlot key={i} />;
+      })}
     </div>
   );
 }

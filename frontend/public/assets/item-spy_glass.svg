@@ -1,0 +1,17 @@
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision">
+  <g transform="rotate(-28 16 16)">
+    <!-- eyepiece -->
+    <rect x="3" y="13" width="5" height="6" rx="1" fill="#8a5a14" stroke="#4a2e08" stroke-width="1"/>
+    <!-- mid tube -->
+    <rect x="7" y="12.5" width="9" height="7" fill="#caa24a" stroke="#4a2e08" stroke-width="1"/>
+    <rect x="7" y="13" width="9" height="1.8" fill="#e8c878" opacity="0.7"/>
+    <!-- wide tube -->
+    <rect x="15" y="11.5" width="9" height="9" rx="1" fill="#b8902e" stroke="#4a2e08" stroke-width="1"/>
+    <rect x="15" y="12" width="9" height="2" fill="#e0c060" opacity="0.7"/>
+    <!-- objective ring -->
+    <rect x="23" y="10.5" width="4" height="11" rx="1.5" fill="#caa24a" stroke="#4a2e08" stroke-width="1"/>
+    <!-- lens -->
+    <ellipse cx="26.5" cy="16" rx="2.1" ry="4.8" fill="#7ec0f0"/>
+    <ellipse cx="26" cy="14" rx="0.8" ry="1.7" fill="#ffffff" opacity="0.8"/>
+  </g>
+</svg>

@@ -1346,7 +1346,7 @@ export class Game {
   buyItem(
     playerId: string,
     itemId: ItemId,
-  ): 'ok' | 'no_merchant' | 'not_offered' | 'already_bought' | 'insufficient_gold' {
+  ): 'ok' | 'no_merchant' | 'not_offered' | 'already_bought' | 'insufficient_gold' | 'inventory_full' | 'already_have' {
     if (!this.state) return 'no_merchant';
     const ps = this.state.players[playerId];
     if (!ps) return 'no_merchant';
@@ -1380,6 +1380,8 @@ export class Game {
 
     const def = ITEM_DEFS[itemId];
     if (def.maxPerMatch != null && itemsHeld(ps, itemId) >= def.maxPerMatch) return 'already_bought';
+    if (ps.items.filter(i => i.count > 0).length >= 3) return 'inventory_full';
+    if (ps.items.some(i => i.id === itemId && i.count > 0)) return 'already_have';
 
     ps.gold -= offer.price;
     offer.bought = true;
@@ -1390,9 +1392,10 @@ export class Game {
     const existing = ps.items.find(i => i.id === itemId);
     if (existing) {
       existing.count++;
+      existing.pricePaid = offer.price;
     } else {
       const def = ITEM_DEFS[itemId];
-      ps.items.push({ id: itemId, name: def.name, count: 1, cooldownUntil: 0 });
+      ps.items.push({ id: itemId, name: def.name, count: 1, cooldownUntil: 0, pricePaid: offer.price });
     }
 
     this.broadcastState();

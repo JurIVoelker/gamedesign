@@ -21,7 +21,8 @@ export type ItemEffectHandler = (ctx: ItemContext) => 'ok' | 'invalid_target' | 
 
 export const ITEM_HANDLERS: Partial<Record<ItemId, ItemEffectHandler>> = {
   pointless_potion: (ctx) => {
-    ctx.user.gold += 20;
+    const item = ctx.user.items.find(i => i.id === 'pointless_potion');
+    ctx.user.gold += item?.pricePaid ?? ITEM_DEFS.pointless_potion.price;
     return 'ok';
   },
 

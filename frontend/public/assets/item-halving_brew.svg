@@ -1,0 +1,24 @@
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision">
+  <!-- cork -->
+  <rect x="12.5" y="2.5" width="7" height="5" rx="1.5" fill="#a06a38" stroke="#5e3a18" stroke-width="1"/>
+  <ellipse cx="16" cy="3.3" rx="3.3" ry="1.1" fill="#c89060"/>
+  <!-- neck -->
+  <path d="M13 7 L13.2 12 Q13.3 13 14.3 13 L17.7 13 Q18.7 13 18.8 12 L19 7 Z" fill="#d2e8ee" stroke="#33403a" stroke-width="1"/>
+  <!-- glass body -->
+  <circle cx="16" cy="20" r="10" fill="#e2f0f4" stroke="#33403a" stroke-width="1.2"/>
+  <!-- split liquid clipped to body -->
+  <clipPath id="pclip-halve">
+    <circle cx="16" cy="20" r="9.1"/>
+  </clipPath>
+  <g clip-path="url(#pclip-halve)">
+    <rect x="5" y="14.5" width="11" height="22" fill="#e0a818"/>
+    <rect x="16" y="14.5" width="11" height="22" fill="#1f6f5a"/>
+    <ellipse cx="10.5" cy="14.5" rx="6" ry="1.8" fill="#ffd95a"/>
+    <ellipse cx="21.5" cy="14.5" rx="6" ry="1.8" fill="#3f9f86"/>
+    <!-- divider -->
+    <rect x="15.3" y="12" width="1.4" height="24" fill="#0d2a22" opacity="0.65"/>
+  </g>
+  <!-- glass shine -->
+  <path d="M10 14.5 Q7.5 19 9.5 24.5" stroke="#ffffff" stroke-width="2" opacity="0.5" fill="none" stroke-linecap="round"/>
+  <circle cx="12.5" cy="15.5" r="1.2" fill="#ffffff" opacity="0.55"/>
+</svg>
