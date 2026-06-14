@@ -333,7 +333,7 @@ export class GameEngine {
 
     if (myState) {
       for (let i = 0; i < this.playerFields.length; i++) {
-        this.playerFields[i].setField(myState.fields[i] ?? null);
+        this.playerFields[i].setField(myState.fields[i] ?? null, this.playerHasLightning);
       }
       this.merchantEntity?.setVisit(myState.merchant ?? null);
       this.playerVillagers?.setFields(myState.fields);
@@ -350,7 +350,7 @@ export class GameEngine {
     }
     if (opponentState) {
       for (let i = 0; i < this.opponentFields.length; i++) {
-        this.opponentFields[i].setField(opponentState.fields[i] ?? null);
+        this.opponentFields[i].setField(opponentState.fields[i] ?? null, this.opponentHasLightning);
       }
       this.opponentVillagers?.setFields(opponentState.fields);
       this.opponentThief?.setAttack(

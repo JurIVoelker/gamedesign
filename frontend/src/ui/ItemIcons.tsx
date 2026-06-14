@@ -41,7 +41,7 @@ export function ItemIcon({
       style={{
         imageRendering: "pixelated",
         filter:
-          "drop-shadow(0 1px 0 #ffd700) drop-shadow(0 -1px 0 #ffd700) drop-shadow(1px 0 0 #ffd700) drop-shadow(-1px 0 0 #ffd700)",
+          "drop-shadow(0 1px 0 rgba(255, 215, 0, 0.5)) drop-shadow(0 -1px 0 rgba(255, 215, 0, 0.5)) drop-shadow(1px 0 0 rgba(255, 215, 0, 0.5)) drop-shadow(-1px 0 0 rgba(255, 215, 0, 0.5))",
       }}
     />
   );

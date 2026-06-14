@@ -60,6 +60,10 @@ export class FieldEntity extends Entity {
   private particles: Particle[] = [];
   private lastParticleUpdate = 0;
   private blinded = false;
+  private craterAlpha = 0;
+  private craterRim: number[] = [];
+  private craterCore: number[] = [];
+  private craterCracks: number[][] = [];
 
   constructor(
     id: number,
@@ -76,7 +80,7 @@ export class FieldEntity extends Entity {
     this.onScareCrow = onScareCrow;
   }
 
-  setField(field: Field | null): void {
+  setField(field: Field | null, lightningActive = false): void {
     const prev = this.prevField;
     // Detect swap: a non-sowing transition that lands on growing/ready with changed timestamps
     if (prev !== null) {
@@ -95,6 +99,15 @@ export class FieldEntity extends Entity {
         ((wasActive && isActive && prev.sowedAt !== field.sowedAt) ||
           (!wasActive && isActive));
       if (swapDetected) this.spawnSwapParticles();
+
+      // Lightning strike: growing/ready → empty while lightning is active
+      if (
+        lightningActive &&
+        (prev.stage === "growing" || prev.stage === "ready") &&
+        field?.stage === "empty"
+      ) {
+        this.triggerCrater();
+      }
     }
     this.prevField = field;
     this.field = field;
@@ -135,6 +148,9 @@ export class FieldEntity extends Entity {
     const now = Date.now();
     const dt = this.lastParticleUpdate > 0 ? now - this.lastParticleUpdate : 0;
     this.lastParticleUpdate = now;
+    if (this.craterAlpha > 0) {
+      this.craterAlpha = Math.max(0, this.craterAlpha - dt / 3000);
+    }
     if (this.particles.length > 0) {
       for (const p of this.particles) {
         p.x += p.vx * dt;
@@ -336,6 +352,25 @@ export class FieldEntity extends Entity {
       });
     }
 
+    // Lightning crater scorch mark — jagged, cracked, seeded per strike
+    if (this.craterAlpha > 0 && this.craterRim.length > 0) {
+      const a = this.craterAlpha;
+      // Outer scorch (irregular blob)
+      base.poly(this.craterRim).fill({ color: 0x1a0800, alpha: a * 0.78 });
+      // Inner charred core
+      base.poly(this.craterCore).fill({ color: 0x070200, alpha: a * 0.9 });
+      // Ember rim
+      base.poly(this.craterRim).stroke({ color: 0xff4400, width: 1.5, alpha: a * 0.5 });
+      // Radiating cracks
+      for (const crack of this.craterCracks) {
+        base.moveTo(crack[0], crack[1]);
+        for (let i = 2; i < crack.length; i += 2) {
+          base.lineTo(crack[i], crack[i + 1]);
+        }
+        base.stroke({ color: 0x050100, width: 1.5, alpha: a * 0.7 });
+      }
+    }
+
     // Interactivity — update listeners when relevant state changes
     if (
       stage !== this.lastInteractiveStage ||
@@ -373,6 +408,53 @@ export class FieldEntity extends Entity {
   setBlinded(b: boolean): void {
     this.blinded = b;
     this.crowAnimator?.setBlinded(b);
+  }
+
+  private triggerCrater(): void {
+    this.craterAlpha = 1;
+    this.generateCrater();
+  }
+
+  // Build an irregular, cracked scorch shape. Seeded so it's stable across
+  // frames but varies per strike.
+  private generateCrater(): void {
+    const cx = FIELD_W / 2;
+    const cy = FIELD_H / 2;
+    const rx = FIELD_W * 0.15;
+    const ry = FIELD_H * 0.14;
+    const rng = new SeededRandom((this.id + 1) * 7919 + (Date.now() & 0xffff));
+
+    const segs = 14;
+    const rim: number[] = [];
+    const core: number[] = [];
+    for (let i = 0; i < segs; i++) {
+      const ang = (i / segs) * Math.PI * 2;
+      const cos = Math.cos(ang);
+      const sin = Math.sin(ang);
+      const rimJitter = 0.72 + rng.next() * 0.45;
+      rim.push(cx + cos * rx * rimJitter, cy + sin * ry * rimJitter);
+      const coreJitter = 0.38 + rng.next() * 0.3;
+      core.push(cx + cos * rx * coreJitter, cy + sin * ry * coreJitter);
+    }
+
+    const cracks: number[][] = [];
+    const crackCount = 4 + Math.floor(rng.next() * 3);
+    for (let c = 0; c < crackCount; c++) {
+      const steps = 3 + Math.floor(rng.next() * 2);
+      const maxR = 0.85 + rng.next() * 0.55;
+      let ang = rng.next() * Math.PI * 2;
+      const pts: number[] = [cx, cy];
+      for (let s = 1; s <= steps; s++) {
+        const r = (s / steps) * maxR;
+        ang += (rng.next() - 0.5) * 0.9;
+        pts.push(cx + Math.cos(ang) * rx * r, cy + Math.sin(ang) * ry * r);
+      }
+      cracks.push(pts);
+    }
+
+    this.craterRim = rim;
+    this.craterCore = core;
+    this.craterCracks = cracks;
   }
 
   private spawnSwapParticles(): void {
