@@ -44,7 +44,10 @@ export function handleMessage(session: Session, raw: string | Buffer): void {
       session.send({ type: 'assigned', slot, playerId: session.playerId });
 
       if (result === 'rejoined') {
-        game.sendStateTo(session.playerId);
+        // Broadcast to both players: the rejoiner needs the full state, and the
+        // opponent — who was bumped to "waiting" by our opponent_left on the
+        // reload — needs a fresh game_state to return to "in_game".
+        game.broadcastState();
       }
 
       if (game.isFull() && result === 'assigned') {
