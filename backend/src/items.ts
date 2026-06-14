@@ -22,12 +22,16 @@ export type ItemEffectHandler = (ctx: ItemContext) => 'ok' | 'invalid_target' | 
 export const ITEM_HANDLERS: Partial<Record<ItemId, ItemEffectHandler>> = {
   pointless_potion: (ctx) => {
     const item = ctx.user.items.find(i => i.id === 'pointless_potion');
-    ctx.user.gold += item?.pricePaid ?? ITEM_DEFS.pointless_potion.price;
+    const refund = item?.pricePaid ?? ITEM_DEFS.pointless_potion.price;
+    ctx.user.gold += refund;
+    ctx.user.stats.goldGainedItems += refund;
     return 'ok';
   },
 
   halving_brew: (ctx) => {
-    ctx.user.gold = Math.floor(ctx.user.gold / 2);
+    const ownLost = Math.floor(ctx.user.gold / 2);
+    ctx.user.stats.goldLostHalvingBrew += ownLost;
+    ctx.user.gold = ctx.user.gold - ownLost;
     ctx.opponent.gold = Math.floor(ctx.opponent.gold / 2);
     return 'ok';
   },

@@ -1,4 +1,5 @@
 import type { MatchStats, PlayerState } from "@gamedesign/shared";
+import { ITEM_DEFS } from "@gamedesign/shared";
 import { useConnectionStore } from "../state/connectionStore";
 import { useGameStore } from "../state/gameStore";
 
@@ -43,7 +44,10 @@ function emptyStats(): MatchStats {
     thievesSent: 0,
     weatherSent: 0,
     itemsBought: {},
-    itemsUsed: 0,
+    itemsUsedByType: {},
+    goldGainedItems: 0,
+    goldDrainedFakeMerchant: 0,
+    goldLostHalvingBrew: 0,
     finalToolLevels: {
       tools: 0,
       fertilizer: 0,
@@ -256,6 +260,15 @@ export function StatsPanel() {
         myColor="text-danger"
         oppColor="text-danger"
       />
+      {(my.goldLostHalvingBrew > 0 || opp.goldLostHalvingBrew > 0) && (
+        <StatRow
+          label="Verloren (Halbierung)"
+          myVal={my.goldLostHalvingBrew}
+          oppVal={opp.goldLostHalvingBrew}
+          myColor="text-danger"
+          oppColor="text-danger"
+        />
+      )}
       <StatRow
         label="Ausgaben (gesamt)"
         myVal={totalSpent(my)}
@@ -290,9 +303,25 @@ export function StatsPanel() {
         estimated
       />
 
-      <SectionHeader label="HÄNDLER" />
+      <SectionHeader label="ITEMS" />
+      {(Object.keys(ITEM_DEFS) as (keyof typeof ITEM_DEFS)[]).map((itemId) => {
+        const myBought = (my.itemsBought as Record<string, number>)[itemId] ?? 0;
+        const oppBought = (opp.itemsBought as Record<string, number>)[itemId] ?? 0;
+        if (myBought === 0 && oppBought === 0) return null;
+        const myUsed = (my.itemsUsedByType as Record<string, number>)[itemId] ?? 0;
+        const oppUsed = (opp.itemsUsedByType as Record<string, number>)[itemId] ?? 0;
+        const myLabel = myUsed > 0 && myUsed < myBought ? `${myBought} (${myUsed}✓)` : myBought > 0 ? `${myBought}` : "—";
+        const oppLabel = oppUsed > 0 && oppUsed < oppBought ? `${oppBought} (${oppUsed}✓)` : oppBought > 0 ? `${oppBought}` : "—";
+        return (
+          <div key={itemId} className="score-row text-[7px] flex justify-between items-center gap-2">
+            <span className="text-muted-gold flex-1">{ITEM_DEFS[itemId].name}</span>
+            <span className="text-gold" style={{ minWidth: 48, textAlign: "right" }}>{myLabel}</span>
+            <span className="text-parchment" style={{ minWidth: 48, textAlign: "right" }}>{oppLabel}</span>
+          </div>
+        );
+      })}
       <StatRow
-        label="Händler-Einkäufe"
+        label="Händler-Ausgaben"
         myVal={my.goldSpentMerchant}
         oppVal={opp.goldSpentMerchant}
         myColor="text-danger"
@@ -391,6 +420,12 @@ export function StatsPanel() {
         ausgaben={my.goldSpentWeather + upgradeCostForCategory(my, "weather")}
         profit={null}
         schaden={my.weatherGoldDestroyed}
+      />
+      <RentRow
+        label="Händler"
+        ausgaben={my.goldSpentMerchant}
+        profit={my.goldGainedItems > 0 ? my.goldGainedItems : null}
+        schaden={my.goldDrainedFakeMerchant > 0 ? my.goldDrainedFakeMerchant : null}
       />
     </div>
   );

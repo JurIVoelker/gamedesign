@@ -114,7 +114,10 @@ function createEmptyStats(): MatchStats {
     thievesSent: 0,
     weatherSent: 0,
     itemsBought: {},
-    itemsUsed: 0,
+    itemsUsedByType: {},
+    goldGainedItems: 0,
+    goldDrainedFakeMerchant: 0,
+    goldLostHalvingBrew: 0,
     finalToolLevels: { tools: 0, fertilizer: 0, crows: 0, thief: 0, weather: 0 },
   };
 }
@@ -1316,7 +1319,10 @@ export class Game {
     if (ps.merchant.fake && ps.merchant.fake.drained > 0) {
       const { byPlayerId, drained } = ps.merchant.fake;
       const sourceState = this.state.players[byPlayerId];
-      if (sourceState) sourceState.gold += drained;
+      if (sourceState) {
+        sourceState.gold += drained;
+        sourceState.stats.goldDrainedFakeMerchant += drained;
+      }
       this.sendToastTo(byPlayerId, `Dein falscher Haendler hat ${drained} Gold ergaunert!`);
     }
     ps.merchant = null;
@@ -1453,7 +1459,8 @@ export class Game {
     const result = handler(ctx);
     if (result === 'ok') {
       item.count--;
-      ps.stats.itemsUsed++;
+      (ps.stats.itemsUsedByType as Record<string, number>)[itemId] =
+        ((ps.stats.itemsUsedByType as Record<string, number>)[itemId] ?? 0) + 1;
       this.broadcastState();
     }
     return result;

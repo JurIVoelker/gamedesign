@@ -51,7 +51,10 @@ export interface MatchStats {
   thievesSent: number;
   weatherSent: number;
   itemsBought: Partial<Record<ItemId, number>>;
-  itemsUsed: number;
+  itemsUsedByType: Partial<Record<ItemId, number>>;
+  goldGainedItems: number;
+  goldDrainedFakeMerchant: number;
+  goldLostHalvingBrew: number;
   finalToolLevels: Record<ToolId, number>;
 }
 
