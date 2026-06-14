@@ -29,7 +29,7 @@ export function GameOver() {
         {isDraw ? (
           <span className="text-parchment">Unentschieden!</span>
         ) : iWon ? (
-          <span className="text-gold">Du gewinnst! 🏆</span>
+          <span className="text-gold">Du gewinnst!</span>
         ) : (
           <span className="text-muted-gold">Du verlierst!</span>
         )}

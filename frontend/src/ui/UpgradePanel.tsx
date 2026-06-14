@@ -97,19 +97,17 @@ function ToolsHoverCard({ level }: { level: number }) {
       </div>
       {!isMaxed && (
         <div className="text-muted-gold mt-1">
-          {"→ Säen "}
+          {"Lv" + (level + 1) + ": Säen "}
           <span className="text-green-400">
             {formatSeconds(
               SOW_DURATION_MS * UPGRADE_SPEED_MULTIPLIERS[level + 1],
             )}
           </span>
-          <span className="text-muted-gold ml-1">
-            {"· Ernten "}
-            <span className="text-green-400">
-              {formatSeconds(
-                HARVEST_DURATION_MS * UPGRADE_SPEED_MULTIPLIERS[level + 1],
-              )}
-            </span>
+          {", Ernten "}
+          <span className="text-green-400">
+            {formatSeconds(
+              HARVEST_DURATION_MS * UPGRADE_SPEED_MULTIPLIERS[level + 1],
+            )}
           </span>
         </div>
       )}
@@ -134,22 +132,18 @@ function FertilizerHoverCard({ level }: { level: number }) {
       <div className="text-parchment">
         Wachstum:{" "}
         <span className="text-gold">{formatSeconds(currentGrowMs)}</span>
-        {!isMaxed && (
-          <>
-            {" → "}
-            <span className="text-green-400">{formatSeconds(nextGrowMs)}</span>
-          </>
-        )}
       </div>
       <div className="text-parchment mt-0.5">
         Gold: <span className="text-gold">{currentGold}g</span>
-        {!isMaxed && (
-          <>
-            {" → "}
-            <span className="text-green-400">{nextGold}g</span>
-          </>
-        )}
       </div>
+      {!isMaxed && (
+        <div className="text-muted-gold mt-1">
+          {"Lv" + (level + 1) + ": Wachstum "}
+          <span className="text-green-400">{formatSeconds(nextGrowMs)}</span>
+          {", Gold "}
+          <span className="text-green-400">{nextGold}g</span>
+        </div>
+      )}
       {isMaxed && <div className="text-gold mt-1">Max. Stufe</div>}
     </HoverCardWrapper>
   );
