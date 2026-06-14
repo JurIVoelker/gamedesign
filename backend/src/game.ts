@@ -84,6 +84,13 @@ function goldPerSec(ps: PlayerState): number {
   return goldYield(ps) / (effectiveGrowMs(ps) / 1000);
 }
 
+function itemsHeld(ps: PlayerState, itemId: ItemId): number {
+  const bought = (ps.stats.itemsBought as Record<string, number>)[itemId] ?? 0;
+  const inInventory = ps.items.find(i => i.id === itemId)?.count ?? 0;
+  const effectActive = ps.activeEffects.some(e => e.itemId === itemId) ? 1 : 0;
+  return bought + inInventory + effectActive;
+}
+
 function createEmptyStats(): MatchStats {
   return {
     goldEarnedHarvest: 0,
@@ -1130,8 +1137,7 @@ export class Game {
     const pool = Object.values(ITEM_DEFS).filter(def => {
       if (!ITEM_HANDLERS[def.id]) return false;
       if (def.maxPerMatch === null) return true;
-      const bought = (ps.stats.itemsBought as Record<string, number>)[def.id] ?? 0;
-      return bought < def.maxPerMatch;
+      return itemsHeld(ps, def.id) < def.maxPerMatch;
     });
 
     const offers: MerchantOffer[] = [];
@@ -1202,6 +1208,9 @@ export class Game {
     if (!offer) return 'not_offered';
     if (offer.bought) return 'already_bought';
     if (ps.gold < offer.price) return 'insufficient_gold';
+
+    const def = ITEM_DEFS[itemId];
+    if (def.maxPerMatch != null && itemsHeld(ps, itemId) >= def.maxPerMatch) return 'already_bought';
 
     ps.gold -= offer.price;
     offer.bought = true;

@@ -1,5 +1,6 @@
+import { useState, useEffect } from "react";
 import type { Item, ActiveEffect, ItemId } from "@gamedesign/shared";
-import { ITEM_DEFS } from "@gamedesign/shared";
+import { ITEM_DEFS, SPY_REPORT_INTERVAL_MS } from "@gamedesign/shared";
 import { useConnectionStore } from "../state/connectionStore";
 import { useGameStore } from "../state/gameStore";
 import { useTargetingStore } from "../state/targetingStore";
@@ -23,6 +24,56 @@ function EffectChip({ effect, now }: { effect: ActiveEffect; now: number }) {
         }}
       >
         {def?.name ?? effect.itemId}
+      </div>
+      <div
+        style={{
+          fontFamily: "'Press Start 2P', monospace",
+          fontSize: 6,
+          color: "#888",
+        }}
+      >
+        {remaining !== null ? `${remaining}s` : "bis Spielende"}
+      </div>
+    </div>
+  );
+}
+
+function SpyChip({ effect, now }: { effect: ActiveEffect; now: number }) {
+  const [displayedGold, setDisplayedGold] = useState<number | null>(null);
+
+  useEffect(() => {
+    const snapshot = () => {
+      const { game } = useGameStore.getState();
+      const { playerId } = useConnectionStore.getState();
+      const opponentId = Object.keys(game?.players ?? {}).find(
+        (id) => id !== playerId,
+      );
+      if (opponentId != null && game) {
+        setDisplayedGold(game.players[opponentId]?.gold ?? null);
+      }
+    };
+    snapshot();
+    const id = setInterval(snapshot, SPY_REPORT_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, []);
+
+  const remaining = effect.endsAt
+    ? Math.max(0, Math.ceil((effect.endsAt - now) / 1000))
+    : null;
+
+  return (
+    <div
+      className="upgrade-card text-parchment"
+      style={{ padding: "4px 8px", minWidth: "unset", gap: 4 }}
+    >
+      <div
+        style={{
+          fontFamily: "'Press Start 2P', monospace",
+          fontSize: 6,
+          color: "#c8a84b",
+        }}
+      >
+        {"\u{1F575}️"} Gegner: {displayedGold !== null ? `${displayedGold} G` : "?"}
       </div>
       {remaining !== null && (
         <div
@@ -144,9 +195,13 @@ export function ItemBar() {
             justifyContent: "flex-end",
           }}
         >
-          {effects.map((e) => (
-            <EffectChip key={e.id} effect={e} now={now} />
-          ))}
+          {effects.map((e) =>
+            e.itemId === "spy_glass" ? (
+              <SpyChip key={e.id} effect={e} now={now} />
+            ) : (
+              <EffectChip key={e.id} effect={e} now={now} />
+            ),
+          )}
         </div>
       )}
       {items.length > 0 && (

@@ -117,3 +117,6 @@ export const MERCHANT_CATCHUP_STAGES = [
   { untilMs: 330_000, cumWeight: 0.5, balWeight: 0.5 },
   { untilMs: Infinity, cumWeight: 0.2, balWeight: 0.8 },
 ] as const;
+
+export const CRYSTAL_BALL_LEAD_MS = 5_000;
+export const SPY_REPORT_INTERVAL_MS = 10_000;
