@@ -144,9 +144,7 @@ function createPlayerState(playerId: string): PlayerState {
       { id: 'thief',      level: 0, cooldownUntil: 0 },
       { id: 'weather',    level: 0, cooldownUntil: 0 },
     ],
-    items: (
-      ['blindness_potion', 'swap_potion'] as const
-    ).map(id => ({ id, name: ITEM_DEFS[id].name, count: 1, cooldownUntil: 0 })),
+    items: [],
     thiefAttack: null,
     weatherEffect: null,
     villagersOutside: 4,
@@ -1278,6 +1276,7 @@ export class Game {
   private rollOffers(ps: PlayerState, discountPct: number): MerchantOffer[] {
     const pool = Object.values(ITEM_DEFS).filter(def => {
       if (!ITEM_HANDLERS[def.id]) return false;
+      if (itemsHeld(ps, def.id) > 0) return false;
       if (def.maxPerMatch === null) return true;
       return itemsHeld(ps, def.id) < def.maxPerMatch;
     });

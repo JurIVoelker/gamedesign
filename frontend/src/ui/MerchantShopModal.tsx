@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { MerchantVisit } from "@gamedesign/shared";
-import { ITEM_DEFS } from "@gamedesign/shared";
+import { ITEM_DEFS, pointlessPotionDesc } from "@gamedesign/shared";
 import { useConnectionStore } from "../state/connectionStore";
 import { useGameStore } from "../state/gameStore";
 import { useNow } from "../hooks/useNow";
@@ -149,53 +149,86 @@ export function MerchantShopModal({ visit, gold, onBuy, onDismiss }: Props) {
                 key={offer.itemId}
                 className="score-row"
                 style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 5,
+                  display: "grid",
+                  gridTemplateColumns: "56px 1fr auto",
+                  columnGap: 10,
+                  rowGap: 4,
+                  padding: "8px 10px",
+                  alignItems: "start",
                   opacity: offer.bought ? 0.5 : 1,
                 }}
               >
+                {/* Col 1, rows 1–2: Icon */}
                 <div
                   style={{
+                    gridRow: "1 / 3",
                     display: "flex",
-                    justifyContent: "space-between",
                     alignItems: "center",
-                    gap: 8,
+                    justifyContent: "center",
                   }}
                 >
-                  <ItemIcon itemId={offer.itemId} size={28} />
-                  <span
-                    style={{
-                      fontFamily: "'Press Start 2P', monospace",
-                      fontSize: 7,
-                      flex: 1,
-                      color: "#e8d8a0",
-                    }}
-                  >
-                    {def?.name ?? offer.itemId}
-                  </span>
-                  <span
-                    style={{
-                      fontFamily: "'Press Start 2P', monospace",
-                      fontSize: 7,
-                      color: isDiscount ? "#6cde6c" : "#c8a84b",
-                      minWidth: 48,
-                      textAlign: "right",
-                    }}
-                  >
-                    {isDiscount && (
-                      <span
-                        style={{
-                          textDecoration: "line-through",
-                          color: "#888",
-                          marginRight: 4,
-                        }}
-                      >
-                        {offer.basePrice}g
-                      </span>
-                    )}
-                    {offer.price}g
-                  </span>
+                  <ItemIcon itemId={offer.itemId} size={48} />
+                </div>
+
+                {/* Col 2, row 1: Name */}
+                <span
+                  style={{
+                    fontFamily: "'Press Start 2P', monospace",
+                    fontSize: 7,
+                    color: "#e8d8a0",
+                  }}
+                >
+                  {def?.name ?? offer.itemId}
+                </span>
+
+                {/* Col 3, row 1: Price */}
+                <span
+                  style={{
+                    fontFamily: "'Press Start 2P', monospace",
+                    fontSize: 7,
+                    color: isDiscount ? "#6cde6c" : "#c8a84b",
+                    textAlign: "right",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {isDiscount && (
+                    <span
+                      style={{
+                        textDecoration: "line-through",
+                        color: "#888",
+                        marginRight: 4,
+                      }}
+                    >
+                      {offer.basePrice}g
+                    </span>
+                  )}
+                  {offer.price}g
+                </span>
+
+                {/* Col 2–3, row 2: Description */}
+                <div
+                  style={{
+                    gridColumn: "2 / -1",
+                    fontFamily: "'Press Start 2P', monospace",
+                    fontSize: 7,
+                    color: "#a89060",
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {offer.itemId === "pointless_potion"
+                    ? pointlessPotionDesc(offer.price)
+                    : (def?.description ?? "")}
+                </div>
+
+                {/* Row 3: Buy button, right-aligned */}
+                <div
+                  style={{
+                    gridColumn: "1 / -1",
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    marginTop: 2,
+                  }}
+                >
                   <button
                     className="btn-pixel"
                     style={{ fontSize: 6, padding: "3px 8px", minWidth: 60 }}
@@ -210,18 +243,6 @@ export function MerchantShopModal({ visit, gold, onBuy, onDismiss }: Props) {
                     {offer.bought ? "Gekauft" : "Kaufen"}
                   </button>
                 </div>
-                {def?.description && (
-                  <div
-                    style={{
-                      fontFamily: "'Press Start 2P', monospace",
-                      fontSize: 5,
-                      color: "#6a5030",
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    {def.description}
-                  </div>
-                )}
               </div>
             );
           })}

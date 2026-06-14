@@ -34,7 +34,7 @@ export function FarmCanvas() {
 
   const game = useGameStore((s) => s.game);
   const { playerId } = useConnectionStore();
-  const { active: targeting, chosen, fieldCount } = useTargetingStore();
+  const { active: targeting, chosen, fieldCount, ownFarm } = useTargetingStore();
 
   const [accusationTarget, setAccusationTarget] =
     useState<AccusationTarget | null>(null);
@@ -255,7 +255,9 @@ export function FarmCanvas() {
       </span>
       {targeting && (
         <span style={targetingHintStyle}>
-          Gegnerfeld wählen ({remaining} übrig) · Esc zum Abbrechen
+          {ownFarm
+            ? "Eigenes Feld wählen · Esc zum Abbrechen"
+            : `Gegnerfeld wählen (${remaining} übrig) · Esc zum Abbrechen`}
         </span>
       )}
 

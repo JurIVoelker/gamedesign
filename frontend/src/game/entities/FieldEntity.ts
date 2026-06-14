@@ -9,6 +9,8 @@ import { SeededRandom } from "../SeededRandom";
 export const FIELD_W = 120;
 export const FIELD_H = 64;
 
+const SWAP_PARTICLE_TINTS = [0xffdd44, 0xffcc22, 0xff9922, 0xffee88, 0xffffaa, 0xff8800];
+
 const MAX_PLANT_H = 9;
 const SOIL_ROWS = 4;
 const SOIL_Y_START = 8;
@@ -34,6 +36,9 @@ interface Particle {
   vx: number;
   vy: number;
   life: number;
+  sprite: Sprite;
+  rotation: number;
+  rotationSpeed: number;
 }
 
 export class FieldEntity extends Entity {
@@ -82,9 +87,11 @@ export class FieldEntity extends Entity {
         (field.stage === "growing" || field.stage === "ready");
       const isNormalCompletion =
         prev.stage === "growing" && field?.stage === "ready";
+      const crowScaredAway = !!prev.crowAttack && !field?.crowAttack;
       const swapDetected =
         !wasSowing &&
         !isNormalCompletion &&
+        !crowScaredAway &&
         ((wasActive && isActive && prev.sowedAt !== field.sowedAt) ||
           (!wasActive && isActive));
       if (swapDetected) this.spawnSwapParticles();
@@ -132,10 +139,22 @@ export class FieldEntity extends Entity {
       for (const p of this.particles) {
         p.x += p.vx * dt;
         p.y += p.vy * dt;
-        p.life = Math.max(0, p.life - dt / 600);
+        p.life = Math.max(0, p.life - dt / 1400);
+        p.rotation += p.rotationSpeed * dt;
+        const alpha = p.life > 0.8 ? (1 - p.life) / 0.2 : p.life / 0.8;
+        const popScale = p.life > 0.8 ? (1 - p.life) / 0.2 : 1;
+        p.sprite.x = p.x;
+        p.sprite.y = p.y;
+        p.sprite.alpha = alpha;
+        p.sprite.rotation = p.rotation;
+        p.sprite.width = popScale * 7;
+        p.sprite.height = popScale * 7;
       }
       for (let i = this.particles.length - 1; i >= 0; i--) {
-        if (this.particles[i].life <= 0) this.particles.splice(i, 1);
+        if (this.particles[i].life <= 0) {
+          this.particles[i].sprite.destroy();
+          this.particles.splice(i, 1);
+        }
       }
     }
     if (this.base) this.draw(now);
@@ -307,11 +326,6 @@ export class FieldEntity extends Entity {
     }
     this.crowAnimator?.update();
 
-    // Swap particle burst
-    for (const p of this.particles) {
-      base.circle(p.x, p.y, 2).fill({ color: 0xf0c040, alpha: p.life });
-    }
-
     // Scaring border — orange flash while scare animation plays
     if (isScaring) {
       const pulse = 0.5 + 0.5 * Math.abs(Math.sin(now / 120));
@@ -362,16 +376,30 @@ export class FieldEntity extends Entity {
   }
 
   private spawnSwapParticles(): void {
-    const COUNT = 20;
+    if (!this.fieldContainer) return;
+    const COUNT = 42;
     for (let i = 0; i < COUNT; i++) {
-      const angle = (i / COUNT) * Math.PI * 2;
-      const speed = 0.04 + Math.random() * 0.04;
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 0.01 + Math.random() * 0.015;
+      const x = Math.random() * FIELD_W;
+      const y = Math.random() * FIELD_H;
+      const sprite = new Sprite(Assets.get("/assets/particle.png"));
+      sprite.anchor.set(0.5, 0.5);
+      sprite.scale.set(0);
+      sprite.tint = SWAP_PARTICLE_TINTS[Math.floor(Math.random() * SWAP_PARTICLE_TINTS.length)];
+      sprite.x = x;
+      sprite.y = y;
+      sprite.alpha = 0;
+      this.fieldContainer.addChild(sprite);
       this.particles.push({
-        x: FIELD_W / 2,
-        y: FIELD_H / 2,
+        x,
+        y,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
         life: 1.0,
+        sprite,
+        rotation: Math.random() * Math.PI * 2,
+        rotationSpeed: (Math.random() - 0.5) * 0.014,
       });
     }
   }

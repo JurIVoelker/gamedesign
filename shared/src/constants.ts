@@ -85,19 +85,24 @@ export interface ItemDef {
   maxPerMatch: number | null;
   target: "none" | "opponent_field" | "own_and_opponent_field";
   durationMs: number | null;
+  passive?: boolean;
 }
 
 export const ITEM_DEFS: Record<ItemId, ItemDef> = {
-  pointless_potion:  { id: "pointless_potion",  name: "Trank der Unnötigkeit", description: "Gibt dir 20 Gold. Einfach so.",                               price: 20,  rarityWeight: 14, maxPerMatch: null, target: "none",                    durationMs: null    },
-  blindness_potion:  { id: "blindness_potion",  name: "Blindheitstrank",        description: "Macht den Gegner für 15 Sekunden blind.",                     price: 45,  rarityWeight: 18, maxPerMatch: null, target: "none",                    durationMs: 15_000  },
-  spy_glass:         { id: "spy_glass",         name: "Spion",                  description: "Zeigt das Gold des Gegners für 2 Minuten.",                   price: 50,  rarityWeight: 14, maxPerMatch: 2,    target: "none",                    durationMs: 120_000 },
-  fake_merchant:     { id: "fake_merchant",     name: "Falscher Händler",       description: "Schickt einen Betrüger-Händler zum Gegner.",                  price: 55,  rarityWeight: 10, maxPerMatch: 2,    target: "none",                    durationMs: null    },
-  paranoia_curse:    { id: "paranoia_curse",    name: "Paranoia-Fluch",         description: "Zeigt dem Gegner gefälschte Diebsangriffe.",                  price: 60,  rarityWeight: 12, maxPerMatch: 2,    target: "none",                    durationMs: 60_000  },
-  mirror_curse:      { id: "mirror_curse",      name: "Spiegelfluch",           description: "Reflektiert Sabotagen für 30 Sekunden auf den Angreifer.",    price: 70,  rarityWeight: 10, maxPerMatch: 2,    target: "none",                    durationMs: 30_000  },
-  swap_potion:       { id: "swap_potion",       name: "Tauschtrank",            description: "Tauscht den Inhalt zweier Felder.",                           price: 80,  rarityWeight: 7,  maxPerMatch: 1,    target: "own_and_opponent_field",  durationMs: null    },
-  crystal_ball:      { id: "crystal_ball",      name: "Zauberkugel",            description: "Warnt dich, wenn Sabotagen des Gegners bereit werden.",       price: 100, rarityWeight: 6,  maxPerMatch: 1,    target: "none",                    durationMs: null    },
-  halving_brew:      { id: "halving_brew",      name: "Halbierungstrunk",       description: "Halbiert das Gold beider Spieler.",                           price: 120, rarityWeight: 4,  maxPerMatch: 1,    target: "none",                    durationMs: null    },
+  pointless_potion:  { id: "pointless_potion",  name: "Trank der Unnötigkeit",  description: "Gibt dir 20 Gold. Einfach so.",                               price: 20,  rarityWeight: 14, maxPerMatch: null, target: "none",                    durationMs: null    },
+  blindness_potion:  { id: "blindness_potion",  name: "Blindheitstrank",        description: "Macht den Gegner für 15 Sekunden blind.",                     price: 45,  rarityWeight: 10, maxPerMatch: null, target: "none",                    durationMs: 15_000  },
+  spy_glass:         { id: "spy_glass",         name: "Spion",                  description: "Zeigt das Gold des Gegners für 2 Minuten.",                   price: 30,  rarityWeight: 14, maxPerMatch: 2,    target: "none",                    durationMs: 120_000 },
+  fake_merchant:     { id: "fake_merchant",     name: "Falscher Händler",       description: "Schickt einen Betrüger-Händler zum Gegner.",                  price: 15,  rarityWeight: 10, maxPerMatch: 2,    target: "none",                    durationMs: null    },
+  paranoia_curse:    { id: "paranoia_curse",    name: "Paranoia-Fluch",         description: "Zeigt dem Gegner gefälschte Diebsangriffe.",                  price: 40,  rarityWeight: 12, maxPerMatch: 2,    target: "none",                    durationMs: 60_000  },
+  mirror_curse:      { id: "mirror_curse",      name: "Spiegelfluch",           description: "Reflektiert Sabotagen für 30 Sekunden auf den Angreifer.",    price: 50,  rarityWeight: 10, maxPerMatch: 2,    target: "none",                    durationMs: 30_000  },
+  swap_potion:       { id: "swap_potion",       name: "Tauschtrank",            description: "Wähle eins deiner Felder und tausche es mit einem Feld deiner Wahl deines Gegners.",                           price: 40,  rarityWeight: 7,  maxPerMatch: 1,    target: "own_and_opponent_field",  durationMs: null    },
+  crystal_ball:      { id: "crystal_ball",      name: "Zauberkugel",            description: "Warnt dich, wenn Sabotagen des Gegners bereit werden.",       price: 70, rarityWeight: 8,  maxPerMatch: 1,    target: "none",                    durationMs: null,    passive: true },
+  halving_brew:      { id: "halving_brew",      name: "Halbierungstrunk",       description: "Halbiert das Gold beider Spieler.",                           price: 80, rarityWeight: 6,  maxPerMatch: 1,    target: "none",                    durationMs: null    },
 };
+
+export function pointlessPotionDesc(price: number): string {
+  return `Gibt dir ${price} Gold. Einfach so.`;
+}
 
 export const MERCHANT_VISITS = [
   { atMs: 120_000, jitterMs: 25_000 },

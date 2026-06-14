@@ -25,8 +25,8 @@ export function CrystalBallWatcher() {
       const me = game.players[playerId];
       if (!me) return;
 
-      const hasCrystalBall = me.activeEffects.some(
-        (e) => e.itemId === "crystal_ball",
+      const hasCrystalBall = me.items.some(
+        (i) => i.id === "crystal_ball" && i.count > 0,
       );
       if (!hasCrystalBall) return;
 
@@ -45,7 +45,7 @@ export function CrystalBallWatcher() {
         if (notifiedRef.current.has(key)) continue;
 
         notifiedRef.current.add(key);
-        useToastStore.getState().push(TOOL_WARNINGS[toolId]);
+        useToastStore.getState().push(TOOL_WARNINGS[toolId], CRYSTAL_BALL_LEAD_MS + 5_000);
       }
     }, 500);
 

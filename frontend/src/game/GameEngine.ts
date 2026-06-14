@@ -102,6 +102,8 @@ export class GameEngine {
       "/assets/crow-flying.png",
       "/assets/crow-landing.png",
       "/assets/crow-eating.png",
+      "/assets/merchant.png",
+      "/assets/particle.png",
     ]);
 
     const app = new Application();
@@ -289,6 +291,10 @@ export class GameEngine {
         () => oppThiefRand.next(),
       );
       this.villagersSeeded = true;
+      // Force the blinded guard below to re-apply state to freshly created controllers,
+      // even if this.isBlinded was already set by an earlier updateGameState call that
+      // ran before the farm containers were ready (and thus skipped this seeding block).
+      this.isBlinded = false;
 
       // Create merchant entity on the player farm (left edge, lower area)
       if (this.playerFarm && !this.merchantEntity) {

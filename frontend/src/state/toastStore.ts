@@ -7,7 +7,7 @@ interface Toast {
 
 interface ToastStoreState {
   toasts: Toast[];
-  push: (text: string) => void;
+  push: (text: string, durationMs?: number) => void;
   remove: (id: string) => void;
 }
 
@@ -15,12 +15,12 @@ let _counter = 0;
 
 export const useToastStore = create<ToastStoreState>((set) => ({
   toasts: [],
-  push: (text) => {
+  push: (text, durationMs = 4_000) => {
     const id = `t${++_counter}`;
     set((s) => ({ toasts: [...s.toasts, { id, text }] }));
     setTimeout(() => {
       set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }));
-    }, 4_000);
+    }, durationMs);
   },
   remove: (id) =>
     set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),

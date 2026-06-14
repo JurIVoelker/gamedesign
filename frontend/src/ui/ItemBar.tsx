@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Item, ActiveEffect, ItemId } from "@gamedesign/shared";
-import { ITEM_DEFS } from "@gamedesign/shared";
+import { ITEM_DEFS, pointlessPotionDesc } from "@gamedesign/shared";
 import { useConnectionStore } from "../state/connectionStore";
 import { useGameStore } from "../state/gameStore";
 import { useTargetingStore } from "../state/targetingStore";
@@ -8,7 +8,7 @@ import { useNow } from "../hooks/useNow";
 import { ItemIcon } from "./ItemIcons";
 
 const SLOT_STYLE = {
-  width: 72,
+  width: 88,
   minHeight: 72,
   padding: "6px 4px",
   minWidth: "unset",
@@ -18,12 +18,12 @@ const SLOT_STYLE = {
 
 const NAME_STYLE = {
   fontFamily: "'Press Start 2P', monospace",
-  fontSize: 5,
+  fontSize: 7,
   textAlign: "center" as const,
   lineHeight: 1.4,
   overflowWrap: "break-word" as const,
   hyphens: "auto" as const,
-  maxWidth: 64,
+  maxWidth: 80,
 };
 
 function ItemSlot({
@@ -35,13 +35,23 @@ function ItemSlot({
 }) {
   const [hovered, setHovered] = useState(false);
   const def = ITEM_DEFS[item.id as ItemId];
+  const isPassive = def?.passive === true;
+
+  const description =
+    item.id === "pointless_potion" && item.pricePaid
+      ? pointlessPotionDesc(item.pricePaid)
+      : def?.description;
 
   return (
     <div style={{ position: "relative" }}>
       <div
         className="upgrade-card"
-        style={{ ...SLOT_STYLE, cursor: "pointer" }}
-        onClick={onUse}
+        style={{
+          ...SLOT_STYLE,
+          cursor: isPassive ? "default" : "pointer",
+          boxShadow: isPassive && hovered ? "0 0 8px 2px #6cde6c55" : undefined,
+        }}
+        onClick={isPassive ? undefined : onUse}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
       >
@@ -71,7 +81,7 @@ function ItemSlot({
           <div
             style={{
               fontFamily: "'Press Start 2P', monospace",
-              fontSize: 7,
+              fontSize: 10,
               color: "#c8a84b",
             }}
           >
@@ -85,16 +95,16 @@ function ItemSlot({
               lineHeight: 1.6,
             }}
           >
-            {def.description}
+            {description}
           </div>
           <div
             style={{
               fontFamily: "'Press Start 2P', monospace",
-              fontSize: 5,
-              color: "#555",
+              fontSize: 7,
+              color: isPassive ? "#6cde6c" : "#e0c060",
             }}
           >
-            Klicken zum Benutzen
+            {isPassive ? "Passiv – Immer aktiv" : "Klicken zum Benutzen"}
           </div>
         </div>
       )}
@@ -169,7 +179,7 @@ function ActiveSlot({
           <div
             style={{
               fontFamily: "'Press Start 2P', monospace",
-              fontSize: 7,
+              fontSize: 10,
               color: "#c8a84b",
             }}
           >
@@ -188,7 +198,7 @@ function ActiveSlot({
           <div
             style={{
               fontFamily: "'Press Start 2P', monospace",
-              fontSize: 5,
+              fontSize: 7,
               color: "#6cde6c",
             }}
           >
