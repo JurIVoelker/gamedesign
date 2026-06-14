@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from "react";
 import type { ServerMessage, ClientMessage } from "@gamedesign/shared";
 import { useConnectionStore } from "../state/connectionStore";
 import { useGameStore } from "../state/gameStore";
+import { useToastStore } from "../state/toastStore";
 
 const WS_URL = `ws://${window.location.hostname}:3001`;
 const RECONNECT_DELAY_MS = 3_000;
@@ -45,6 +46,7 @@ export function useWebSocket() {
     reset,
   } = useConnectionStore.getState();
   const { setGame } = useGameStore.getState();
+  const { push: pushToast } = useToastStore.getState();
 
   const send = useCallback((msg: ClientMessage) => {
     const ws = wsRef.current;
@@ -88,6 +90,9 @@ export function useWebSocket() {
         case "ping":
           send({ type: "pong" });
           break;
+        case "toast":
+          pushToast(msg.text);
+          break;
       }
     },
     [
@@ -99,6 +104,7 @@ export function useWebSocket() {
       setPlayerId,
       setRoomCode,
       setOpponentLeft,
+      pushToast,
     ],
   );
 

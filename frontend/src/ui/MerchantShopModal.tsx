@@ -38,6 +38,7 @@ export function MerchantShopModal({ visit, gold, onBuy, onDismiss }: Props) {
   }, [onDismiss]);
 
   const isOverdue = countdown === 0;
+  const alreadyBought = visit.offers.some((o) => o.bought);
 
   return (
     <div
@@ -101,6 +102,17 @@ export function MerchantShopModal({ visit, gold, onBuy, onDismiss }: Props) {
             "{visit.notice}"
           </div>
         )}
+
+        {/* One-item-per-visit rule */}
+        <div
+          style={{
+            fontFamily: "'Press Start 2P', monospace",
+            fontSize: 6,
+            color: alreadyBought ? "#6cde6c" : "#888",
+          }}
+        >
+          {alreadyBought ? "✓ Artikel gekauft" : "Nur 1 Artikel pro Besuch"}
+        </div>
 
         {/* Discount badge */}
         {visit.discountPct > 0 && (
@@ -168,7 +180,7 @@ export function MerchantShopModal({ visit, gold, onBuy, onDismiss }: Props) {
                 <button
                   className="btn-pixel"
                   style={{ fontSize: 6, padding: "3px 8px", minWidth: 60 }}
-                  disabled={offer.bought || !canAfford}
+                  disabled={alreadyBought || !canAfford}
                   onClick={() => onBuy(offer.itemId)}
                 >
                   {offer.bought ? "Gekauft" : "Kaufen"}

@@ -38,6 +38,10 @@ import {
   MERCHANT_OVERSTAY_MAX_MS,
   MERCHANT_WINDOW_RECHECK_MS,
   MERCHANT_CATCHUP_STAGES,
+  PARANOIA_RESPAWN_DELAY_MS,
+  FAKE_MERCHANT_PRICE_PCT,
+  FAKE_MERCHANT_EXCUSES,
+  FAKE_MERCHANT_FEE_SCHEDULE,
 } from './constants.js';
 import { ITEM_HANDLERS } from './items.js';
 
@@ -140,7 +144,9 @@ function createPlayerState(playerId: string): PlayerState {
       { id: 'thief',      level: 0, cooldownUntil: 0 },
       { id: 'weather',    level: 0, cooldownUntil: 0 },
     ],
-    items: [],
+    items: (
+      ['paranoia_curse', 'mirror_curse', 'fake_merchant'] as const
+    ).map(id => ({ id, name: ITEM_DEFS[id].name, count: 2, cooldownUntil: 0 })),
     thiefAttack: null,
     weatherEffect: null,
     villagersOutside: 4,
@@ -440,6 +446,9 @@ export class Game {
     const opponentState = Object.values(this.state.players).find((p) => p.id !== playerId);
     if (!opponentState) return 'not_found';
 
+    const mirror = this.mirrorActive(now);
+    const victimState = mirror ? playerState : opponentState;
+
     const config = CROW_LEVEL_CONFIG[crowTool.level - 1];
 
     // Validate: no duplicates, correct count, each field eligible
@@ -447,7 +456,7 @@ export class Game {
     if (deduped.length === 0 || deduped.length > config.fieldCount) return 'invalid_target';
     const targets: Field[] = [];
     for (const idx of deduped) {
-      const field = opponentState.fields[idx];
+      const field = victimState.fields[idx];
       if (
         !field ||
         (field.stage !== 'growing' && field.stage !== 'ready') ||
@@ -467,7 +476,7 @@ export class Game {
         field.stage === 'ready' ? BASE_GROW_MS : field.readyAt! - field.sowedAt!;
 
       if (field.stage === 'growing') {
-        this.cancelTimer(`${opponentState.id}:${field.index}`);
+        this.cancelTimer(`${victimState.id}:${field.index}`);
       }
 
       field.crowAttack = {
@@ -479,8 +488,8 @@ export class Game {
       };
 
       const expiresAt = now + baseProgress / config.eatRatePerMs;
-      this.scheduleTimer(`crow:${opponentState.id}:${field.index}`, expiresAt, () =>
-        this.expireCrowAttack(opponentState.id, field.index),
+      this.scheduleTimer(`crow:${victimState.id}:${field.index}`, expiresAt, () =>
+        this.expireCrowAttack(victimState.id, field.index),
       );
     }
 
@@ -535,7 +544,10 @@ export class Game {
 
     const opponentState = Object.values(this.state.players).find((p) => p.id !== playerId);
     if (!opponentState) return 'not_found';
-    if (opponentState.thiefAttack !== null) return 'target_busy';
+
+    const mirror = this.mirrorActive(now);
+    const victimState = mirror ? playerState : opponentState;
+    if (victimState.thiefAttack !== null) return 'target_busy';
 
     const actorSlot = this.getSlotOf(playerId)!;
     const entryAt = now + cfg.minWaitMs + Math.random() * (cfg.maxWaitMs - cfg.minWaitMs);
@@ -552,16 +564,17 @@ export class Game {
       disguise: cfg.disguise,
       actorSlot,
     };
+    if (mirror) attack.beneficiaryId = mirror.sourcePlayerId;
 
-    opponentState.thiefAttack = attack;
+    victimState.thiefAttack = attack;
     playerState.gold -= cfg.cost;
     playerState.stats.goldSpentThief += cfg.cost;
     playerState.stats.thievesSent++;
     thiefTool.cooldownUntil = now + cfg.cooldownMs;
 
     // Safety-net: clean up if the thief never gets to enter (all villagers stay outside)
-    this.scheduleTimer(`thief_expire:${opponentState.id}`, now + cfg.maxWaitMs + cfg.durationMs, () =>
-      this.expireThief(opponentState.id),
+    this.scheduleTimer(`thief_expire:${victimState.id}`, now + cfg.maxWaitMs + cfg.durationMs, () =>
+      this.expireThief(victimState.id),
     );
 
     this.broadcastState();
@@ -574,7 +587,20 @@ export class Game {
     if (!this.state) return 'not_found';
     const playerState = this.state.players[playerId];
     if (!playerState) return 'not_found';
-    if (!playerState.thiefAttack) return 'no_thief';
+
+    if (!playerState.thiefAttack) {
+      // Check for paranoia fake thief
+      const paranoia = this.findParanoiaWithFake(playerState);
+      if (paranoia?.data) {
+        const data = paranoia.data as { fake: unknown; nextFakeAt: number };
+        data.fake = null;
+        data.nextFakeAt = Date.now() + PARANOIA_RESPAWN_DELAY_MS;
+        this.broadcastState();
+        return 'ok';
+      }
+      return 'no_thief';
+    }
+
     if (playerState.thiefAttack.phase === 'waiting') return 'still_waiting';
 
     const now = Date.now();
@@ -648,34 +674,38 @@ export class Game {
 
     const opponentState = Object.values(this.state.players).find((p) => p.id !== playerId);
     if (!opponentState) return 'not_found';
-    if (opponentState.weatherEffect !== null) return 'already_active';
+
+    const mirror = this.mirrorActive(now);
+    const effectiveVictim = mirror ? playerState : opponentState;
+    if (effectiveVictim.weatherEffect !== null) return 'already_active';
 
     const endsAt = now + cfg.durationMs;
-    opponentState.weatherEffect = { slowFactor: cfg.slowFactor, actionSlowFactor: cfg.actionSlowFactor, endsAt, lightning: cfg.lightning };
+    effectiveVictim.weatherEffect = { slowFactor: cfg.slowFactor, actionSlowFactor: cfg.actionSlowFactor, endsAt, lightning: cfg.lightning };
 
-    for (const field of opponentState.fields) {
+    for (const field of effectiveVictim.fields) {
       if (field.readyAt === null) continue;
       const sf = field.stage === 'growing' ? cfg.slowFactor : cfg.actionSlowFactor;
       const extraMs = weatherExtra(field.readyAt - now, sf);
-      playerState.stats.weatherGoldDestroyed += goldPerSec(opponentState) * (extraMs / 1000);
+      playerState.stats.weatherGoldDestroyed += goldPerSec(effectiveVictim) * (extraMs / 1000);
       field.readyAt += extraMs;
-      this.rescheduleFieldTimer(opponentState.id, field);
+      this.rescheduleFieldTimer(effectiveVictim.id, field);
     }
 
     // Lv3: lightning strikes the most-grown field after a short delay
     if (cfg.lightning) {
-      const eligible = opponentState.fields.filter(
+      const eligible = effectiveVictim.fields.filter(
         (f) => f.stage === 'growing' || f.stage === 'ready',
       );
       if (eligible.length > 0) {
         const progress = (f: Field) =>
           f.stage === 'ready' ? 1 : (now - (f.sowedAt ?? now)) / ((f.readyAt ?? now + 1) - (f.sowedAt ?? now));
         const target = eligible.reduce((best, f) => progress(f) > progress(best) ? f : best);
-        this.cancelTimer(`${opponentState.id}:${target.index}`);
+        this.cancelTimer(`${effectiveVictim.id}:${target.index}`);
         const strikeAt = now + 2000;
-        this.scheduleTimer(`lightning:${opponentState.id}:${target.index}`, strikeAt, () => {
+        const victimId = effectiveVictim.id;
+        this.scheduleTimer(`lightning:${victimId}:${target.index}`, strikeAt, () => {
           if (!this.state) return;
-          const oState = this.state.players[opponentState.id];
+          const oState = this.state.players[victimId];
           const strikeField = oState?.fields[target.index];
           if (oState && strikeField && (strikeField.stage === 'growing' || strikeField.stage === 'ready')) {
             const aState = this.state.players[playerId];
@@ -701,8 +731,8 @@ export class Game {
     playerState.stats.weatherSent++;
     weatherTool.cooldownUntil = now + cfg.cooldownMs;
 
-    this.scheduleTimer(`weather_expire:${opponentState.id}`, endsAt, () =>
-      this.expireWeather(opponentState.id),
+    this.scheduleTimer(`weather_expire:${effectiveVictim.id}`, endsAt, () =>
+      this.expireWeather(effectiveVictim.id),
     );
 
     this.broadcastState();
@@ -731,6 +761,56 @@ export class Game {
           const idx = playerState.activeEffects.findIndex(e => e.id === effect.id);
           if (idx !== -1) playerState.activeEffects.splice(idx, 1);
           this.cancelTimer(`effect_expire:${effect.id}`);
+          changed = true;
+        }
+      }
+
+      // Paranoia fake thief loop
+      for (const effect of playerState.activeEffects) {
+        if (effect.itemId !== 'paranoia_curse' || !effect.data) continue;
+        const data = effect.data as { fake: unknown; nextFakeAt: number };
+
+        if (playerState.thiefAttack !== null) {
+          // Real thief suppresses fakes; reset nextFakeAt so they resume quickly after
+          if (data.fake !== null) {
+            data.fake = null;
+            data.nextFakeAt = now + PARANOIA_RESPAWN_DELAY_MS;
+            changed = true;
+          }
+          continue;
+        }
+
+        // Expire a running fake after its durationMs
+        if (data.fake !== null) {
+          const fake = data.fake as { deployedAt: number; durationMs: number };
+          if (now >= fake.deployedAt + fake.durationMs) {
+            data.fake = null;
+            data.nextFakeAt = now + PARANOIA_RESPAWN_DELAY_MS;
+            changed = true;
+          }
+          continue;
+        }
+
+        // Spawn new fake
+        if (now >= data.nextFakeAt) {
+          const curserSlot = this.getSlotOf(effect.sourcePlayerId) ?? 'p1';
+          const casterState = this.state.players[effect.sourcePlayerId];
+          const thiefLevel = Math.max(1, this.getToolLevel(casterState ?? playerState, 'thief'));
+          const thiefCfg = THIEF_LEVELS[thiefLevel - 1];
+          const disguises = ['none', 'partial', 'full'] as const;
+          const disguise = disguises[Math.floor(Math.random() * disguises.length)];
+          data.fake = {
+            phase: 'stealing' as const,
+            deployedAt: now,
+            minEntryAt: now,
+            entryAt: now,
+            stealStartedAt: now,
+            lastProcessedAt: null,
+            durationMs: thiefCfg.durationMs,
+            stealPerSecond: thiefCfg.stealPerSecond,
+            disguise,
+            actorSlot: curserSlot,
+          };
           changed = true;
         }
       }
@@ -827,14 +907,14 @@ export class Game {
     const actualStolen = Math.min(victimState.gold, toSteal);
 
     if (actualStolen > 0) {
-      const actorId = this.getPlayerIdBySlot(attack.actorSlot);
-      const actorState = actorId ? this.state.players[actorId] : null;
+      const creditId = attack.beneficiaryId ?? this.getPlayerIdBySlot(attack.actorSlot);
+      const creditState = creditId ? this.state.players[creditId] : null;
       const stolen = Math.floor(actualStolen);
       victimState.gold = Math.max(0, victimState.gold - stolen);
       victimState.stats.goldLostToThief += stolen;
-      if (actorState) {
-        actorState.gold += stolen;
-        actorState.stats.goldStolenByThief += stolen;
+      if (creditState) {
+        creditState.gold += stolen;
+        creditState.stats.goldStolenByThief += stolen;
       }
     }
 
@@ -1043,12 +1123,74 @@ export class Game {
   }
 
   // ---------------------------------------------------------------------------
+  // Mirror / Paranoia / Fake-Merchant helpers
+  // ---------------------------------------------------------------------------
+
+  private mirrorActive(now: number): ActiveEffect | null {
+    if (!this.state) return null;
+    for (const ps of Object.values(this.state.players)) {
+      const mirror = ps.activeEffects.find(
+        e => e.itemId === 'mirror_curse' && (e.endsAt === null || e.endsAt > now),
+      );
+      if (mirror) return mirror;
+    }
+    return null;
+  }
+
+  private findParanoiaWithFake(ps: PlayerState): ActiveEffect | null {
+    return ps.activeEffects.find(
+      e => e.itemId === 'paranoia_curse' && e.data != null && (e.data as { fake: unknown }).fake != null,
+    ) ?? null;
+  }
+
+  private sendToastTo(recipientId: string, text: string): void {
+    const session = this.getSessions().find(s => s.playerId === recipientId);
+    session?.send({ type: 'toast', text });
+  }
+
+  private deployFakeMerchant(opponentId: string, byPlayerId: string, afterMs?: number): void {
+    if (afterMs && afterMs > 0) {
+      this.scheduleTimer(
+        `fake_merchant_deploy:${opponentId}`,
+        Date.now() + afterMs,
+        () => this.deployFakeMerchant(opponentId, byPlayerId),
+      );
+      return;
+    }
+    if (!this.state) return;
+    const opponent = this.state.players[opponentId];
+    if (!opponent || opponent.merchant?.fake) return;
+    const now = Date.now();
+    const fakeOffers = this.rollOffers(opponent, 1 - FAKE_MERCHANT_PRICE_PCT);
+    const leavesAt = now + MERCHANT_STAY_MS;
+    opponent.merchant = {
+      visitIndex: -1,
+      arrivesAt: now,
+      leavesAt,
+      discountPct: 0,
+      offers: fakeOffers,
+      windowOpen: false,
+      fake: { byPlayerId, feeStep: 0, drained: 0 },
+    };
+    this.scheduleTimer(`merchant_leave:${opponentId}`, leavesAt, () => this.tryMerchantDepart(opponentId));
+    this.broadcastState();
+  }
+
+  // ---------------------------------------------------------------------------
   // Per-player redacted broadcast
   // ---------------------------------------------------------------------------
 
   private redactStateFor(recipientId: string): GameState {
     const clone = structuredClone(this.state!) as GameState;
     for (const [pid, ps] of Object.entries(clone.players)) {
+      // Paranoia: synthesize fake thief for the victim before stripping effects
+      if (pid === recipientId && ps.thiefAttack === null) {
+        const paranoia = this.findParanoiaWithFake(ps);
+        if (paranoia?.data) {
+          ps.thiefAttack = (paranoia.data as { fake: ThiefAttack }).fake;
+        }
+      }
+
       ps.activeEffects = ps.activeEffects.filter(e => {
         if (e.visibility === 'both') return true;
         if (e.visibility === 'owner') return pid === recipientId;
@@ -1171,6 +1313,13 @@ export class Game {
       this.scheduleTimer(`merchant_leave:${playerId}`, now + MERCHANT_WINDOW_RECHECK_MS, () => this.tryMerchantDepart(playerId));
       return;
     }
+    // Fake merchant departure: transfer drained gold to source player
+    if (ps.merchant.fake && ps.merchant.fake.drained > 0) {
+      const { byPlayerId, drained } = ps.merchant.fake;
+      const sourceState = this.state.players[byPlayerId];
+      if (sourceState) sourceState.gold += drained;
+      this.sendToastTo(byPlayerId, `Dein falscher Haendler hat ${drained} Gold ergaunert!`);
+    }
     ps.merchant = null;
     this.broadcastState();
   }
@@ -1206,7 +1355,27 @@ export class Game {
 
     const offer = ps.merchant.offers.find(o => o.itemId === itemId);
     if (!offer) return 'not_offered';
-    if (offer.bought) return 'already_bought';
+
+    // Fake merchant: drain gold without delivering the item
+    if (ps.merchant.fake) {
+      if (ps.gold < offer.price) return 'insufficient_gold';
+      ps.gold -= offer.price;
+      ps.stats.goldSpentMerchant += offer.price;
+      ps.merchant.fake.drained += offer.price;
+      ps.merchant.fake.feeStep++;
+      const step = ps.merchant.fake.feeStep;
+      const fee = FAKE_MERCHANT_FEE_SCHEDULE[Math.min(step - 1, FAKE_MERCHANT_FEE_SCHEDULE.length - 1)];
+      for (const o of ps.merchant.offers) {
+        if (!o.bought) o.price += fee;
+      }
+      if (step - 1 < FAKE_MERCHANT_EXCUSES.length) {
+        ps.merchant.notice = FAKE_MERCHANT_EXCUSES[step - 1];
+      }
+      this.broadcastState();
+      return 'ok';
+    }
+
+    if (ps.merchant.offers.some(o => o.bought)) return 'already_bought';
     if (ps.gold < offer.price) return 'insufficient_gold';
 
     const def = ITEM_DEFS[itemId];
@@ -1270,6 +1439,7 @@ export class Game {
         if (field) this.rescheduleFieldTimer(pid, field);
       },
       broadcastState: () => this.broadcastState(),
+      deployFakeMerchant: (oId: string, byId: string, afterMs?: number) => this.deployFakeMerchant(oId, byId, afterMs),
     };
 
     const result = handler(ctx);

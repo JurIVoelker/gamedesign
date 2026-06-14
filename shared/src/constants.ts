@@ -120,3 +120,19 @@ export const MERCHANT_CATCHUP_STAGES = [
 
 export const CRYSTAL_BALL_LEAD_MS = 5_000;
 export const SPY_REPORT_INTERVAL_MS = 10_000;
+
+// ---------------------------------------------------------------------------
+// Deception Items
+// ---------------------------------------------------------------------------
+
+export const PARANOIA_FIRST_DELAY_MIN_MS = 3_000;
+export const PARANOIA_FIRST_DELAY_MAX_MS = 8_000;
+export const PARANOIA_RESPAWN_DELAY_MS = 500;
+
+export const FAKE_MERCHANT_PRICE_PCT = 0.35;
+export const FAKE_MERCHANT_EXCUSES = [
+  "Dazu kommen noch Versandkosten...",
+  "...plus die Steuer.",
+  "...und ein kleines Trinkgeld?",
+] as const;
+export const FAKE_MERCHANT_FEE_SCHEDULE = [5, 8, 12] as const;

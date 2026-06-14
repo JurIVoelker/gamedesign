@@ -1,4 +1,4 @@
-import { ITEM_DEFS } from '@gamedesign/shared';
+import { ITEM_DEFS, PARANOIA_FIRST_DELAY_MIN_MS, PARANOIA_FIRST_DELAY_MAX_MS } from '@gamedesign/shared';
 import type { GameState, PlayerState, ActiveEffect, ItemId } from '@gamedesign/shared';
 
 export interface ItemContext {
@@ -13,6 +13,7 @@ export interface ItemContext {
   cancelTimer: (key: string) => void;
   rescheduleFieldTimer: (playerId: string, fieldIndex: number) => void;
   broadcastState: () => void;
+  deployFakeMerchant: (opponentId: string, byPlayerId: string, afterMs?: number) => void;
 }
 
 export type ItemEffectHandler = (ctx: ItemContext) => 'ok' | 'invalid_target' | 'not_applicable';
@@ -53,6 +54,43 @@ export const ITEM_HANDLERS: Partial<Record<ItemId, ItemEffectHandler>> = {
       endsAt: ctx.now + durationMs,
       visibility: 'owner',
     });
+    return 'ok';
+  },
+
+  paranoia_curse: (ctx) => {
+    const { now, opponent, user } = ctx;
+    if (opponent.activeEffects.some(e => e.itemId === 'paranoia_curse')) return 'not_applicable';
+    const durationMs = ITEM_DEFS.paranoia_curse.durationMs ?? 60_000;
+    const firstDelay = PARANOIA_FIRST_DELAY_MIN_MS +
+      Math.random() * (PARANOIA_FIRST_DELAY_MAX_MS - PARANOIA_FIRST_DELAY_MIN_MS);
+    ctx.addEffect(opponent, {
+      itemId: 'paranoia_curse',
+      sourcePlayerId: user.id,
+      endsAt: now + durationMs,
+      visibility: 'source',
+      data: { fake: null, nextFakeAt: now + firstDelay },
+    });
+    return 'ok';
+  },
+
+  mirror_curse: (ctx) => {
+    const { now, user } = ctx;
+    if (user.activeEffects.some(e => e.itemId === 'mirror_curse')) return 'not_applicable';
+    const durationMs = ITEM_DEFS.mirror_curse.durationMs ?? 30_000;
+    ctx.addEffect(ctx.user, {
+      itemId: 'mirror_curse',
+      sourcePlayerId: user.id,
+      endsAt: now + durationMs,
+      visibility: 'owner',
+    });
+    return 'ok';
+  },
+
+  fake_merchant: (ctx) => {
+    const { opponent, user, now } = ctx;
+    if (opponent.merchant?.fake) return 'not_applicable';
+    const afterMs = opponent.merchant ? Math.max(0, opponent.merchant.leavesAt - now + 100) : undefined;
+    ctx.deployFakeMerchant(opponent.id, user.id, afterMs);
     return 'ok';
   },
 };

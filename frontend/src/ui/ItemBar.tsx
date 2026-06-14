@@ -90,7 +90,7 @@ function SpyChip({ effect, now }: { effect: ActiveEffect; now: number }) {
   );
 }
 
-function ItemCard({ item }: { item: Item }) {
+function ItemCard({ item, isActive }: { item: Item; isActive: boolean }) {
   const send = useConnectionStore((s) => s.send);
   const def = ITEM_DEFS[item.id as ItemId];
   const targetType = def?.target ?? "none";
@@ -153,10 +153,10 @@ function ItemCard({ item }: { item: Item }) {
       <button
         className="btn-upgrade-action"
         style={{ fontSize: 6, padding: "2px 8px", width: "100%" }}
-        disabled={item.count <= 0}
+        disabled={item.count <= 0 || isActive}
         onClick={handleUse}
       >
-        Benutzen
+        {isActive ? "Aktiv" : "Benutzen"}
       </button>
     </div>
   );
@@ -168,8 +168,17 @@ export function ItemBar() {
   const now = useNow(1_000);
 
   const me = playerId ? game?.players[playerId] : null;
+  const opponent =
+    Object.values(game?.players ?? {}).find((p) => p.id !== playerId) ?? null;
+
   const items = me?.items.filter((i) => i.count > 0) ?? [];
-  const effects = me?.activeEffects ?? [];
+  const ownEffects = me?.activeEffects ?? [];
+  // Effects this player cast on the opponent (visible via visibility:'source')
+  const sourceEffects = (opponent?.activeEffects ?? []).filter(
+    (e) => e.sourcePlayerId === playerId,
+  );
+  const effects = [...ownEffects, ...sourceEffects];
+  const activeItemIds = new Set(effects.map((e) => e.itemId));
 
   if (items.length === 0 && effects.length === 0) return null;
 
@@ -214,7 +223,11 @@ export function ItemBar() {
           }}
         >
           {items.map((item) => (
-            <ItemCard key={item.id} item={item} />
+            <ItemCard
+              key={item.id}
+              item={item}
+              isActive={activeItemIds.has(item.id as ItemId)}
+            />
           ))}
         </div>
       )}

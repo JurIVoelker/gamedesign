@@ -27,6 +27,7 @@ export type OpponentLeftMsg = { type: 'opponent_left' };
 export type GameStateMsg = { type: 'game_state'; state: GameState };
 export type ErrorMsg = { type: 'error'; message: string };
 export type PingMsg = { type: 'ping' };
+export type ToastMsg = { type: 'toast'; text: string };
 
 export type ServerMessage =
   | AssignedMsg
@@ -35,7 +36,8 @@ export type ServerMessage =
   | OpponentLeftMsg
   | GameStateMsg
   | ErrorMsg
-  | PingMsg;
+  | PingMsg
+  | ToastMsg;
 
 // ---------------------------------------------------------------------------
 // Type guards
@@ -57,6 +59,7 @@ export function isServerMessage(msg: unknown): msg is ServerMessage {
     t === 'opponent_left' ||
     t === 'game_state' ||
     t === 'error' ||
-    t === 'ping'
+    t === 'ping' ||
+    t === 'toast'
   );
 }
