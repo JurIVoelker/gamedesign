@@ -25,13 +25,13 @@ export const FERTILIZER_UPGRADE_COSTS = [100, 250, 500];
 export const CROW_LEVEL_CONFIG = [
   { fieldCount: 1, eatRatePerMs: 1 / 10_000, scareDurationMs: 1_500 },  // Lv1
   { fieldCount: 2, eatRatePerMs: 1 /  7_000, scareDurationMs: 1_500 },  // Lv2
-  { fieldCount: 3, eatRatePerMs: 1 /  8_000, scareDurationMs: 1_500 },  // Lv3
+  { fieldCount: 3, eatRatePerMs: 1 /  5_500, scareDurationMs: 2_000 },  // Lv3
 ] as const;
 
 export type CrowLevelCfg = (typeof CROW_LEVEL_CONFIG)[number];
 
 export const MAX_CROW_LEVEL = 3;
-export const CROW_UPGRADE_COSTS = [20, 55, 150] as const;  // to Lv1, Lv2, Lv3
+export const CROW_UPGRADE_COSTS = [20, 55, 110] as const;  // to Lv1, Lv2, Lv3
 export const CROW_SEND_COST = 8;
 export const CROW_COOLDOWN_MS = 35_000;
 
@@ -51,11 +51,11 @@ export const THIEF_UPGRADE_COSTS = [35, 80, 150] as const;  // to Lv1, Lv2, Lv3
 export const WEATHER_LEVELS = [
   { cost: 15, cooldownMs: 70_000, slowFactor: 0.30, actionSlowFactor: 0.55, durationMs: 40_000, lightning: false },
   { cost: 28, cooldownMs: 70_000, slowFactor: 0.50, actionSlowFactor: 0.70, durationMs: 40_000, lightning: false },
-  { cost: 35, cooldownMs: 70_000, slowFactor: 0.50, actionSlowFactor: 0.70, durationMs: 40_000, lightning: true },
+  { cost: 35, cooldownMs: 70_000, slowFactor: 0.65, actionSlowFactor: 0.82, durationMs: 40_000, lightning: true },
 ] as const;
 
 export const MAX_WEATHER_LEVEL = 3;
-export const WEATHER_UPGRADE_COSTS = [30, 80, 140] as const;  // to Lv1, Lv2, Lv3
+export const WEATHER_UPGRADE_COSTS = [30, 80, 100] as const;  // to Lv1, Lv2, Lv3
 // Max extra ms added to a growing field's readyAt when weather is applied
 export const WEATHER_MAX_EXTRA_MS = 20_000;
 
