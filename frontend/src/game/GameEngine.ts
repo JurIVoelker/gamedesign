@@ -7,6 +7,7 @@ import {
   TextureStyle,
 } from "pixi.js";
 import type { GameState } from "@gamedesign/shared";
+import { LIGHTNING_STRIKE_DELAY_MS } from "@gamedesign/shared";
 import { FieldEntity, FIELD_W, FIELD_H } from "./entities/FieldEntity";
 import { HouseEntity, HOUSE_W, HOUSE_H } from "./entities/HouseEntity";
 import { MerchantEntity } from "./entities/MerchantEntity";
@@ -17,6 +18,15 @@ import { H_GAP, ROW_GAP, MARGIN, FARM_W, SCENE_H_INNER, rowY } from "./layout";
 
 const FIELD_COUNT = 4;
 const OUTER_MARGIN = 60;
+
+// Lightning animation timings (ms) and opacity values
+const LTG_FLASH1_MS = 50;
+const LTG_FLASH1_FADE_MS = 80;
+const LTG_GAP_MS = 60;
+const LTG_FLASH2_MS = 40;
+const LTG_FLASH2_FADE_MS = 100;
+const LTG_ALPHA1 = 0.85;
+const LTG_ALPHA2 = 0.45;
 
 const SCENE_H = SCENE_H_INNER;
 
@@ -335,7 +345,7 @@ export class GameEngine {
       const hadPlayerLightning = this.playerHasLightning;
       this.playerHasLightning = myState.weatherEffect?.lightning ?? false;
       if (!hadPlayerLightning && this.playerHasLightning && !isBlinded) {
-        setTimeout(() => this.triggerPlayerLightningStrike(), 2000);
+        setTimeout(() => this.triggerPlayerLightningStrike(), LIGHTNING_STRIKE_DELAY_MS);
       }
     }
     if (opponentState) {
@@ -355,7 +365,7 @@ export class GameEngine {
       this.opponentHasLightning =
         opponentState.weatherEffect?.lightning ?? false;
       if (!hadLightning && this.opponentHasLightning && !isBlinded) {
-        setTimeout(() => this.triggerLightningStrike(), 2000);
+        setTimeout(() => this.triggerLightningStrike(), LIGHTNING_STRIKE_DELAY_MS);
       }
     }
   }
@@ -412,18 +422,18 @@ export class GameEngine {
 
   private triggerPlayerLightningStrike(): void {
     this.playerLightningPhase = "flash1";
-    this.playerLightningTimer = 50;
+    this.playerLightningTimer = LTG_FLASH1_MS;
     if (this.playerLightningOverlay) {
-      this.playerLightningOverlay.alpha = 0.85;
+      this.playerLightningOverlay.alpha = LTG_ALPHA1;
       this.playerLightningOverlay.visible = true;
     }
   }
 
   private triggerLightningStrike(): void {
     this.lightningPhase = "flash1";
-    this.lightningTimer = 50;
+    this.lightningTimer = LTG_FLASH1_MS;
     if (this.opponentLightningOverlay) {
-      this.opponentLightningOverlay.alpha = 0.85;
+      this.opponentLightningOverlay.alpha = LTG_ALPHA1;
       this.opponentLightningOverlay.visible = true;
     }
   }
@@ -436,33 +446,33 @@ export class GameEngine {
       case "flash1":
         if (this.playerLightningTimer <= 0) {
           this.playerLightningPhase = "flash1_fade";
-          this.playerLightningTimer = 80;
+          this.playerLightningTimer = LTG_FLASH1_FADE_MS;
         }
         break;
       case "flash1_fade":
-        overlay.alpha = Math.max(0, 0.85 * (this.playerLightningTimer / 80));
+        overlay.alpha = Math.max(0, LTG_ALPHA1 * (this.playerLightningTimer / LTG_FLASH1_FADE_MS));
         if (this.playerLightningTimer <= 0) {
           overlay.visible = false;
           this.playerLightningPhase = "gap";
-          this.playerLightningTimer = 60;
+          this.playerLightningTimer = LTG_GAP_MS;
         }
         break;
       case "gap":
         if (this.playerLightningTimer <= 0) {
           this.playerLightningPhase = "flash2";
-          this.playerLightningTimer = 40;
-          overlay.alpha = 0.45;
+          this.playerLightningTimer = LTG_FLASH2_MS;
+          overlay.alpha = LTG_ALPHA2;
           overlay.visible = true;
         }
         break;
       case "flash2":
         if (this.playerLightningTimer <= 0) {
           this.playerLightningPhase = "flash2_fade";
-          this.playerLightningTimer = 100;
+          this.playerLightningTimer = LTG_FLASH2_FADE_MS;
         }
         break;
       case "flash2_fade":
-        overlay.alpha = Math.max(0, 0.45 * (this.playerLightningTimer / 100));
+        overlay.alpha = Math.max(0, LTG_ALPHA2 * (this.playerLightningTimer / LTG_FLASH2_FADE_MS));
         if (this.playerLightningTimer <= 0) {
           overlay.visible = false;
           this.playerLightningPhase = "idle";
@@ -481,33 +491,33 @@ export class GameEngine {
       case "flash1":
         if (this.lightningTimer <= 0) {
           this.lightningPhase = "flash1_fade";
-          this.lightningTimer = 80;
+          this.lightningTimer = LTG_FLASH1_FADE_MS;
         }
         break;
       case "flash1_fade":
-        overlay.alpha = Math.max(0, 0.85 * (this.lightningTimer / 80));
+        overlay.alpha = Math.max(0, LTG_ALPHA1 * (this.lightningTimer / LTG_FLASH1_FADE_MS));
         if (this.lightningTimer <= 0) {
           overlay.visible = false;
           this.lightningPhase = "gap";
-          this.lightningTimer = 60;
+          this.lightningTimer = LTG_GAP_MS;
         }
         break;
       case "gap":
         if (this.lightningTimer <= 0) {
           this.lightningPhase = "flash2";
-          this.lightningTimer = 40;
-          overlay.alpha = 0.45;
+          this.lightningTimer = LTG_FLASH2_MS;
+          overlay.alpha = LTG_ALPHA2;
           overlay.visible = true;
         }
         break;
       case "flash2":
         if (this.lightningTimer <= 0) {
           this.lightningPhase = "flash2_fade";
-          this.lightningTimer = 100;
+          this.lightningTimer = LTG_FLASH2_FADE_MS;
         }
         break;
       case "flash2_fade":
-        overlay.alpha = Math.max(0, 0.45 * (this.lightningTimer / 100));
+        overlay.alpha = Math.max(0, LTG_ALPHA2 * (this.lightningTimer / LTG_FLASH2_FADE_MS));
         if (this.lightningTimer <= 0) {
           overlay.visible = false;
           this.lightningPhase = "idle";

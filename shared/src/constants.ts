@@ -25,7 +25,7 @@ export const FERTILIZER_UPGRADE_COSTS = [100, 250, 500];
 export const CROW_LEVEL_CONFIG = [
   { fieldCount: 1, eatRatePerMs: 1 / 10_000, scareDurationMs: 1_500 },  // Lv1
   { fieldCount: 2, eatRatePerMs: 1 /  7_000, scareDurationMs: 1_500 },  // Lv2
-  { fieldCount: 3, eatRatePerMs: 1 /  5_500, scareDurationMs: 2_000 },  // Lv3
+  { fieldCount: 3, eatRatePerMs: 1 /  6_500, scareDurationMs: 2_000 },  // Lv3
 ] as const;
 
 export type CrowLevelCfg = (typeof CROW_LEVEL_CONFIG)[number];
@@ -60,6 +60,9 @@ export const WEATHER_UPGRADE_COSTS = [30, 80, 100] as const;  // to Lv1, Lv2, Lv
 export const WEATHER_MAX_EXTRA_MS = 20_000;
 
 export const ACCUSATION_PAUSE_MS = 20_000;
+
+// Delay between weather effect arriving and lightning actually striking the field
+export const LIGHTNING_STRIKE_DELAY_MS = 2_000;
 
 // ---------------------------------------------------------------------------
 // Items & Merchant
@@ -136,6 +139,7 @@ export const PARANOIA_FIRST_DELAY_MAX_MS = 8_000;
 export const PARANOIA_RESPAWN_DELAY_MS = 500;
 
 export const FAKE_MERCHANT_PRICE_PCT = 0.35;
+export const FAKE_MERCHANT_WAIT_BUFFER_MS = 100;  // grace ms between real merchant leaving and fake arriving
 export const FAKE_MERCHANT_EXCUSES = [
   "Dazu kommen noch Versandkosten...",
   "...plus die Steuer.",

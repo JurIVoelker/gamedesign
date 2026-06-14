@@ -28,6 +28,7 @@ import {
   WEATHER_UPGRADE_COSTS,
   WEATHER_MAX_EXTRA_MS,
   ACCUSATION_PAUSE_MS,
+  LIGHTNING_STRIKE_DELAY_MS,
   ITEM_DEFS,
   MERCHANT_VISITS,
   MERCHANT_STAY_MS,
@@ -702,7 +703,7 @@ export class Game {
           f.stage === 'ready' ? 1 : (now - (f.sowedAt ?? now)) / ((f.readyAt ?? now + 1) - (f.sowedAt ?? now));
         const target = eligible.reduce((best, f) => progress(f) > progress(best) ? f : best);
         this.cancelTimer(`${effectiveVictim.id}:${target.index}`);
-        const strikeAt = now + 2000;
+        const strikeAt = now + LIGHTNING_STRIKE_DELAY_MS;
         const victimId = effectiveVictim.id;
         this.scheduleTimer(`lightning:${victimId}:${target.index}`, strikeAt, () => {
           if (!this.state) return;
@@ -798,8 +799,7 @@ export class Game {
           const casterState = this.state.players[effect.sourcePlayerId];
           const thiefLevel = Math.max(1, this.getToolLevel(casterState ?? playerState, 'thief'));
           const thiefCfg = THIEF_LEVELS[thiefLevel - 1];
-          const disguises = ['none', 'partial', 'full'] as const;
-          const disguise = disguises[Math.floor(Math.random() * disguises.length)];
+          const disguise = thiefCfg.disguise;
           data.fake = {
             phase: 'stealing' as const,
             deployedAt: now,

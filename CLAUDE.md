@@ -27,6 +27,13 @@ No test suite exists yet.
 
 Use double quotes for strings in TypeScript/TSX files (enforced by Prettier).
 
+**No magic numbers or magic strings.** Every numerical or otherwise important literal must be a named constant. The home for constants depends on who needs them:
+- Values shared between backend and frontend → `shared/src/constants.ts`
+- Values used only in the backend → a named `const` at the top of the relevant backend file (or `backend/src/constants.ts` if widely used across backend files)
+- Values used only in the frontend → a named `const` at the top of the relevant frontend file (or a dedicated frontend constants file)
+
+Never write bare literals like `2000`, `0.85`, or `"ABCDEFG..."` inline in logic — always reference a named constant with a descriptive name. This prevents silent drift when the same value appears in both backend and frontend (e.g. timing that must match).
+
 ## Working style
 
 Ask questions more than usual. When something is underspecified or involves a design choice (layout, naming, architecture, game mechanics), always ask before implementing. Use the `AskUserQuestion` tool to ask — never just plain text questions.
