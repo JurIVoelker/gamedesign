@@ -88,7 +88,7 @@ export interface ItemDef {
 
 export const ITEM_DEFS: Record<ItemId, ItemDef> = {
   pointless_potion:  { id: "pointless_potion",  name: "Trank der Unnötigkeit", price: 20,  rarityWeight: 14, maxPerMatch: null, target: "none",                    durationMs: null    },
-  blindness_potion:  { id: "blindness_potion",  name: "Blindheitstrank",        price: 45,  rarityWeight: 18, maxPerMatch: null, target: "none",                    durationMs: 20_000  },
+  blindness_potion:  { id: "blindness_potion",  name: "Blindheitstrank",        price: 45,  rarityWeight: 18, maxPerMatch: null, target: "none",                    durationMs: 15_000  },
   spy_glass:         { id: "spy_glass",         name: "Spion",                  price: 50,  rarityWeight: 14, maxPerMatch: 2,    target: "none",                    durationMs: 120_000 },
   fake_merchant:     { id: "fake_merchant",     name: "Falscher Händler",       price: 55,  rarityWeight: 10, maxPerMatch: 2,    target: "none",                    durationMs: null    },
   paranoia_curse:    { id: "paranoia_curse",    name: "Paranoia-Fluch",         price: 60,  rarityWeight: 12, maxPerMatch: 2,    target: "none",                    durationMs: 60_000  },

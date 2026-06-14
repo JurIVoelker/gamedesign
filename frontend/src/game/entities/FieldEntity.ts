@@ -28,6 +28,14 @@ const PROGRESS_RADIUS = Math.ceil(
   Math.sqrt((FIELD_W / 2) ** 2 + (FIELD_H / 2) ** 2),
 );
 
+interface Particle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+}
+
 export class FieldEntity extends Entity {
   private farmSprite: Sprite | null = null;
   private base: Graphics | null = null;
@@ -35,6 +43,7 @@ export class FieldEntity extends Entity {
   private fieldContainer: Container | null = null;
   private crowAnimator: CrowAnimator | null = null;
   private field: Field | null = null;
+  private prevField: Field | null = null;
   private lastInteractiveStage: CropStage | null = null;
   private lastHadCrowAttack = false;
   private lastWasTargetEligible = false;
@@ -43,6 +52,9 @@ export class FieldEntity extends Entity {
   private readonly onSow: (() => void) | null;
   private readonly onHarvest: (() => void) | null;
   private readonly onScareCrow: (() => void) | null;
+  private particles: Particle[] = [];
+  private lastParticleUpdate = 0;
+  private blinded = false;
 
   constructor(
     id: number,
@@ -60,6 +72,24 @@ export class FieldEntity extends Entity {
   }
 
   setField(field: Field | null): void {
+    const prev = this.prevField;
+    // Detect swap: a non-sowing transition that lands on growing/ready with changed timestamps
+    if (prev !== null) {
+      const wasActive = prev.stage === "growing" || prev.stage === "ready";
+      const wasSowing = prev.stage === "sowing";
+      const isActive =
+        field !== null &&
+        (field.stage === "growing" || field.stage === "ready");
+      const isNormalCompletion =
+        prev.stage === "growing" && field?.stage === "ready";
+      const swapDetected =
+        !wasSowing &&
+        !isNormalCompletion &&
+        ((wasActive && isActive && prev.sowedAt !== field.sowedAt) ||
+          (!wasActive && isActive));
+      if (swapDetected) this.spawnSwapParticles();
+    }
+    this.prevField = field;
     this.field = field;
   }
 
@@ -95,10 +125,23 @@ export class FieldEntity extends Entity {
   }
 
   update(): void {
-    if (this.base) this.draw();
+    const now = Date.now();
+    const dt = this.lastParticleUpdate > 0 ? now - this.lastParticleUpdate : 0;
+    this.lastParticleUpdate = now;
+    if (this.particles.length > 0) {
+      for (const p of this.particles) {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.life = Math.max(0, p.life - dt / 600);
+      }
+      for (let i = this.particles.length - 1; i >= 0; i--) {
+        if (this.particles[i].life <= 0) this.particles.splice(i, 1);
+      }
+    }
+    if (this.base) this.draw(now);
   }
 
-  private draw(): void {
+  private draw(now = Date.now()): void {
     const base = this.base!;
     const progress = this.progress!;
     base.clear();
@@ -117,14 +160,20 @@ export class FieldEntity extends Entity {
     // Targeting state
     const targeting = useTargetingStore.getState();
     const isEligibleTarget =
-      targeting.active &&
-      this.owner === "opponent" &&
-      (stage === "growing" || stage === "ready") &&
-      !field?.crowAttack &&
-      !targeting.chosen.includes(this.id);
+      (targeting.active &&
+        !targeting.ownFarm &&
+        this.owner === "opponent" &&
+        (stage === "growing" || stage === "ready") &&
+        !field?.crowAttack &&
+        !targeting.chosen.includes(this.id)) ||
+      (targeting.active &&
+        targeting.ownFarm &&
+        this.owner === "player" &&
+        stage !== "sowing" &&
+        stage !== "harvesting" &&
+        !targeting.chosen.includes(this.id));
     const isChosen = targeting.active && targeting.chosen.includes(this.id);
 
-    const now = Date.now();
     // Normal grow progress (0→1) from sowedAt/readyAt timestamps
     let stageProgress =
       field?.sowedAt && field?.readyAt
@@ -161,7 +210,7 @@ export class FieldEntity extends Entity {
       effectiveProgress = isReady ? 1 : stageProgress;
     }
 
-    this.farmSprite!.tint = hasCrow ? 0xaa7755 : 0xffffff;
+    this.farmSprite!.tint = hasCrow && !this.blinded ? 0xaa7755 : 0xffffff;
 
     // Plants (soil rows are provided by the farm.png sprite)
     const isHarvesting = stage === "harvesting";
@@ -223,7 +272,7 @@ export class FieldEntity extends Entity {
 
     // Targeting overlay — eligible field pulsing border
     if (isEligibleTarget) {
-      const pulse = 0.6 + 0.4 * Math.sin(Date.now() / 200);
+      const pulse = 0.6 + 0.4 * Math.sin(now / 200);
       base.rect(0, 0, FIELD_W, FIELD_H).stroke({
         color: 0xff6600,
         width: 3,
@@ -245,10 +294,12 @@ export class FieldEntity extends Entity {
           this.owner,
           field?.crowAttack?.level ?? 1,
         );
+        this.crowAnimator.setBlinded(this.blinded);
       } else {
         this.crowAnimator?.startFlyAway();
       }
     }
+    this.crowAnimator?.setBlinded(this.blinded);
     // Clean up once all crows have flown off screen
     if (this.crowAnimator?.isDone) {
       this.crowAnimator.destroy();
@@ -256,9 +307,14 @@ export class FieldEntity extends Entity {
     }
     this.crowAnimator?.update();
 
+    // Swap particle burst
+    for (const p of this.particles) {
+      base.circle(p.x, p.y, 2).fill({ color: 0xf0c040, alpha: p.life });
+    }
+
     // Scaring border — orange flash while scare animation plays
     if (isScaring) {
-      const pulse = 0.5 + 0.5 * Math.abs(Math.sin(Date.now() / 120));
+      const pulse = 0.5 + 0.5 * Math.abs(Math.sin(now / 120));
       base.rect(0, 0, FIELD_W, FIELD_H).stroke({
         color: 0xffdd00,
         width: 3,
@@ -297,6 +353,26 @@ export class FieldEntity extends Entity {
       this.lastWasTargetEligible = isEligibleTarget;
       this.lastWasChosen = isChosen;
       this.lastWasScaring = isScaring;
+    }
+  }
+
+  setBlinded(b: boolean): void {
+    this.blinded = b;
+    this.crowAnimator?.setBlinded(b);
+  }
+
+  private spawnSwapParticles(): void {
+    const COUNT = 20;
+    for (let i = 0; i < COUNT; i++) {
+      const angle = (i / COUNT) * Math.PI * 2;
+      const speed = 0.04 + Math.random() * 0.04;
+      this.particles.push({
+        x: FIELD_W / 2,
+        y: FIELD_H / 2,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 1.0,
+      });
     }
   }
 

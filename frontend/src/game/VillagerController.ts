@@ -137,6 +137,10 @@ export class VillagerController {
     }
   }
 
+  setBlinded(blinded: boolean): void {
+    for (const v of this.villagers) v.entity.blinded = blinded;
+  }
+
   setFrozenVillager(id: number | null): void {
     this.frozenVillagerId = id;
     if (id !== null) {

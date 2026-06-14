@@ -73,7 +73,8 @@ function SpyChip({ effect, now }: { effect: ActiveEffect; now: number }) {
           color: "#c8a84b",
         }}
       >
-        {"\u{1F575}️"} Gegner: {displayedGold !== null ? `${displayedGold} G` : "?"}
+        {"\u{1F575}️"} Gegner:{" "}
+        {displayedGold !== null ? `${displayedGold} G` : "?"}
       </div>
       {remaining !== null && (
         <div
@@ -113,8 +114,30 @@ function ItemCard({ item, isActive }: { item: Item; isActive: boolean }) {
           },
         });
       });
+    } else if (targetType === "own_and_opponent_field") {
+      // Phase 1: pick own field; phase 2: pick opponent field
+      targetingStart(
+        1,
+        (ownIndices) => {
+          targetingStart(
+            1,
+            (oppIndices) => {
+              send?.({
+                type: "player_action",
+                action: {
+                  kind: "UseItem",
+                  itemId: item.id as ItemId,
+                  targetFieldIndex: ownIndices[0],
+                  secondTargetFieldIndex: oppIndices[0],
+                },
+              });
+            },
+            false,
+          );
+        },
+        true,
+      );
     }
-    // own_and_opponent_field (Swap Potion) is handled in plan 04
   };
 
   return (

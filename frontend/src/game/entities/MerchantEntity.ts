@@ -7,6 +7,7 @@ export class MerchantEntity {
   private fadeMs = 0;
   private appeared = false;
   private visit: MerchantVisit | null = null;
+  private blinded = false;
   private readonly onClicked: () => void;
   readonly stage: Container;
 
@@ -63,6 +64,14 @@ export class MerchantEntity {
       this.fadeMs = Math.min(600, this.fadeMs + deltaMS);
       this.sprite.alpha = this.fadeMs / 600;
     }
+    if (this.blinded) {
+      this.sprite.visible = true; // keep hit area active
+      this.sprite.alpha = 0;
+    }
+  }
+
+  setBlinded(b: boolean): void {
+    this.blinded = b;
   }
 
   destroy(): void {

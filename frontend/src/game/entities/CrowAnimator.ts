@@ -101,6 +101,10 @@ function buildFrames(): CrowFrames {
 }
 
 class SingleCrow {
+  setVisible(v: boolean): void {
+    if (this.state !== "done") this.sprite.visible = v;
+  }
+
   private state: CrowState = "waiting";
   private sprite: Sprite;
   private frames: CrowFrames;
@@ -364,9 +368,15 @@ class SingleCrow {
 
 export class CrowAnimator {
   private crows: SingleCrow[] = [];
+  private blinded = false;
 
   get isDone(): boolean {
     return this.crows.every((c) => c.isDone);
+  }
+
+  setBlinded(b: boolean): void {
+    this.blinded = b;
+    for (const c of this.crows) c.setVisible(!b);
   }
 
   constructor(parent: Container, owner: Owner, level: number) {
@@ -391,7 +401,10 @@ export class CrowAnimator {
   }
 
   update(): void {
-    for (const c of this.crows) c.update();
+    for (const c of this.crows) {
+      c.update();
+      if (this.blinded) c.setVisible(false);
+    }
   }
 
   destroy(): void {

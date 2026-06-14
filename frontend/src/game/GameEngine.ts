@@ -45,6 +45,7 @@ export class GameEngine {
   private opponentWeatherOverlay: Graphics | null = null;
   private playerLightningOverlay: Graphics | null = null;
   private opponentLightningOverlay: Graphics | null = null;
+  private isBlinded = false;
   private playerLightningPhase:
     | "idle"
     | "flash1"
@@ -227,6 +228,7 @@ export class GameEngine {
     this.opponentWeatherOverlay = null;
     this.playerLightningOverlay = null;
     this.opponentLightningOverlay = null;
+    this.isBlinded = false;
     this.merchantEntity?.destroy();
     this.merchantEntity = null;
     this.villagersSeeded = false;
@@ -299,6 +301,20 @@ export class GameEngine {
       }
     }
 
+    const isBlinded =
+      myState?.activeEffects.some((e) => e.itemId === "blindness_potion") ??
+      false;
+    if (isBlinded !== this.isBlinded) {
+      this.isBlinded = isBlinded;
+      this.playerVillagers?.setBlinded(isBlinded);
+      this.opponentVillagers?.setBlinded(isBlinded);
+      this.playerThief?.setBlinded(isBlinded);
+      this.opponentThief?.setBlinded(isBlinded);
+      this.merchantEntity?.setBlinded(isBlinded);
+      for (const f of this.playerFields) f.setBlinded(isBlinded);
+      for (const f of this.opponentFields) f.setBlinded(isBlinded);
+    }
+
     if (myState) {
       for (let i = 0; i < this.playerFields.length; i++) {
         this.playerFields[i].setField(myState.fields[i] ?? null);
@@ -308,11 +324,11 @@ export class GameEngine {
       this.playerThief?.setAttack(myState.thiefAttack ?? null, "victim");
       const myWeather = myState.weatherEffect != null;
       if (this.playerWeatherOverlay)
-        this.playerWeatherOverlay.visible = myWeather;
+        this.playerWeatherOverlay.visible = myWeather && !isBlinded;
       this.playerVillagers?.setWeather(myWeather);
       const hadPlayerLightning = this.playerHasLightning;
       this.playerHasLightning = myState.weatherEffect?.lightning ?? false;
-      if (!hadPlayerLightning && this.playerHasLightning) {
+      if (!hadPlayerLightning && this.playerHasLightning && !isBlinded) {
         setTimeout(() => this.triggerPlayerLightningStrike(), 2000);
       }
     }
@@ -327,12 +343,12 @@ export class GameEngine {
       );
       const oppWeather = opponentState.weatherEffect != null;
       if (this.opponentWeatherOverlay)
-        this.opponentWeatherOverlay.visible = oppWeather;
+        this.opponentWeatherOverlay.visible = oppWeather && !isBlinded;
       this.opponentVillagers?.setWeather(oppWeather);
       const hadLightning = this.opponentHasLightning;
       this.opponentHasLightning =
         opponentState.weatherEffect?.lightning ?? false;
-      if (!hadLightning && this.opponentHasLightning) {
+      if (!hadLightning && this.opponentHasLightning && !isBlinded) {
         setTimeout(() => this.triggerLightningStrike(), 2000);
       }
     }

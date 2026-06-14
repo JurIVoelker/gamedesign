@@ -16,6 +16,7 @@ export class ThiefEntity {
   direction: Direction = "down";
   walkFrame: number = 0;
   isVisible: boolean = true;
+  blinded: boolean = false;
 
   private sprite: Sprite;
   private glow: Graphics;
@@ -73,6 +74,8 @@ export class ThiefEntity {
     }
     this.sprite.visible = true;
     this.glow.visible = true;
+    this.sprite.alpha = this.blinded ? 0 : 1;
+    this.glow.alpha = this.blinded ? 0 : 1;
     this.draw();
   }
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useConnectionStore } from "../state/connectionStore";
 import { useGameStore } from "../state/gameStore";
+import { useNow } from "../hooks/useNow";
 
 function formatTime(ms: number): string {
   const totalSec = Math.max(0, Math.ceil(ms / 1000));
@@ -12,7 +13,15 @@ function formatTime(ms: number): string {
 export function HUD() {
   const { playerId, send, disconnect } = useConnectionStore();
   const game = useGameStore((s) => s.game);
+  const now = useNow(500);
   const [remaining, setRemaining] = useState<number | null>(null);
+
+  const blindnessEffect = game?.players[playerId ?? ""]?.activeEffects.find(
+    (e) => e.itemId === "blindness_potion",
+  );
+  const blindRemaining = blindnessEffect?.endsAt
+    ? Math.max(0, Math.ceil((blindnessEffect.endsAt - now) / 1000))
+    : null;
   const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
@@ -43,6 +52,14 @@ export function HUD() {
         <span>
           Gold: <span className="text-gold">{gold}</span>
         </span>
+        {blindRemaining !== null && blindRemaining > 0 && (
+          <>
+            <span className="text-muted-gold">|</span>
+            <span className="text-danger">
+              Blind {blindRemaining}s
+            </span>
+          </>
+        )}
         {remaining !== null && (
           <>
             <span className="text-muted-gold">|</span>

@@ -145,8 +145,8 @@ function createPlayerState(playerId: string): PlayerState {
       { id: 'weather',    level: 0, cooldownUntil: 0 },
     ],
     items: (
-      ['paranoia_curse', 'mirror_curse', 'fake_merchant'] as const
-    ).map(id => ({ id, name: ITEM_DEFS[id].name, count: 2, cooldownUntil: 0 })),
+      ['blindness_potion', 'swap_potion'] as const
+    ).map(id => ({ id, name: ITEM_DEFS[id].name, count: 1, cooldownUntil: 0 })),
     thiefAttack: null,
     weatherEffect: null,
     villagersOutside: 4,
@@ -1437,6 +1437,12 @@ export class Game {
       rescheduleFieldTimer: (pid: string, fieldIndex: number) => {
         const field = this.state?.players[pid]?.fields[fieldIndex];
         if (field) this.rescheduleFieldTimer(pid, field);
+      },
+      rescheduleCrowTimer: (pid: string, fieldIndex: number) => {
+        const field = this.state?.players[pid]?.fields[fieldIndex];
+        if (!field?.crowAttack) return;
+        const at = Date.now() + field.crowAttack.baseProgress / field.crowAttack.eatRatePerMs;
+        this.scheduleTimer(`crow:${pid}:${fieldIndex}`, at, () => this.expireCrowAttack(pid, fieldIndex));
       },
       broadcastState: () => this.broadcastState(),
       deployFakeMerchant: (oId: string, byId: string, afterMs?: number) => this.deployFakeMerchant(oId, byId, afterMs),

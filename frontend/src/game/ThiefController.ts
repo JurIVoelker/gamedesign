@@ -25,6 +25,7 @@ export class ThiefController {
   private moveState: MoveState = { kind: "idle", nextAt: 0 };
   private rand: () => number;
   private frozen: boolean = false;
+  private blinded: boolean = false;
 
   private readonly fieldCenters: { x: number; y: number }[];
   private readonly houseEntrances: { x: number; y: number }[];
@@ -118,6 +119,7 @@ export class ThiefController {
       isClickable,
       isClickable ? () => this.onThiefClicked?.() : null,
     );
+    this.entity.blinded = this.blinded;
     this.entity.render(this.farmStage);
 
     this.moveState = {
@@ -197,6 +199,11 @@ export class ThiefController {
 
   private randBetween(min: number, max: number): number {
     return min + this.rand() * (max - min);
+  }
+
+  setBlinded(b: boolean): void {
+    this.blinded = b;
+    if (this.entity) this.entity.blinded = b;
   }
 
   setModalOpen(v: boolean): void {

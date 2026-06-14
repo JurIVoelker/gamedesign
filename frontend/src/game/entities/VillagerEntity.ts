@@ -12,6 +12,7 @@ export class VillagerEntity {
   walkFrame: number = 0;
   isVisible: boolean = true;
   selected: boolean = false;
+  blinded: boolean = false;
 
   private sprite: Sprite;
   private frames: Record<Direction, Texture[]>;
@@ -57,6 +58,7 @@ export class VillagerEntity {
       return;
     }
     this.sprite.visible = true;
+    this.sprite.alpha = this.blinded ? 0 : 1;
     this.sprite.filters =
       this.selected && Math.floor(Date.now() / 300) % 2 === 0
         ? [this.outlineFilter]
