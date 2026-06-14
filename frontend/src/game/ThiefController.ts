@@ -118,6 +118,7 @@ export class ThiefController {
       this.owner,
       isClickable,
       isClickable ? () => this.onThiefClicked?.() : null,
+      role === "attacker",
     );
     this.entity.blinded = this.blinded;
     this.entity.render(this.farmStage);

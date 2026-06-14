@@ -28,6 +28,7 @@ export class ThiefEntity {
   readonly owner: Owner;
   private clickable: boolean;
   private onClick: (() => void) | null;
+  private isAttacker: boolean;
 
   constructor(
     x: number,
@@ -36,6 +37,7 @@ export class ThiefEntity {
     owner: Owner,
     clickable: boolean,
     onClick: (() => void) | null,
+    isAttacker: boolean,
   ) {
     this.x = x;
     this.y = y;
@@ -43,6 +45,7 @@ export class ThiefEntity {
     this.owner = owner;
     this.clickable = clickable;
     this.onClick = onClick;
+    this.isAttacker = isAttacker;
     this.sprite = new Sprite();
     this.sprite.anchor.set(0.5, 1);
     this.sprite.scale.set(0.8);
@@ -104,9 +107,9 @@ export class ThiefEntity {
 
   private draw(): void {
     const frameIndex = Math.floor(this.walkFrame / 8) % FRAME_COUNT;
-    // Lv3 full disguise: subtle sinusoidal body bob to hint at nervousness
+    // Lv3 full disguise: subtle sinusoidal body bob to hint at nervousness (attacker only)
     const nervousY =
-      this.disguise === "full" ? Math.sin(this.nervousFrame / 25) * 0.6 : 0;
+      this.disguise === "full" && this.isAttacker ? Math.sin(this.nervousFrame / 25) * 0.6 : 0;
     this.sprite.texture = this.frames[this.direction][frameIndex];
     this.sprite.x = this.x;
     this.sprite.y = this.y - nervousY;
