@@ -100,9 +100,13 @@ export class FieldEntity extends Entity {
           (!wasActive && isActive));
       if (swapDetected) this.spawnSwapParticles();
 
-      // Lightning strike: growing/ready → empty while lightning is active
+      // Lightning strike: growing/ready → empty while lightning is active.
+      // Skip when a crow was present on the previous field — that means the crow
+      // (not lightning) caused the destruction.
+      const crowCausedEmpty = !!prev.crowAttack && field?.stage === "empty";
       if (
         lightningActive &&
+        !crowCausedEmpty &&
         (prev.stage === "growing" || prev.stage === "ready") &&
         field?.stage === "empty"
       ) {
