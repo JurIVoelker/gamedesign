@@ -3,6 +3,7 @@ import type { ServerMessage, ClientMessage } from "@gamedesign/shared";
 import { useConnectionStore } from "../state/connectionStore";
 import { useGameStore } from "../state/gameStore";
 import { useToastStore } from "../state/toastStore";
+import { setClockOffset } from "./clockSync";
 
 const WS_URL = `ws://${window.location.hostname}:3001`;
 const RECONNECT_DELAY_MS = 3_000;
@@ -80,6 +81,7 @@ export function useWebSocket() {
           break;
         }
         case "game_state":
+          setClockOffset(msg.serverNow);
           setGame(msg.state);
           if (msg.state.phase === "playing" || msg.state.phase === "ended")
             setStatus("in_game");

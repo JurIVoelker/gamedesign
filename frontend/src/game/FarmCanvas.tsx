@@ -5,6 +5,7 @@ import { useConnectionStore } from "../state/connectionStore";
 import { useTargetingStore } from "../state/targetingStore";
 import { AccusationModal } from "../ui/AccusationModal";
 import { MerchantShopModal } from "../ui/MerchantShopModal";
+const MERCHANT_BUBBLE_SHOW_MS = 8000;
 
 export type AccusationTarget =
   | { type: "thief"; disguise: "none" | "partial" | "full" }
@@ -52,8 +53,43 @@ export function FarmCanvas() {
     null,
   );
 
+  // Merchant speech bubble: shown as HTML overlay when merchant arrives
+  const [merchantBubble, setMerchantBubble] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const merchantBubbleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const merchantArrivalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevMerchantArrivesAtRef = useRef<number | null>(null);
+
   const myPlayerState = game && playerId ? game.players[playerId] : undefined;
   const annoyanceLevel = myPlayerState?.wrongAccusationCount ?? 0;
+
+  // Merchant speech bubble: appear when merchant arrives, auto-dismiss after 8 s
+  const merchant = myPlayerState?.merchant ?? null;
+  useEffect(() => {
+    if (!merchant) {
+      clearTimeout(merchantArrivalTimerRef.current ?? undefined);
+      clearTimeout(merchantBubbleTimerRef.current ?? undefined);
+      setMerchantBubble(null);
+      prevMerchantArrivesAtRef.current = null;
+      return;
+    }
+    if (merchant.arrivesAt === prevMerchantArrivesAtRef.current) return;
+    prevMerchantArrivesAtRef.current = merchant.arrivesAt;
+    clearTimeout(merchantArrivalTimerRef.current ?? undefined);
+    clearTimeout(merchantBubbleTimerRef.current ?? undefined);
+    const delayMs = Math.max(0, merchant.arrivesAt - Date.now());
+    merchantArrivalTimerRef.current = setTimeout(() => {
+      const pos = engineRef.current?.getMerchantScreenPos();
+      if (!pos) return;
+      setMerchantBubble(pos);
+      merchantBubbleTimerRef.current = setTimeout(
+        () => setMerchantBubble(null),
+        MERCHANT_BUBBLE_SHOW_MS,
+      );
+    }, delayMs);
+  }, [merchant]);
 
   // ESC — cancel targeting OR dismiss accusation/merchant modal
   useEffect(() => {
@@ -282,6 +318,64 @@ export function FarmCanvas() {
           }}
         >
           Ich helfe dir nicht!
+        </div>
+      )}
+
+      {merchantBubble && !merchantOpen && (
+        <div
+          style={{
+            position: "absolute",
+            left: merchantBubble.x - 70,
+            top: merchantBubble.y - 135,
+            transform: "translateX(-50%)",
+            pointerEvents: "none",
+            zIndex: 30,
+          }}
+        >
+          <div
+            style={{
+              background: "#f5e4c0",
+              boxShadow: "0 0 0 2px #221100",
+              padding: "8px 12px",
+              fontFamily: "'Press Start 2P', monospace",
+              fontSize: 7,
+              color: "#111",
+              lineHeight: 1.8,
+              textAlign: "center",
+              whiteSpace: "nowrap",
+              userSelect: "none",
+            }}
+          >
+            Hallo, was kann ich<br />dir verkaufen?
+          </div>
+          {/* tail border */}
+          <div
+            style={{
+              position: "absolute",
+              bottom: -10,
+              left: "50%",
+              transform: "translateX(-50%)",
+              width: 0,
+              height: 0,
+              borderLeft: "8px solid transparent",
+              borderRight: "8px solid transparent",
+              borderTop: "10px solid #221100",
+            }}
+          />
+          {/* tail fill */}
+          <div
+            style={{
+              position: "absolute",
+              bottom: -7,
+              left: "50%",
+              transform: "translateX(-50%)",
+              width: 0,
+              height: 0,
+              borderLeft: "6px solid transparent",
+              borderRight: "6px solid transparent",
+              borderTop: "8px solid #f5e4c0",
+            }}
+          />
         </div>
       )}
 

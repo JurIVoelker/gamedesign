@@ -43,6 +43,7 @@ import {
   FAKE_MERCHANT_PRICE_PCT,
   FAKE_MERCHANT_EXCUSES,
   FAKE_MERCHANT_FEE_SCHEDULE,
+  FAKE_MERCHANT_POST_REAL_DELAY_MS,
 } from './constants.js';
 import { ITEM_HANDLERS } from './items.js';
 
@@ -148,7 +149,7 @@ function createPlayerState(playerId: string): PlayerState {
       { id: 'thief',      level: 0, cooldownUntil: 0 },
       { id: 'weather',    level: 0, cooldownUntil: 0 },
     ],
-    items: [],
+    items: [{ id: 'fake_merchant', name: 'Falscher Händler', count: 3, cooldownUntil: 0, pricePaid: 0 }],
     thiefAttack: null,
     weatherEffect: null,
     villagersOutside: 4,
@@ -1160,7 +1161,17 @@ export class Game {
     }
     if (!this.state) return;
     const opponent = this.state.players[opponentId];
-    if (!opponent || opponent.merchant?.fake) return;
+    if (!opponent) return;
+    if (opponent.merchant?.fake) return;
+    if (opponent.merchant && !opponent.merchant.fake) {
+      // Real merchant still present (e.g. overstay) — reschedule after they leave
+      this.scheduleTimer(
+        `fake_merchant_deploy:${opponentId}`,
+        Date.now() + FAKE_MERCHANT_POST_REAL_DELAY_MS,
+        () => this.deployFakeMerchant(opponentId, byPlayerId),
+      );
+      return;
+    }
     const now = Date.now();
     const fakeOffers = this.rollOffers(opponent, 1 - FAKE_MERCHANT_PRICE_PCT);
     const leavesAt = now + MERCHANT_STAY_MS;
@@ -1209,8 +1220,9 @@ export class Game {
 
   broadcastState(): void {
     if (!this.state) return;
+    const serverNow = Date.now();
     for (const session of this.getSessions()) {
-      session.send({ type: 'game_state', state: this.redactStateFor(session.playerId) });
+      session.send({ type: 'game_state', state: this.redactStateFor(session.playerId), serverNow });
     }
   }
 
@@ -1218,7 +1230,7 @@ export class Game {
     if (!this.state) return;
     const session = this.getSessions().find(s => s.playerId === playerId);
     if (session) {
-      session.send({ type: 'game_state', state: this.redactStateFor(playerId) });
+      session.send({ type: 'game_state', state: this.redactStateFor(playerId), serverNow: Date.now() });
     }
   }
 

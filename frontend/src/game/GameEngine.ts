@@ -4,6 +4,7 @@ import {
   Container,
   Graphics,
   Sprite,
+  Texture,
   TextureStyle,
 } from "pixi.js";
 import type { GameState } from "@gamedesign/shared";
@@ -18,6 +19,19 @@ import { H_GAP, ROW_GAP, MARGIN, FARM_W, SCENE_H_INNER, rowY } from "./layout";
 
 const FIELD_COUNT = 4;
 const OUTER_MARGIN = 60;
+
+// Merchant spotlight animation
+const MERCHANT_SPOTLIGHT_FADE_IN_MS = 800;
+const MERCHANT_SPOTLIGHT_HOLD_MS = 2000;
+const MERCHANT_SPOTLIGHT_FADE_OUT_MS = 600;
+const MERCHANT_SPOTLIGHT_DARKNESS = 0.32;
+const MERCHANT_SPOTLIGHT_FARM_RADIUS = 70;
+// Merchant position in playerFarm local space
+const MERCHANT_FARM_X = -36;
+const MERCHANT_FARM_Y = SCENE_H_INNER - 20;
+// Centre of the spotlight circle in playerFarm local space
+const MERCHANT_SPOTLIGHT_FARM_X = MERCHANT_FARM_X;
+const MERCHANT_SPOTLIGHT_FARM_Y = SCENE_H_INNER - 56;
 
 // Lightning animation timings (ms) and opacity values
 const LTG_FLASH1_MS = 50;
@@ -51,6 +65,11 @@ export class GameEngine {
   private onVillagersChange: ((count: number) => void) | null = null;
   private onMerchantClicked: (() => void) | null = null;
   private merchantEntity: MerchantEntity | null = null;
+  private merchantSpotlightSprite: Sprite | null = null;
+  private merchantSpotlightTexture: Texture | null = null;
+  private merchantSpotlightPhase: "idle" | "fade_in" | "hold" | "fade_out" = "idle";
+  private merchantSpotlightTimer = 0;
+  private merchantWasVisible = false;
   private playerWeatherOverlay: Graphics | null = null;
   private opponentWeatherOverlay: Graphics | null = null;
   private playerLightningOverlay: Graphics | null = null;
@@ -172,18 +191,26 @@ export class GameEngine {
     this.edgeFade = new Graphics();
     app.stage.addChild(this.edgeFade);
 
+    // Merchant spotlight: above edgeFade so it overlaps the dithered border/background
+    const spotlightSprite = new Sprite();
+    spotlightSprite.alpha = 0;
+    app.stage.addChild(spotlightSprite);
+    this.merchantSpotlightSprite = spotlightSprite;
+
     this.rescale(app, sceneRoot);
 
     app.ticker.add(() => {
+      const deltaMS = app.ticker.deltaMS;
       for (const entity of this.playerFields) entity.update();
       for (const entity of this.opponentFields) entity.update();
-      this.playerVillagers?.update(app.ticker.deltaMS);
-      this.opponentVillagers?.update(app.ticker.deltaMS);
-      this.playerThief?.update(app.ticker.deltaMS);
-      this.opponentThief?.update(app.ticker.deltaMS);
-      this.merchantEntity?.update(app.ticker.deltaMS);
-      this.updateLightning(app.ticker.deltaMS);
-      this.updatePlayerLightning(app.ticker.deltaMS);
+      this.playerVillagers?.update(deltaMS);
+      this.opponentVillagers?.update(deltaMS);
+      this.playerThief?.update(deltaMS);
+      this.opponentThief?.update(deltaMS);
+      this.merchantEntity?.update(deltaMS);
+      this.updateLightning(deltaMS);
+      this.updatePlayerLightning(deltaMS);
+      this.updateMerchantSpotlight(deltaMS);
     });
 
     this.resizeHandler = () => {
@@ -196,13 +223,18 @@ export class GameEngine {
     window.addEventListener("resize", this.resizeHandler);
   }
 
-  getPlayerHouseScreenPos(fieldIndex: number): { x: number; y: number } | null {
+  private farmToScreen(localX: number, localY: number): { x: number; y: number } | null {
     if (!this.playerFarm) return null;
-    const global = this.playerFarm.toGlobal({
-      x: HOUSE_W / 2,
-      y: rowY(fieldIndex) - HOUSE_H / 2,
-    });
+    const global = this.playerFarm.toGlobal({ x: localX, y: localY });
     return { x: global.x, y: global.y };
+  }
+
+  getPlayerHouseScreenPos(fieldIndex: number): { x: number; y: number } | null {
+    return this.farmToScreen(HOUSE_W / 2, rowY(fieldIndex) - HOUSE_H / 2);
+  }
+
+  getMerchantScreenPos(): { x: number; y: number } | null {
+    return this.farmToScreen(MERCHANT_FARM_X, MERCHANT_FARM_Y);
   }
 
   setModalTarget(
@@ -243,6 +275,12 @@ export class GameEngine {
     this.isBlinded = false;
     this.merchantEntity?.destroy();
     this.merchantEntity = null;
+    this.merchantSpotlightSprite?.destroy();
+    this.merchantSpotlightSprite = null;
+    this.merchantSpotlightTexture?.destroy();
+    this.merchantSpotlightTexture = null;
+    this.merchantSpotlightPhase = "idle";
+    this.merchantWasVisible = false;
     this.villagersSeeded = false;
   }
 
@@ -310,8 +348,8 @@ export class GameEngine {
       if (this.playerFarm && !this.merchantEntity) {
         this.merchantEntity = new MerchantEntity(
           this.playerFarm,
-          -36,
-          SCENE_H_INNER - 20,
+          MERCHANT_FARM_X,
+          MERCHANT_FARM_Y,
           this.onMerchantClicked ?? (() => {}),
         );
       }
@@ -416,6 +454,17 @@ export class GameEngine {
       this.opponentLightningOverlay
         .rect(centerX, 0, w - centerX, h)
         .fill({ color: 0xffffff, alpha: 1 });
+    }
+    if (this.playerFarm && this.merchantSpotlightSprite) {
+      const pos = this.playerFarm.toGlobal({
+        x: MERCHANT_SPOTLIGHT_FARM_X,
+        y: MERCHANT_SPOTLIGHT_FARM_Y,
+      });
+      this.merchantSpotlightTexture?.destroy();
+      this.merchantSpotlightTexture = this.buildSpotlightTexture(
+        w, h, pos.x, pos.y, MERCHANT_SPOTLIGHT_FARM_RADIUS * scale,
+      );
+      this.merchantSpotlightSprite.texture = this.merchantSpotlightTexture;
     }
     if (this.edgeFade) this.drawEdgeFade(w, h, centerX);
   }
@@ -524,6 +573,67 @@ export class GameEngine {
         }
         break;
     }
+  }
+
+  private updateMerchantSpotlight(deltaMS: number): void {
+    const sprite = this.merchantSpotlightSprite;
+    if (!sprite) return;
+
+    const visibleNow = this.merchantEntity?.isVisible() ?? false;
+    if (visibleNow && !this.merchantWasVisible) {
+      this.merchantSpotlightPhase = "fade_in";
+      this.merchantSpotlightTimer = MERCHANT_SPOTLIGHT_FADE_IN_MS;
+    }
+    this.merchantWasVisible = visibleNow;
+
+    switch (this.merchantSpotlightPhase) {
+      case "idle":
+        break;
+      case "fade_in":
+        this.merchantSpotlightTimer -= deltaMS;
+        sprite.alpha = 1 - Math.max(0, this.merchantSpotlightTimer) / MERCHANT_SPOTLIGHT_FADE_IN_MS;
+        if (this.merchantSpotlightTimer <= 0) {
+          sprite.alpha = 1;
+          this.merchantSpotlightPhase = "hold";
+          this.merchantSpotlightTimer = MERCHANT_SPOTLIGHT_HOLD_MS;
+        }
+        break;
+      case "hold":
+        this.merchantSpotlightTimer -= deltaMS;
+        if (this.merchantSpotlightTimer <= 0) {
+          this.merchantSpotlightPhase = "fade_out";
+          this.merchantSpotlightTimer = MERCHANT_SPOTLIGHT_FADE_OUT_MS;
+        }
+        break;
+      case "fade_out":
+        this.merchantSpotlightTimer -= deltaMS;
+        sprite.alpha = Math.max(0, this.merchantSpotlightTimer) / MERCHANT_SPOTLIGHT_FADE_OUT_MS;
+        if (this.merchantSpotlightTimer <= 0) {
+          sprite.alpha = 0;
+          this.merchantSpotlightPhase = "idle";
+        }
+        break;
+    }
+  }
+
+  private buildSpotlightTexture(
+    w: number, h: number, cx: number, cy: number, spotRadius: number,
+  ): Texture {
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = `rgba(0,0,0,${MERCHANT_SPOTLIGHT_DARKNESS})`;
+    ctx.fillRect(0, 0, w, h);
+    ctx.globalCompositeOperation = "destination-out";
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, spotRadius);
+    grad.addColorStop(0, "rgba(0,0,0,1)");
+    grad.addColorStop(0.72, "rgba(0,0,0,1)");
+    grad.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+    ctx.globalCompositeOperation = "source-over";
+    return Texture.from(canvas, true);
   }
 
   private buildBackgroundLayer(): Container {

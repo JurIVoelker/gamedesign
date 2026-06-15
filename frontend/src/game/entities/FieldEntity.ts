@@ -5,6 +5,7 @@ import { Entity } from "./Entity";
 import { useTargetingStore } from "../../state/targetingStore";
 import { CrowAnimator } from "./CrowAnimator";
 import { SeededRandom } from "../SeededRandom";
+import { serverTime } from "../../net/clockSync";
 
 export const FIELD_W = 120;
 export const FIELD_H = 64;
@@ -149,9 +150,9 @@ export class FieldEntity extends Entity {
   }
 
   update(): void {
-    const now = Date.now();
-    const dt = this.lastParticleUpdate > 0 ? now - this.lastParticleUpdate : 0;
-    this.lastParticleUpdate = now;
+    const clientNow = Date.now();
+    const dt = this.lastParticleUpdate > 0 ? clientNow - this.lastParticleUpdate : 0;
+    this.lastParticleUpdate = clientNow;
     if (this.craterAlpha > 0) {
       this.craterAlpha = Math.max(0, this.craterAlpha - dt / 3000);
     }
@@ -177,7 +178,9 @@ export class FieldEntity extends Entity {
         }
       }
     }
-    if (this.base) this.draw(now);
+    // Use server-adjusted time so progress bars stay correct across machines with
+    // different clocks (LAN multiplayer). Particle/crater deltas stay on client time.
+    if (this.base) this.draw(serverTime());
   }
 
   private draw(now = Date.now()): void {

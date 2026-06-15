@@ -1,0 +1,3 @@
+- 3 item slots, items are not stackable. Add visual Slots with a potion icon and an icon graphic (for now add an svg icon taht you create yourself (e. G. for blindness potion, potion pot with dark fluid), later replaced with real graphic and add the name below, when hovering a short description just like with the merchant)
+- Add short item descriptions in the shop as well (no stats just so that you know what it does).
+- Add merchant items to statistics also with rentability approximation when possible (not possible for e. g. crystal_ball or blindness potion)
