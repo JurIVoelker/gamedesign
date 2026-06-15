@@ -91,6 +91,18 @@ export function FarmCanvas() {
     }, delayMs);
   }, [merchant]);
 
+  // Reposition bubble whenever the window is resized while it is visible
+  const merchantBubbleActive = merchantBubble !== null;
+  useEffect(() => {
+    if (!merchantBubbleActive) return;
+    const onResize = () => {
+      const pos = engineRef.current?.getMerchantScreenPos();
+      if (pos) setMerchantBubble(pos);
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [merchantBubbleActive]);
+
   // ESC — cancel targeting OR dismiss accusation/merchant modal
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -326,7 +338,7 @@ export function FarmCanvas() {
           style={{
             position: "absolute",
             left: merchantBubble.x - 70,
-            top: merchantBubble.y - 135,
+            top: merchantBubble.y - 145,
             transform: "translateX(-50%)",
             pointerEvents: "none",
             zIndex: 30,
