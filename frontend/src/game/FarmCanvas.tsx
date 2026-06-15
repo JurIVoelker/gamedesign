@@ -3,6 +3,7 @@ import { GameEngine } from "./GameEngine";
 import { useGameStore } from "../state/gameStore";
 import { useConnectionStore } from "../state/connectionStore";
 import { useTargetingStore } from "../state/targetingStore";
+import { useCenterToastStore } from "../state/centerToastStore";
 import { AccusationModal } from "../ui/AccusationModal";
 import { MerchantShopModal } from "../ui/MerchantShopModal";
 const MERCHANT_BUBBLE_SHOW_MS = 8000;
@@ -35,7 +36,12 @@ export function FarmCanvas() {
 
   const game = useGameStore((s) => s.game);
   const { playerId } = useConnectionStore();
-  const { active: targeting, chosen, fieldCount, ownFarm } = useTargetingStore();
+  const {
+    active: targeting,
+    chosen,
+    fieldCount,
+    ownFarm,
+  } = useTargetingStore();
 
   const [accusationTarget, setAccusationTarget] =
     useState<AccusationTarget | null>(null);
@@ -58,8 +64,12 @@ export function FarmCanvas() {
     x: number;
     y: number;
   } | null>(null);
-  const merchantBubbleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const merchantArrivalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const merchantBubbleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const merchantArrivalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const prevMerchantArrivesAtRef = useRef<number | null>(null);
 
   const myPlayerState = game && playerId ? game.players[playerId] : undefined;
@@ -203,6 +213,10 @@ export function FarmCanvas() {
       setMerchantOpen(true);
     };
 
+    const onBlindnessStart = () => {
+      useCenterToastStore.getState().push("Du wirst geblendet!", 3_500);
+    };
+
     engine
       .init(
         containerRef.current!,
@@ -213,6 +227,7 @@ export function FarmCanvas() {
         onVillagerClicked,
         onVillagersChange,
         onMerchantClicked,
+        onBlindnessStart,
       )
       .then(() => {
         if (!mounted) {
@@ -358,7 +373,9 @@ export function FarmCanvas() {
               userSelect: "none",
             }}
           >
-            Hallo, was kann ich<br />dir verkaufen?
+            Hallo, was kann ich
+            <br />
+            dir verkaufen?
           </div>
           {/* tail border */}
           <div

@@ -3,6 +3,7 @@ import type { ServerMessage, ClientMessage } from "@gamedesign/shared";
 import { useConnectionStore } from "../state/connectionStore";
 import { useGameStore } from "../state/gameStore";
 import { useToastStore } from "../state/toastStore";
+import { useCenterToastStore } from "../state/centerToastStore";
 import { setClockOffset } from "./clockSync";
 
 const WS_URL = `ws://${window.location.hostname}:3001`;
@@ -48,6 +49,7 @@ export function useWebSocket() {
   } = useConnectionStore.getState();
   const { setGame } = useGameStore.getState();
   const { push: pushToast } = useToastStore.getState();
+  const { push: pushCenterToast } = useCenterToastStore.getState();
 
   const send = useCallback((msg: ClientMessage) => {
     const ws = wsRef.current;
@@ -95,6 +97,9 @@ export function useWebSocket() {
         case "toast":
           pushToast(msg.text);
           break;
+        case "center_toast":
+          pushCenterToast(msg.text, 4_000);
+          break;
       }
     },
     [
@@ -107,6 +112,7 @@ export function useWebSocket() {
       setRoomCode,
       setOpponentLeft,
       pushToast,
+      pushCenterToast,
     ],
   );
 

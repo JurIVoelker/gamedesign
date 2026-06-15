@@ -74,10 +74,10 @@ export type ItemId =
   | "crystal_ball"
   | "swap_potion"
   | "mirror_curse"
-  | "fake_merchant"
   | "spy_glass"
   | "pointless_potion"
-  | "halving_brew";
+  | "halving_brew"
+  | "fake_merchant";
 
 export interface ItemDef {
   id: ItemId;

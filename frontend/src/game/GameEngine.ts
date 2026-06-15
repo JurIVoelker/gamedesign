@@ -19,6 +19,9 @@ import { H_GAP, ROW_GAP, MARGIN, FARM_W, SCENE_H_INNER, rowY } from "./layout";
 
 const FIELD_COUNT = 4;
 const OUTER_MARGIN = 60;
+const MIRROR_PARTICLE_TINTS = [
+  0x44aaff, 0x2266dd, 0x66ccff, 0x3388ee, 0x88ddff,
+];
 
 // Merchant spotlight animation
 const MERCHANT_SPOTLIGHT_FADE_IN_MS = 800;
@@ -67,7 +70,8 @@ export class GameEngine {
   private merchantEntity: MerchantEntity | null = null;
   private merchantSpotlightSprite: Sprite | null = null;
   private merchantSpotlightTexture: Texture | null = null;
-  private merchantSpotlightPhase: "idle" | "fade_in" | "hold" | "fade_out" = "idle";
+  private merchantSpotlightPhase: "idle" | "fade_in" | "hold" | "fade_out" =
+    "idle";
   private merchantSpotlightTimer = 0;
   private merchantWasVisible = false;
   private playerWeatherOverlay: Graphics | null = null;
@@ -75,6 +79,23 @@ export class GameEngine {
   private playerLightningOverlay: Graphics | null = null;
   private opponentLightningOverlay: Graphics | null = null;
   private isBlinded = false;
+  private blindnessOverlay: Graphics | null = null;
+  private onBlindnessStart: (() => void) | null = null;
+
+  private mirrorParticles: Array<{
+    x: number;
+    y: number;
+    vx: number;
+    vy: number;
+    life: number;
+    sprite: Sprite;
+    rotation: number;
+    rotationSpeed: number;
+  }> = [];
+  private prevMirrorReflectedAt: number | null = null;
+  private centerX = 0;
+  private canvasH = 0;
+
   private playerLightningPhase:
     | "idle"
     | "flash1"
@@ -96,6 +117,7 @@ export class GameEngine {
 
   // Lazy init: created once startedAt is known so both clients use the same seed
   private villagersSeeded = false;
+  private prevStartedAt: number | null = null;
 
   async init(
     container: HTMLElement,
@@ -106,11 +128,13 @@ export class GameEngine {
     onVillagerClicked: (id: number) => void,
     onVillagersChange: (count: number) => void,
     onMerchantClicked: () => void,
+    onBlindnessStart?: () => void,
   ): Promise<void> {
     this.onThiefClicked = onThiefClicked;
     this.onVillagerClicked = onVillagerClicked;
     this.onVillagersChange = onVillagersChange;
     this.onMerchantClicked = onMerchantClicked;
+    this.onBlindnessStart = onBlindnessStart ?? null;
 
     TextureStyle.defaultOptions.scaleMode = "nearest";
     await Assets.load([
@@ -187,6 +211,11 @@ export class GameEngine {
     this.opponentLightningOverlay.visible = false;
     app.stage.addChild(this.opponentLightningOverlay);
 
+    this.blindnessOverlay = new Graphics();
+    this.blindnessOverlay.alpha = 0.2;
+    this.blindnessOverlay.visible = false;
+    app.stage.addChild(this.blindnessOverlay);
+
     // Edge fade lives in stage space (above sceneRoot) so it always fills the screen
     this.edgeFade = new Graphics();
     app.stage.addChild(this.edgeFade);
@@ -210,6 +239,7 @@ export class GameEngine {
       this.merchantEntity?.update(deltaMS);
       this.updateLightning(deltaMS);
       this.updatePlayerLightning(deltaMS);
+      this.updateMirrorParticles(deltaMS);
       this.updateMerchantSpotlight(deltaMS);
     });
 
@@ -223,7 +253,10 @@ export class GameEngine {
     window.addEventListener("resize", this.resizeHandler);
   }
 
-  private farmToScreen(localX: number, localY: number): { x: number; y: number } | null {
+  private farmToScreen(
+    localX: number,
+    localY: number,
+  ): { x: number; y: number } | null {
     if (!this.playerFarm) return null;
     const global = this.playerFarm.toGlobal({ x: localX, y: localY });
     return { x: global.x, y: global.y };
@@ -273,6 +306,10 @@ export class GameEngine {
     this.playerLightningOverlay = null;
     this.opponentLightningOverlay = null;
     this.isBlinded = false;
+    this.blindnessOverlay = null;
+    for (const p of this.mirrorParticles) p.sprite.destroy();
+    this.mirrorParticles = [];
+    this.prevMirrorReflectedAt = null;
     this.merchantEntity?.destroy();
     this.merchantEntity = null;
     this.merchantSpotlightSprite?.destroy();
@@ -289,6 +326,18 @@ export class GameEngine {
     const opponentState = Object.values(state.players).find(
       (p) => p.id !== myPlayerId,
     );
+
+    // Detect a new game starting (startedAt changed) and reset field prev-state so
+    // transition animations don't misfire when old-game crops are compared to fresh empty fields.
+    if (
+      state.startedAt !== null &&
+      this.prevStartedAt !== null &&
+      state.startedAt !== this.prevStartedAt
+    ) {
+      for (const f of this.playerFields) f.resetPrevState();
+      for (const f of this.opponentFields) f.resetPrevState();
+    }
+    if (state.startedAt !== null) this.prevStartedAt = state.startedAt;
 
     // First time we have a startedAt: create villager controllers with deterministic seeds
     // so both clients produce identical decisions for every farm.
@@ -367,11 +416,30 @@ export class GameEngine {
       this.merchantEntity?.setBlinded(isBlinded);
       for (const f of this.playerFields) f.setBlinded(isBlinded);
       for (const f of this.opponentFields) f.setBlinded(isBlinded);
+      if (this.blindnessOverlay) this.blindnessOverlay.visible = isBlinded;
+      if (isBlinded) this.onBlindnessStart?.();
+    }
+
+    const mirrorEffect =
+      myState?.activeEffects.find((e) => e.itemId === "mirror_curse") ??
+      opponentState?.activeEffects.find((e) => e.itemId === "mirror_curse");
+    const mirrorReflectedAt =
+      (mirrorEffect?.data as { lastReflectedAt?: number } | undefined)
+        ?.lastReflectedAt ?? null;
+    if (
+      mirrorReflectedAt !== null &&
+      mirrorReflectedAt !== this.prevMirrorReflectedAt
+    ) {
+      this.prevMirrorReflectedAt = mirrorReflectedAt;
+      this.triggerMirrorReflectEffect();
     }
 
     if (myState) {
       for (let i = 0; i < this.playerFields.length; i++) {
-        this.playerFields[i].setField(myState.fields[i] ?? null, this.playerHasLightning);
+        this.playerFields[i].setField(
+          myState.fields[i] ?? null,
+          this.playerHasLightning,
+        );
       }
       this.merchantEntity?.setVisit(myState.merchant ?? null);
       this.playerVillagers?.setFields(myState.fields);
@@ -383,12 +451,18 @@ export class GameEngine {
       const hadPlayerLightning = this.playerHasLightning;
       this.playerHasLightning = myState.weatherEffect?.lightning ?? false;
       if (!hadPlayerLightning && this.playerHasLightning && !isBlinded) {
-        setTimeout(() => this.triggerPlayerLightningStrike(), LIGHTNING_STRIKE_DELAY_MS);
+        setTimeout(
+          () => this.triggerPlayerLightningStrike(),
+          LIGHTNING_STRIKE_DELAY_MS,
+        );
       }
     }
     if (opponentState) {
       for (let i = 0; i < this.opponentFields.length; i++) {
-        this.opponentFields[i].setField(opponentState.fields[i] ?? null, this.opponentHasLightning);
+        this.opponentFields[i].setField(
+          opponentState.fields[i] ?? null,
+          this.opponentHasLightning,
+        );
       }
       this.opponentVillagers?.setFields(opponentState.fields);
       this.opponentThief?.setAttack(
@@ -403,7 +477,10 @@ export class GameEngine {
       this.opponentHasLightning =
         opponentState.weatherEffect?.lightning ?? false;
       if (!hadLightning && this.opponentHasLightning && !isBlinded) {
-        setTimeout(() => this.triggerLightningStrike(), LIGHTNING_STRIKE_DELAY_MS);
+        setTimeout(
+          () => this.triggerLightningStrike(),
+          LIGHTNING_STRIKE_DELAY_MS,
+        );
       }
     }
   }
@@ -431,6 +508,14 @@ export class GameEngine {
     this.rebuildTrees(leftX, centerGap, logicalW);
 
     const centerX = (leftX + FARM_W + centerGap / 2) * scale;
+    this.centerX = centerX;
+    this.canvasH = h;
+    if (this.blindnessOverlay) {
+      this.blindnessOverlay
+        .clear()
+        .rect(0, 0, w, h)
+        .fill({ color: 0x000000, alpha: 1 });
+    }
     if (this.playerWeatherOverlay) {
       this.playerWeatherOverlay.clear();
       this.playerWeatherOverlay
@@ -462,7 +547,11 @@ export class GameEngine {
       });
       this.merchantSpotlightTexture?.destroy();
       this.merchantSpotlightTexture = this.buildSpotlightTexture(
-        w, h, pos.x, pos.y, MERCHANT_SPOTLIGHT_FARM_RADIUS * scale,
+        w,
+        h,
+        pos.x,
+        pos.y,
+        MERCHANT_SPOTLIGHT_FARM_RADIUS * scale,
       );
       this.merchantSpotlightSprite.texture = this.merchantSpotlightTexture;
     }
@@ -499,7 +588,10 @@ export class GameEngine {
         }
         break;
       case "flash1_fade":
-        overlay.alpha = Math.max(0, LTG_ALPHA1 * (this.playerLightningTimer / LTG_FLASH1_FADE_MS));
+        overlay.alpha = Math.max(
+          0,
+          LTG_ALPHA1 * (this.playerLightningTimer / LTG_FLASH1_FADE_MS),
+        );
         if (this.playerLightningTimer <= 0) {
           overlay.visible = false;
           this.playerLightningPhase = "gap";
@@ -521,7 +613,10 @@ export class GameEngine {
         }
         break;
       case "flash2_fade":
-        overlay.alpha = Math.max(0, LTG_ALPHA2 * (this.playerLightningTimer / LTG_FLASH2_FADE_MS));
+        overlay.alpha = Math.max(
+          0,
+          LTG_ALPHA2 * (this.playerLightningTimer / LTG_FLASH2_FADE_MS),
+        );
         if (this.playerLightningTimer <= 0) {
           overlay.visible = false;
           this.playerLightningPhase = "idle";
@@ -544,7 +639,10 @@ export class GameEngine {
         }
         break;
       case "flash1_fade":
-        overlay.alpha = Math.max(0, LTG_ALPHA1 * (this.lightningTimer / LTG_FLASH1_FADE_MS));
+        overlay.alpha = Math.max(
+          0,
+          LTG_ALPHA1 * (this.lightningTimer / LTG_FLASH1_FADE_MS),
+        );
         if (this.lightningTimer <= 0) {
           overlay.visible = false;
           this.lightningPhase = "gap";
@@ -566,12 +664,73 @@ export class GameEngine {
         }
         break;
       case "flash2_fade":
-        overlay.alpha = Math.max(0, LTG_ALPHA2 * (this.lightningTimer / LTG_FLASH2_FADE_MS));
+        overlay.alpha = Math.max(
+          0,
+          LTG_ALPHA2 * (this.lightningTimer / LTG_FLASH2_FADE_MS),
+        );
         if (this.lightningTimer <= 0) {
           overlay.visible = false;
           this.lightningPhase = "idle";
         }
         break;
+    }
+  }
+
+  private triggerMirrorReflectEffect(): void {
+    const app = this.app;
+    if (!app) return;
+    // Column of particles spanning the full canvas height, just left of the center line
+    const spawnX = this.centerX - 12;
+    const COUNT = 80;
+    for (let i = 0; i < COUNT; i++) {
+      const spawnY = (i / COUNT) * this.canvasH + Math.random() * (this.canvasH / COUNT);
+      const sprite = new Sprite(Assets.get("/assets/particle.png"));
+      sprite.anchor.set(0.5, 0.5);
+      sprite.scale.set(0);
+      sprite.tint =
+        MIRROR_PARTICLE_TINTS[
+          Math.floor(Math.random() * MIRROR_PARTICLE_TINTS.length)
+        ];
+      sprite.x = spawnX;
+      sprite.y = spawnY;
+      sprite.alpha = 0;
+      app.stage.addChild(sprite);
+      this.mirrorParticles.push({
+        x: spawnX,
+        y: spawnY,
+        // drift left with a slight vertical wobble
+        vx: -(0.05 + Math.random() * 0.08),
+        vy: (Math.random() - 0.5) * 0.03,
+        life: 1.0,
+        sprite,
+        rotation: Math.random() * Math.PI * 2,
+        rotationSpeed: (Math.random() - 0.5) * 0.01,
+      });
+    }
+  }
+
+  private updateMirrorParticles(deltaMS: number): void {
+    if (this.mirrorParticles.length === 0) return;
+    const LIFETIME = 1400;
+    for (const p of this.mirrorParticles) {
+      p.x += p.vx * deltaMS;
+      p.y += p.vy * deltaMS;
+      p.life = Math.max(0, p.life - deltaMS / LIFETIME);
+      p.rotation += p.rotationSpeed * deltaMS;
+      const alpha = p.life > 0.8 ? (1 - p.life) / 0.2 : p.life / 0.8;
+      const popScale = p.life > 0.8 ? (1 - p.life) / 0.2 : 1;
+      p.sprite.x = p.x;
+      p.sprite.y = p.y;
+      p.sprite.alpha = alpha;
+      p.sprite.rotation = p.rotation;
+      p.sprite.width = popScale * 7;
+      p.sprite.height = popScale * 7;
+    }
+    for (let i = this.mirrorParticles.length - 1; i >= 0; i--) {
+      if (this.mirrorParticles[i].life <= 0) {
+        this.mirrorParticles[i].sprite.destroy();
+        this.mirrorParticles.splice(i, 1);
+      }
     }
   }
 
@@ -591,7 +750,10 @@ export class GameEngine {
         break;
       case "fade_in":
         this.merchantSpotlightTimer -= deltaMS;
-        sprite.alpha = 1 - Math.max(0, this.merchantSpotlightTimer) / MERCHANT_SPOTLIGHT_FADE_IN_MS;
+        sprite.alpha =
+          1 -
+          Math.max(0, this.merchantSpotlightTimer) /
+            MERCHANT_SPOTLIGHT_FADE_IN_MS;
         if (this.merchantSpotlightTimer <= 0) {
           sprite.alpha = 1;
           this.merchantSpotlightPhase = "hold";
@@ -607,7 +769,9 @@ export class GameEngine {
         break;
       case "fade_out":
         this.merchantSpotlightTimer -= deltaMS;
-        sprite.alpha = Math.max(0, this.merchantSpotlightTimer) / MERCHANT_SPOTLIGHT_FADE_OUT_MS;
+        sprite.alpha =
+          Math.max(0, this.merchantSpotlightTimer) /
+          MERCHANT_SPOTLIGHT_FADE_OUT_MS;
         if (this.merchantSpotlightTimer <= 0) {
           sprite.alpha = 0;
           this.merchantSpotlightPhase = "idle";
@@ -617,7 +781,11 @@ export class GameEngine {
   }
 
   private buildSpotlightTexture(
-    w: number, h: number, cx: number, cy: number, spotRadius: number,
+    w: number,
+    h: number,
+    cx: number,
+    cy: number,
+    spotRadius: number,
   ): Texture {
     const canvas = document.createElement("canvas");
     canvas.width = w;
