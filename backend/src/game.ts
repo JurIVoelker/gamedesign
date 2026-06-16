@@ -180,9 +180,7 @@ function createPlayerState(playerId: string): PlayerState {
       { id: "thief", level: 0, cooldownUntil: 0 },
       { id: "weather", level: 0, cooldownUntil: 0 },
     ],
-    items: [
-      { id: "mirror_curse",     name: "Spiegelfluch",          count: 3, cooldownUntil: 0, pricePaid: 0 },
-    ],
+    items: [],
     thiefAttack: null,
     weatherEffect: null,
     villagersOutside: 4,
