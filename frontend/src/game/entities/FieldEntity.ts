@@ -207,7 +207,10 @@ export class FieldEntity extends Entity {
         stage !== "sowing" &&
         stage !== "harvesting" &&
         !targeting.chosen.includes(this.id));
-    const isChosen = targeting.active && targeting.chosen.includes(this.id);
+    const isChosen =
+      targeting.active &&
+      targeting.chosen.includes(this.id) &&
+      (targeting.ownFarm ? this.owner === "player" : this.owner === "opponent");
 
     // Normal grow progress (0→1) from sowedAt/readyAt timestamps
     let stageProgress =
