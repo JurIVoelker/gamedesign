@@ -180,7 +180,7 @@ function createPlayerState(playerId: string): PlayerState {
       { id: "thief", level: 0, cooldownUntil: 0 },
       { id: "weather", level: 0, cooldownUntil: 0 },
     ],
-    items: [],
+    items: [{ id: "swap_potion", name: ITEM_DEFS["swap_potion"].name, count: 3, cooldownUntil: 0 }],
     thiefAttack: null,
     weatherEffect: null,
     villagersOutside: 4,
@@ -398,7 +398,11 @@ export class Game {
       }
       ps.activeEffects = [];
       for (const field of ps.fields) {
-        if (field.stage === "harvesting") {
+        if (
+          field.stage === "sowing" ||
+          field.stage === "growing" ||
+          field.stage === "harvesting"
+        ) {
           this.cancelTimer(`${playerId}:${field.index}`);
         }
       }

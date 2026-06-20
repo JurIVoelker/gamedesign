@@ -11,9 +11,10 @@ export const FIELD_W = 120;
 export const FIELD_H = 64;
 
 const SWAP_PARTICLE_COLORS = [
-  0x44aaff, 0x2288ff, 0x66ccff, 0xffffff, 0x88ddff, 0x3399ff,
+  0x44cc66, 0x22aa44, 0x66dd88, 0xaaffcc, 0x88ffaa, 0x33bb55,
 ];
 const SWAP_PARTICLE_LIFETIME_MS = 3600;
+const SWAP_PARTICLE_SIZE = 18;
 
 const MAX_PLANT_H = 9;
 const SOIL_ROWS = 4;
@@ -40,7 +41,7 @@ interface Particle {
   vx: number;
   vy: number;
   life: number;
-  gfx: Graphics;
+  gfx: Sprite;
   rotation: number;
   rotationSpeed: number;
 }
@@ -495,9 +496,11 @@ export class FieldEntity extends Entity {
         SWAP_PARTICLE_COLORS[
           Math.floor(Math.random() * SWAP_PARTICLE_COLORS.length)
         ];
-      const gfx = new Graphics();
-      gfx.circle(0, 0, 9).fill({ color });
-      gfx.blendMode = "add";
+      const gfx = new Sprite(Assets.get("/assets/particle.png"));
+      gfx.anchor.set(0.5);
+      gfx.width = SWAP_PARTICLE_SIZE;
+      gfx.height = SWAP_PARTICLE_SIZE;
+      gfx.tint = color;
       gfx.x = x;
       gfx.y = y;
       gfx.alpha = 0;

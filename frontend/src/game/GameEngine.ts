@@ -118,6 +118,7 @@ export class GameEngine {
   // Lazy init: created once startedAt is known so both clients use the same seed
   private villagersSeeded = false;
   private prevStartedAt: number | null = null;
+  private prevPhase: string | null = null;
 
   async init(
     container: HTMLElement,
@@ -329,15 +330,20 @@ export class GameEngine {
 
     // Detect a new game starting (startedAt changed) and reset field prev-state so
     // transition animations don't misfire when old-game crops are compared to fresh empty fields.
+    // Also reset when the game ends so post-game field timer broadcasts don't trigger animations.
+    const gameJustEnded =
+      this.prevPhase === "playing" && state.phase === "ended";
     if (
-      state.startedAt !== null &&
-      this.prevStartedAt !== null &&
-      state.startedAt !== this.prevStartedAt
+      gameJustEnded ||
+      (state.startedAt !== null &&
+        this.prevStartedAt !== null &&
+        state.startedAt !== this.prevStartedAt)
     ) {
       for (const f of this.playerFields) f.resetPrevState();
       for (const f of this.opponentFields) f.resetPrevState();
     }
     if (state.startedAt !== null) this.prevStartedAt = state.startedAt;
+    this.prevPhase = state.phase;
 
     // First time we have a startedAt: create villager controllers with deterministic seeds
     // so both clients produce identical decisions for every farm.
