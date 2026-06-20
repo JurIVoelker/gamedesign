@@ -8,6 +8,7 @@ import { UpgradePanel } from "./ui/UpgradePanel";
 import { ItemBar } from "./ui/ItemBar";
 import { EndScreen } from "./ui/EndScreen";
 import { ToastStack } from "./ui/ToastStack";
+import { CenterToastStack } from "./ui/CenterToastStack";
 import { CrystalBallWatcher } from "./ui/CrystalBallWatcher";
 
 export default function App() {
@@ -25,6 +26,7 @@ export default function App() {
       {isInGame && gamePhase !== "ended" && <ItemBar />}
       {isInGame && gamePhase === "ended" && <EndScreen />}
       <ToastStack />
+      <CenterToastStack />
       <CrystalBallWatcher />
     </div>
   );

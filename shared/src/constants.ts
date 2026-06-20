@@ -74,10 +74,10 @@ export type ItemId =
   | "crystal_ball"
   | "swap_potion"
   | "mirror_curse"
-  | "fake_merchant"
   | "spy_glass"
   | "pointless_potion"
-  | "halving_brew";
+  | "halving_brew"
+  | "fake_merchant";
 
 export interface ItemDef {
   id: ItemId;
@@ -139,7 +139,7 @@ export const PARANOIA_FIRST_DELAY_MAX_MS = 8_000;
 export const PARANOIA_RESPAWN_DELAY_MS = 500;
 
 export const FAKE_MERCHANT_PRICE_PCT = 0.35;
-export const FAKE_MERCHANT_WAIT_BUFFER_MS = 100;  // grace ms between real merchant leaving and fake arriving
+export const FAKE_MERCHANT_POST_REAL_DELAY_MS = 5_000;
 export const FAKE_MERCHANT_EXCUSES = [
   "Dazu kommen noch Versandkosten...",
   "...plus die Steuer.",

@@ -1,6 +1,8 @@
 import { Assets, Container, Sprite } from "pixi.js";
 import type { MerchantVisit } from "@gamedesign/shared";
 
+const SPRITE_FADE_MS = 600;
+
 export class MerchantEntity {
   private sprite: Sprite;
   private fadeMs = 0;
@@ -52,14 +54,18 @@ export class MerchantEntity {
       this.sprite.alpha = 0;
       this.sprite.visible = true;
     }
-    if (this.fadeMs < 600) {
-      this.fadeMs = Math.min(600, this.fadeMs + deltaMS);
-      this.sprite.alpha = this.fadeMs / 600;
+    if (this.fadeMs < SPRITE_FADE_MS) {
+      this.fadeMs = Math.min(SPRITE_FADE_MS, this.fadeMs + deltaMS);
+      this.sprite.alpha = this.fadeMs / SPRITE_FADE_MS;
     }
     if (this.blinded) {
       this.sprite.visible = true; // keep hit area active
       this.sprite.alpha = 0;
     }
+  }
+
+  isVisible(): boolean {
+    return this.appeared && this.visit !== null;
   }
 
   setBlinded(b: boolean): void {

@@ -5,11 +5,15 @@ import { Entity } from "./Entity";
 import { useTargetingStore } from "../../state/targetingStore";
 import { CrowAnimator } from "./CrowAnimator";
 import { SeededRandom } from "../SeededRandom";
+import { serverTime } from "../../net/clockSync";
 
 export const FIELD_W = 120;
 export const FIELD_H = 64;
 
-const SWAP_PARTICLE_TINTS = [0xffdd44, 0xffcc22, 0xff9922, 0xffee88, 0xffffaa, 0xff8800];
+const SWAP_PARTICLE_COLORS = [
+  0x44aaff, 0x2288ff, 0x66ccff, 0xffffff, 0x88ddff, 0x3399ff,
+];
+const SWAP_PARTICLE_LIFETIME_MS = 3600;
 
 const MAX_PLANT_H = 9;
 const SOIL_ROWS = 4;
@@ -36,7 +40,7 @@ interface Particle {
   vx: number;
   vy: number;
   life: number;
-  sprite: Sprite;
+  gfx: Graphics;
   rotation: number;
   rotationSpeed: number;
 }
@@ -80,6 +84,10 @@ export class FieldEntity extends Entity {
     this.onScareCrow = onScareCrow;
   }
 
+  resetPrevState(): void {
+    this.prevField = null;
+  }
+
   setField(field: Field | null, lightningActive = false): void {
     const prev = this.prevField;
     // Detect swap: a non-sowing transition that lands on growing/ready with changed timestamps
@@ -92,17 +100,28 @@ export class FieldEntity extends Entity {
       const isNormalCompletion =
         prev.stage === "growing" && field?.stage === "ready";
       const crowScaredAway = !!prev.crowAttack && !field?.crowAttack;
+      const crowCausedEmpty = !!prev.crowAttack && field?.stage === "empty";
       const swapDetected =
         !wasSowing &&
         !isNormalCompletion &&
         !crowScaredAway &&
         ((wasActive && isActive && prev.sowedAt !== field.sowedAt) ||
           (!wasActive && isActive));
-      if (swapDetected) this.spawnSwapParticles();
+      // Also detect the "gave-away" side of a swap: growing/ready → empty
+      // without lightning or a crow destroying the crop.
+      const swapGaveAwayCrop =
+        !lightningActive &&
+        !crowCausedEmpty &&
+        wasActive &&
+        field?.stage === "empty";
+      if (swapDetected || swapGaveAwayCrop) this.spawnSwapParticles();
 
-      // Lightning strike: growing/ready → empty while lightning is active
+      // Lightning strike: growing/ready → empty while lightning is active.
+      // Skip when a crow was present on the previous field — that means the crow
+      // (not lightning) caused the destruction.
       if (
         lightningActive &&
+        !crowCausedEmpty &&
         (prev.stage === "growing" || prev.stage === "ready") &&
         field?.stage === "empty"
       ) {
@@ -145,9 +164,10 @@ export class FieldEntity extends Entity {
   }
 
   update(): void {
-    const now = Date.now();
-    const dt = this.lastParticleUpdate > 0 ? now - this.lastParticleUpdate : 0;
-    this.lastParticleUpdate = now;
+    const clientNow = Date.now();
+    const dt =
+      this.lastParticleUpdate > 0 ? clientNow - this.lastParticleUpdate : 0;
+    this.lastParticleUpdate = clientNow;
     if (this.craterAlpha > 0) {
       this.craterAlpha = Math.max(0, this.craterAlpha - dt / 3000);
     }
@@ -155,25 +175,26 @@ export class FieldEntity extends Entity {
       for (const p of this.particles) {
         p.x += p.vx * dt;
         p.y += p.vy * dt;
-        p.life = Math.max(0, p.life - dt / 1400);
+        p.life = Math.max(0, p.life - dt / SWAP_PARTICLE_LIFETIME_MS);
         p.rotation += p.rotationSpeed * dt;
         const alpha = p.life > 0.8 ? (1 - p.life) / 0.2 : p.life / 0.8;
         const popScale = p.life > 0.8 ? (1 - p.life) / 0.2 : 1;
-        p.sprite.x = p.x;
-        p.sprite.y = p.y;
-        p.sprite.alpha = alpha;
-        p.sprite.rotation = p.rotation;
-        p.sprite.width = popScale * 7;
-        p.sprite.height = popScale * 7;
+        p.gfx.x = p.x;
+        p.gfx.y = p.y;
+        p.gfx.alpha = alpha;
+        p.gfx.rotation = p.rotation;
+        p.gfx.scale.set(popScale);
       }
       for (let i = this.particles.length - 1; i >= 0; i--) {
         if (this.particles[i].life <= 0) {
-          this.particles[i].sprite.destroy();
+          this.particles[i].gfx.destroy();
           this.particles.splice(i, 1);
         }
       }
     }
-    if (this.base) this.draw(now);
+    // Use server-adjusted time so progress bars stay correct across machines with
+    // different clocks (LAN multiplayer). Particle/crater deltas stay on client time.
+    if (this.base) this.draw(serverTime());
   }
 
   private draw(now = Date.now()): void {
@@ -363,7 +384,9 @@ export class FieldEntity extends Entity {
       // Inner charred core
       base.poly(this.craterCore).fill({ color: 0x070200, alpha: a * 0.9 });
       // Ember rim
-      base.poly(this.craterRim).stroke({ color: 0xff4400, width: 1.5, alpha: a * 0.5 });
+      base
+        .poly(this.craterRim)
+        .stroke({ color: 0xff4400, width: 1.5, alpha: a * 0.5 });
       // Radiating cracks
       for (const crack of this.craterCracks) {
         base.moveTo(crack[0], crack[1]);
@@ -462,27 +485,31 @@ export class FieldEntity extends Entity {
 
   private spawnSwapParticles(): void {
     if (!this.fieldContainer) return;
-    const COUNT = 42;
+    const COUNT = 110;
     for (let i = 0; i < COUNT; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const speed = 0.01 + Math.random() * 0.015;
+      const speed = (0.01 + Math.random() * 0.015) * 0.85;
       const x = Math.random() * FIELD_W;
       const y = Math.random() * FIELD_H;
-      const sprite = new Sprite(Assets.get("/assets/particle.png"));
-      sprite.anchor.set(0.5, 0.5);
-      sprite.scale.set(0);
-      sprite.tint = SWAP_PARTICLE_TINTS[Math.floor(Math.random() * SWAP_PARTICLE_TINTS.length)];
-      sprite.x = x;
-      sprite.y = y;
-      sprite.alpha = 0;
-      this.fieldContainer.addChild(sprite);
+      const color =
+        SWAP_PARTICLE_COLORS[
+          Math.floor(Math.random() * SWAP_PARTICLE_COLORS.length)
+        ];
+      const gfx = new Graphics();
+      gfx.circle(0, 0, 9).fill({ color });
+      gfx.blendMode = "add";
+      gfx.x = x;
+      gfx.y = y;
+      gfx.alpha = 0;
+      gfx.scale.set(0);
+      this.fieldContainer.addChild(gfx);
       this.particles.push({
         x,
         y,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
         life: 1.0,
-        sprite,
+        gfx,
         rotation: Math.random() * Math.PI * 2,
         rotationSpeed: (Math.random() - 0.5) * 0.014,
       });
