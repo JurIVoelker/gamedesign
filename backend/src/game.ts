@@ -180,7 +180,7 @@ function createPlayerState(playerId: string): PlayerState {
       { id: "thief", level: 0, cooldownUntil: 0 },
       { id: "weather", level: 0, cooldownUntil: 0 },
     ],
-    items: [{ id: "swap_potion", name: ITEM_DEFS["swap_potion"].name, count: 3, cooldownUntil: 0 }],
+    items: [],
     thiefAttack: null,
     weatherEffect: null,
     villagersOutside: 4,
