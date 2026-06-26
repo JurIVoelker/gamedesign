@@ -91,37 +91,21 @@ export class FieldEntity extends Entity {
 
   setField(field: Field | null, lightningActive = false): void {
     const prev = this.prevField;
-    // Detect swap: a non-sowing transition that lands on growing/ready with changed timestamps
     if (prev !== null) {
-      const wasActive = prev.stage === "growing" || prev.stage === "ready";
-      const wasSowing = prev.stage === "sowing";
-      const isActive =
-        field !== null &&
-        (field.stage === "growing" || field.stage === "ready");
-      const isNormalCompletion =
-        prev.stage === "growing" &&
-        field?.stage === "ready" &&
-        prev.sowedAt === field.sowedAt;
-      const crowScaredAway = !!prev.crowAttack && !field?.crowAttack;
-      const crowCausedEmpty = !!prev.crowAttack && field?.stage === "empty";
-      const swapDetected =
-        !wasSowing &&
-        !isNormalCompletion &&
-        !crowScaredAway &&
-        ((wasActive && isActive && prev.sowedAt !== field.sowedAt) ||
-          (!wasActive && isActive));
-      // Also detect the "gave-away" side of a swap: growing/ready → empty
-      // without lightning or a crow destroying the crop.
-      const swapGaveAwayCrop =
-        !lightningActive &&
-        !crowCausedEmpty &&
-        wasActive &&
-        field?.stage === "empty";
-      if (swapDetected || swapGaveAwayCrop) this.spawnSwapParticles();
+      // Swap particles fire from an explicit server signal: the swap potion
+      // stamps both swapped positions with a fresh `lastSwappedAt`, so a changed
+      // marker is an unambiguous "this field was just swapped". No inference, so
+      // unrelated changes (growth completion, fertilizer speed-ups) never trip it.
+      const swapped =
+        field != null &&
+        field.lastSwappedAt != null &&
+        field.lastSwappedAt !== prev.lastSwappedAt;
+      if (swapped) this.spawnSwapParticles();
 
       // Lightning strike: growing/ready → empty while lightning is active.
       // Skip when a crow was present on the previous field — that means the crow
       // (not lightning) caused the destruction.
+      const crowCausedEmpty = !!prev.crowAttack && field?.stage === "empty";
       if (
         lightningActive &&
         !crowCausedEmpty &&

@@ -199,6 +199,11 @@ export const ITEM_HANDLERS: Partial<Record<ItemId, ItemEffectHandler>> = {
     oppField.growthPausedUntil = ownPayload.growthPausedUntil;
     oppField.scaringAt = null;
 
+    // Mark both positions so each client fires swap particles on exactly the
+    // two fields that were swapped (positional, not part of the swapped payload).
+    ownField.lastSwappedAt = now;
+    oppField.lastSwappedAt = now;
+
     ctx.cancelTimer(`scare:${user.id}:${ownField.index}`);
     ctx.cancelTimer(`scare:${opponent.id}:${oppField.index}`);
 

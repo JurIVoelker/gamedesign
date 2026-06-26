@@ -1056,10 +1056,56 @@ export class Game {
       ((playerState.stats.goldSpentUpgradesByTool as Record<string, number>)[
         toolId
       ] ?? 0) + cost;
+    const prevLevel = tool.level;
     tool.level += 1;
+
+    // A fertilizer upgrade must take effect on crops that are already growing:
+    // speed up their remaining grow time without jumping their visible progress.
+    if (toolId === "fertilizer") {
+      this.speedUpGrowingFields(playerState, prevLevel, tool.level);
+    }
+
     this.broadcastState();
 
     return "ok";
+  }
+
+  // Re-base every growing field so its current progress is preserved but the
+  // remaining grow time scales by the new/old fertilizer multiplier ratio.
+  private speedUpGrowingFields(
+    playerState: PlayerState,
+    oldFertLevel: number,
+    newFertLevel: number,
+  ): void {
+    const oldMult = FERTILIZER_GROW_MULTIPLIERS[oldFertLevel];
+    const newMult = FERTILIZER_GROW_MULTIPLIERS[newFertLevel];
+    if (newMult >= oldMult) return; // upgrade isn't faster — nothing to do
+
+    const scale = newMult / oldMult;
+    const now = Date.now();
+
+    for (const field of playerState.fields) {
+      if (
+        field.stage !== "growing" ||
+        field.sowedAt === null ||
+        field.readyAt === null
+      )
+        continue;
+
+      const remaining = field.readyAt - now;
+      const total = field.readyAt - field.sowedAt;
+      if (remaining <= 0 || total <= 0) continue;
+
+      const progress = (now - field.sowedAt) / total;
+      if (progress >= 1) continue;
+
+      // Keep `progress` fixed at `now`, shrink the remaining duration by `scale`.
+      const newRemaining = remaining * scale;
+      const elapsed = (progress * newRemaining) / (1 - progress);
+      field.sowedAt = now - elapsed;
+      field.readyAt = now + newRemaining;
+      this.rescheduleFieldTimer(playerState.id, field);
+    }
   }
 
   private getPlayerIdBySlot(slot: Slot): string | null {

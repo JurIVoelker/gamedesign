@@ -90,6 +90,10 @@ export interface Field {
   scaringAt: number | null;
   growthPausedUntil?: number;
   fieldBlockedUntil?: number;
+  // Timestamp of the last swap that touched this position. Bumped by the swap
+  // potion so the client can fire swap particles from an explicit signal rather
+  // than inferring a swap from state diffs.
+  lastSwappedAt?: number;
 }
 
 export interface Tool {
