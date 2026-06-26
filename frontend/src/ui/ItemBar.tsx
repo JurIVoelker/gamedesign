@@ -13,6 +13,7 @@ const SLOT_STYLE = {
   padding: "6px 4px",
   minWidth: "unset",
   justifyContent: "center",
+  alignItems: "center",
   gap: 4,
 } as const;
 

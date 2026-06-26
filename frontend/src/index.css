@@ -27,13 +27,43 @@ body {
 .upgrade-card {
   background: #1a0d06;
   box-shadow: 0 0 0 2px #c8a84b80, 0 0 0 4px #000;
-  padding: 10px 14px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 8px;
   min-width: 140px;
+  overflow: hidden;
 }
+
+.card-header-bar {
+  background: #2c1c0a;
+  border-bottom: 2px solid #000;
+  padding: 7px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.card-title { font-family: 'Press Start 2P', monospace; font-size: 8px; color: #ffd700; letter-spacing: 0.05em; }
+.lv-label   { font-family: 'Press Start 2P', monospace; font-size: 7px; color: #8a7a4a; }
+.lv-label.zero { color: #6b5d3f; }
+
+.level-segs { display: flex; gap: 4px; padding: 5px 10px 0; }
+.level-seg  { flex: 1; height: 6px; background: #3a2a12; }
+.level-seg.seg-gold   { background: #ffd700; }
+.level-seg.seg-red    { background: #c04040; }
+.level-seg.seg-purple { background: #9060c0; }
+.level-seg.seg-sky    { background: #4090c0; }
+
+.card-body { padding: 7px 10px 10px; display: flex; flex-direction: column; gap: 6px; }
+
+.stat-line { font-family: 'Press Start 2P', monospace; font-size: 7px; color: #8a7040; line-height: 1.6; }
+
+/* ── Cooldown panel ──────────────────────────────────────── */
+
+.cooldown-panel { display: flex; flex-direction: column; gap: 3px; }
+.cooldown-top   { display: flex; justify-content: space-between; align-items: baseline; }
+.cooldown-label { font-family: 'Press Start 2P', monospace; font-size: 7px; color: #8a7040; }
+.cooldown-secs  { font-family: 'Press Start 2P', monospace; font-size: 11px; color: #f0b36e; line-height: 1; }
+.cooldown-track { height: 5px; background: #2a0808; box-shadow: 0 0 0 1px #000; }
+.cooldown-fill  { height: 100%; background: #c04040; transition: width 0.1s linear; }
 
 .score-row {
   background: #0d0800;
@@ -151,6 +181,24 @@ body {
   to   { opacity: 1; }
 }
 
+/* ── Unlock button (purple outlined) ────────────────────── */
+
+.btn-unlock {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 7px;
+  line-height: 1.6;
+  background: transparent;
+  color: #9060c0;
+  border: 2px solid #9060c0;
+  padding: 5px 8px;
+  width: 100%;
+  cursor: pointer;
+  transition: none;
+  box-shadow: 0 0 0 1px #000;
+}
+.btn-unlock:hover:not(:disabled) { background: rgba(144, 96, 192, 0.12); }
+.btn-unlock:disabled { border-color: #3d2810; color: #5a4020; opacity: 0.55; cursor: not-allowed; }
+
 /* ── Input ───────────────────────────────────────────────── */
 
 .input-pixel {
@@ -185,12 +233,9 @@ body {
 /* ── Tooltip card ────────────────────────────────────────── */
 
 .hover-card-pixel {
-  background: #110800;
+  background: #1a0d06;
   box-shadow: 0 0 0 2px #c8a84b, 0 0 0 4px #000;
-  padding: 10px 12px;
-  font-size: 7px;
-  line-height: 1.8;
-  color: #f0e0a0;
+  overflow: hidden;
   white-space: nowrap;
 }
 .hover-card-pixel::after {
@@ -203,6 +248,22 @@ body {
   height: 6px;
   background: #c8a84b;
   clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+.hover-card-header {
+  background: #2c1c0a;
+  border-bottom: 2px solid #000;
+  padding: 6px 12px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  color: #ffd700;
+  letter-spacing: 0.05em;
+}
+.hover-card-body {
+  padding: 8px 12px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 7px;
+  line-height: 1.8;
+  color: #f0e0a0;
 }
 
 /* ── Text utilities ──────────────────────────────────────── */

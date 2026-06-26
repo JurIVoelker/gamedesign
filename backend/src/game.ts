@@ -65,6 +65,11 @@ const MATCH_DURATION_MS = 8 * 60 * 1000;
 
 const ROOM_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
+// Fields start a new match already sown and partially grown, so players have
+// crops to tend immediately instead of an empty opening sow phase.
+const PRESOW_PROGRESS = 0.3;
+const PRESOW_CROP_TYPE = "wheat";
+
 const TOOL_COSTS: Record<ToolId, readonly number[]> = {
   tools: TOOLS_UPGRADE_COSTS,
   fertilizer: FERTILIZER_UPGRADE_COSTS,
@@ -296,6 +301,13 @@ export class Game {
       },
       winnerId: null,
     };
+
+    // Give both players crops in progress from the very first second.
+    for (const playerState of Object.values(this.state.players)) {
+      for (const field of playerState.fields) {
+        this.presowField(playerState.id, field, startedAt);
+      }
+    }
 
     this.scheduleTimer("match_end", startedAt + MATCH_DURATION_MS, () =>
       this.endMatch(),
@@ -1245,6 +1257,17 @@ export class Game {
 
   private getToolLevel(playerState: PlayerState, toolId: ToolId): number {
     return playerState.tools.find((t) => t.id === toolId)?.level ?? 0;
+  }
+
+  private presowField(playerId: string, field: Field, now: number): void {
+    const totalGrowMs = BASE_GROW_MS;
+    field.stage = "growing";
+    field.cropType = PRESOW_CROP_TYPE;
+    field.sowedAt = now - PRESOW_PROGRESS * totalGrowMs;
+    field.readyAt = field.sowedAt + totalGrowMs;
+    this.scheduleTimer(`${playerId}:${field.index}`, field.readyAt, () =>
+      this.completeGrowth(playerId, field.index),
+    );
   }
 
   private completeSow(playerId: string, fieldIndex: number): void {

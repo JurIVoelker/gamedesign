@@ -99,7 +99,9 @@ export class FieldEntity extends Entity {
         field !== null &&
         (field.stage === "growing" || field.stage === "ready");
       const isNormalCompletion =
-        prev.stage === "growing" && field?.stage === "ready";
+        prev.stage === "growing" &&
+        field?.stage === "ready" &&
+        prev.sowedAt === field.sowedAt;
       const crowScaredAway = !!prev.crowAttack && !field?.crowAttack;
       const crowCausedEmpty = !!prev.crowAttack && field?.stage === "empty";
       const swapDetected =

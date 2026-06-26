@@ -3,8 +3,8 @@ import {
   UPGRADE_SPEED_MULTIPLIERS,
   MAX_TOOL_LEVEL,
   SOW_DURATION_MS,
-  TOOLS_UPGRADE_COSTS,
   HARVEST_DURATION_MS,
+  TOOLS_UPGRADE_COSTS,
   FERTILIZER_GROW_MULTIPLIERS,
   FERTILIZER_GOLD_MULTIPLIERS,
   MAX_FERTILIZER_LEVEL,
@@ -28,7 +28,6 @@ import { useConnectionStore } from "../state/connectionStore";
 import { useGameStore } from "../state/gameStore";
 import { useTargetingStore } from "../state/targetingStore";
 
-// Derived display arrays — computed from shared config so they stay in sync.
 const CROW_EAT_DURATIONS_MS = CROW_LEVEL_CONFIG.map((c) =>
   Math.round(1 / c.eatRatePerMs),
 );
@@ -74,21 +73,30 @@ function formatSeconds(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
-function HoverCardWrapper({ children }: { children: React.ReactNode }) {
+function HoverCardWrapper({
+  children,
+  title,
+}: {
+  children: React.ReactNode;
+  title: string;
+}) {
   return (
     <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-max pointer-events-none opacity-0 group-hover:opacity-100 z-10">
-      <div className="hover-card-pixel">{children}</div>
+      <div className="hover-card-pixel">
+        <div className="hover-card-header">{title}</div>
+        <div className="hover-card-body">{children}</div>
+      </div>
     </div>
   );
 }
 
-function ToolsHoverCard({ level }: { level: number }) {
+function ToolsHoverCard({ level, title }: { level: number; title: string }) {
   const isMaxed = level >= MAX_TOOL_LEVEL;
   const sowMs = SOW_DURATION_MS * UPGRADE_SPEED_MULTIPLIERS[level];
   const harvestMs = HARVEST_DURATION_MS * UPGRADE_SPEED_MULTIPLIERS[level];
 
   return (
-    <HoverCardWrapper>
+    <HoverCardWrapper title={title}>
       <div className="text-parchment">
         Säen: <span className="text-gold">{formatSeconds(sowMs)}</span>
       </div>
@@ -96,7 +104,7 @@ function ToolsHoverCard({ level }: { level: number }) {
         Ernten: <span className="text-gold">{formatSeconds(harvestMs)}</span>
       </div>
       {!isMaxed && (
-        <div className="text-muted-gold mt-1">
+        <div className="text-green-400 mt-1">
           {"Lv" + (level + 1) + ": Säen "}
           <span className="text-green-400">
             {formatSeconds(
@@ -116,7 +124,7 @@ function ToolsHoverCard({ level }: { level: number }) {
   );
 }
 
-function FertilizerHoverCard({ level }: { level: number }) {
+function FertilizerHoverCard({ level, title }: { level: number; title: string }) {
   const isMaxed = level >= MAX_FERTILIZER_LEVEL;
   const currentGrowMs = BASE_GROW_MS * FERTILIZER_GROW_MULTIPLIERS[level];
   const currentGold = Math.round(
@@ -128,7 +136,7 @@ function FertilizerHoverCard({ level }: { level: number }) {
   );
 
   return (
-    <HoverCardWrapper>
+    <HoverCardWrapper title={title}>
       <div className="text-parchment">
         Wachstum:{" "}
         <span className="text-gold">{formatSeconds(currentGrowMs)}</span>
@@ -137,7 +145,7 @@ function FertilizerHoverCard({ level }: { level: number }) {
         Gold: <span className="text-gold">{currentGold}g</span>
       </div>
       {!isMaxed && (
-        <div className="text-muted-gold mt-1">
+        <div className="text-green-400 mt-1">
           {"Lv" + (level + 1) + ": Wachstum "}
           <span className="text-green-400">{formatSeconds(nextGrowMs)}</span>
           {", Gold "}
@@ -149,14 +157,14 @@ function FertilizerHoverCard({ level }: { level: number }) {
   );
 }
 
-function CrowsHoverCard({ level }: { level: number }) {
+function CrowsHoverCard({ level, title }: { level: number; title: string }) {
   const isMaxed = level >= MAX_CROW_LEVEL;
   const fieldCount = level > 0 ? CROW_FIELD_COUNTS[level - 1] : 0;
   const eatMs =
     level > 0 ? CROW_EAT_DURATIONS_MS[level - 1] : CROW_EAT_DURATIONS_MS[0];
 
   return (
-    <HoverCardWrapper>
+    <HoverCardWrapper title={title}>
       {level === 0 ? (
         <div className="text-muted-gold">
           Freischalten um Krähen auf Gegnerfelder zu senden
@@ -185,13 +193,13 @@ function CrowsHoverCard({ level }: { level: number }) {
         </>
       )}
       {!isMaxed && level > 0 && (
-        <div className="text-muted-gold mt-1">
+        <div className="text-green-400 mt-1">
           Lv{level + 1}:{" "}
           <span className="text-green-400">
             frisst in {formatSeconds(CROW_EAT_DURATIONS_MS[level])}
           </span>
           {level + 1 >= 2 && (
-            <span className="text-muted-gold ml-1">
+            <span className="ml-1">
               · {CROW_FIELD_COUNTS[level]} Felder
             </span>
           )}
@@ -202,154 +210,12 @@ function CrowsHoverCard({ level }: { level: number }) {
   );
 }
 
-interface UpgradeCardProps {
-  toolId: ToolId;
-  label: string;
-  level: number;
-  gold: number;
-  costs: number[];
-  maxLevel: number;
-}
-
-function UpgradeCard({
-  toolId,
-  label,
-  level,
-  gold,
-  costs,
-  maxLevel,
-}: UpgradeCardProps) {
-  const isMaxed = level >= maxLevel;
-  const nextCost = isMaxed ? null : costs[level];
-  const canAfford = nextCost !== null && gold >= nextCost;
-  const disabled = isMaxed || !canAfford;
-
-  return (
-    <div className="relative group">
-      {toolId === "fertilizer" ? (
-        <FertilizerHoverCard level={level} />
-      ) : toolId === "tools" ? (
-        <ToolsHoverCard level={level} />
-      ) : null}
-      <div className="upgrade-card text-parchment flex flex-col items-center gap-2 min-w-35">
-        <div className="flex items-center justify-between w-full">
-          <span className="text-gold tracking-widest">{label}</span>
-          <span className="flex gap-1">
-            {Array.from({ length: maxLevel }, (_, i) => (
-              <span
-                key={i}
-                className={`level-dot${i < level ? " filled-gold" : ""}`}
-              />
-            ))}
-          </span>
-        </div>
-
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => dispatchUpgrade(toolId)}
-          className="btn-upgrade"
-        >
-          {isMaxed ? "MAXIMAL" : `Aufwerten  ${nextCost}g`}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function CrowsCard({
-  level,
-  gold,
-  cooldownUntil,
-}: {
-  level: number;
-  gold: number;
-  cooldownUntil: number;
-}) {
-  const isMaxed = level >= MAX_CROW_LEVEL;
-  const nextCost = isMaxed ? null : CROW_UPGRADE_COSTS[level];
-  const canAffordUpgrade = nextCost !== null && gold >= nextCost;
-  const upgradeDisabled = isMaxed || !canAffordUpgrade;
-
-  const now = useNow();
-  const onCooldown = cooldownUntil > now;
-  const cooldownSec = onCooldown ? Math.ceil((cooldownUntil - now) / 1000) : 0;
-  const canSend = level > 0 && !onCooldown && gold >= CROW_SEND_COST;
-
-  const isTargeting = useTargetingStore((s) => s.active);
-  const chosenCount = useTargetingStore((s) => s.chosen.length);
-  const targetingStart = useTargetingStore((s) => s.start);
-  const targetingCancel = useTargetingStore((s) => s.cancel);
-  const fieldCount = level > 0 ? CROW_FIELD_COUNTS[level - 1] : 0;
-  const remaining = fieldCount - chosenCount;
-
-  const handleSendClick = () => {
-    if (isTargeting) {
-      targetingCancel();
-      return;
-    }
-    targetingStart(fieldCount, (indices) => {
-      useConnectionStore.getState().send?.({
-        type: "player_action",
-        action: { kind: "SendCrows", targetFieldIndices: indices },
-      });
-    });
-  };
-
-  return (
-    <div className="relative group">
-      <CrowsHoverCard level={level} />
-      <div className="upgrade-card text-parchment flex flex-col items-center gap-2 min-w-35">
-        <div className="flex items-center justify-between w-full">
-          <span className="text-gold tracking-widest">KRÄHEN</span>
-          <span className="flex gap-1">
-            {Array.from({ length: MAX_CROW_LEVEL }, (_, i) => (
-              <span
-                key={i}
-                className={`level-dot${i < level ? " filled-red" : ""}`}
-              />
-            ))}
-          </span>
-        </div>
-
-        <button
-          type="button"
-          disabled={upgradeDisabled}
-          onClick={() => dispatchUpgrade("crows")}
-          className="btn-upgrade"
-        >
-          {isMaxed
-            ? "MAXIMAL"
-            : level === 0
-              ? `Freischalten  ${nextCost}g`
-              : `Aufwerten  ${nextCost}g`}
-        </button>
-
-        {level > 0 && (
-          <button
-            type="button"
-            disabled={!isTargeting && !canSend}
-            onClick={handleSendClick}
-            className={`btn-upgrade-action${isTargeting ? " targeting" : ""}`}
-          >
-            {isTargeting
-              ? `Feld wählen  ${remaining}`
-              : onCooldown
-                ? `Abkling.  ${cooldownSec}s`
-                : `Senden  ${CROW_SEND_COST}g`}
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function ThiefHoverCard({ level }: { level: number }) {
+function ThiefHoverCard({ level, title }: { level: number; title: string }) {
   const isMaxed = level >= MAX_THIEF_LEVEL;
   const lvIdx = level - 1;
 
   return (
-    <HoverCardWrapper>
+    <HoverCardWrapper title={title}>
       {level === 0 ? (
         <div className="text-muted-gold">
           Freischalten um einen Dieb zu schicken der Gold stiehlt
@@ -388,7 +254,7 @@ function ThiefHoverCard({ level }: { level: number }) {
         </>
       )}
       {!isMaxed && level > 0 && (
-        <div className="text-muted-gold mt-1">
+        <div className="text-green-400 mt-1">
           Lv{level + 1}:{" "}
           <span className="text-green-400">
             {THIEF_STEAL_PER_SEC[level]}g/s
@@ -401,90 +267,12 @@ function ThiefHoverCard({ level }: { level: number }) {
   );
 }
 
-function ThiefCard({
-  level,
-  gold,
-  cooldownUntil,
-  opponentHasThief,
-}: {
-  level: number;
-  gold: number;
-  cooldownUntil: number;
-  opponentHasThief: boolean;
-}) {
-  const isMaxed = level >= MAX_THIEF_LEVEL;
-  const nextCost = isMaxed ? null : THIEF_UPGRADE_COSTS[level];
-  const canAffordUpgrade = nextCost !== null && gold >= nextCost;
-  const upgradeDisabled = isMaxed || !canAffordUpgrade;
-
-  const now = useNow();
-  const onCooldown = cooldownUntil > now;
-  const cooldownSec = onCooldown ? Math.ceil((cooldownUntil - now) / 1000) : 0;
-  const sendCost = level > 0 ? THIEF_SEND_COSTS[level - 1] : 0;
-  const canSend =
-    level > 0 && !onCooldown && gold >= sendCost && !opponentHasThief;
-
-  const handleSend = () => {
-    useConnectionStore.getState().send?.({
-      type: "player_action",
-      action: { kind: "SendThief" },
-    });
-  };
-
-  return (
-    <div className="relative group">
-      <ThiefHoverCard level={level} />
-      <div className="upgrade-card text-parchment flex flex-col items-center gap-2 min-w-35">
-        <div className="flex items-center justify-between w-full">
-          <span className="text-gold tracking-widest">DIEB</span>
-          <span className="flex gap-1">
-            {Array.from({ length: MAX_THIEF_LEVEL }, (_, i) => (
-              <span
-                key={i}
-                className={`level-dot${i < level ? " filled-purple" : ""}`}
-              />
-            ))}
-          </span>
-        </div>
-
-        <button
-          type="button"
-          disabled={upgradeDisabled}
-          onClick={() => dispatchUpgrade("thief")}
-          className="btn-upgrade"
-        >
-          {isMaxed
-            ? "MAXIMAL"
-            : level === 0
-              ? `Freischalten  ${nextCost}g`
-              : `Aufwerten  ${nextCost}g`}
-        </button>
-
-        {level > 0 && (
-          <button
-            type="button"
-            disabled={!canSend}
-            onClick={handleSend}
-            className="btn-upgrade-action"
-          >
-            {opponentHasThief
-              ? "Besetzt"
-              : onCooldown
-                ? `Abkling.  ${cooldownSec}s`
-                : `Senden  ${sendCost}g`}
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function WeatherHoverCard({ level }: { level: number }) {
+function WeatherHoverCard({ level, title }: { level: number; title: string }) {
   const isMaxed = level >= MAX_WEATHER_LEVEL;
   const lvIdx = level - 1;
 
   return (
-    <HoverCardWrapper>
+    <HoverCardWrapper title={title}>
       {level === 0 ? (
         <div className="text-muted-gold">
           Freischalten um Stürme zu senden die Gegnerernten verlangsamen
@@ -522,7 +310,7 @@ function WeatherHoverCard({ level }: { level: number }) {
         </>
       )}
       {!isMaxed && level > 0 && (
-        <div className="text-muted-gold mt-1">
+        <div className="text-green-400 mt-1">
           Lv{level + 1}:{" "}
           <span className="text-green-400">
             -{Math.round(WEATHER_SLOW_FACTORS[level] * 100)}% Wachstum
@@ -536,6 +324,330 @@ function WeatherHoverCard({ level }: { level: number }) {
       )}
       {isMaxed && <div className="text-gold mt-1">Max. Stufe</div>}
     </HoverCardWrapper>
+  );
+}
+
+// ── Layout helpers ────────────────────────────────────────────────────────────
+
+function LevelSegs({
+  maxLevel,
+  level,
+  color,
+}: {
+  maxLevel: number;
+  level: number;
+  color: "gold" | "red" | "purple" | "sky";
+}) {
+  return (
+    <div className="level-segs">
+      {Array.from({ length: maxLevel }, (_, i) => (
+        <div
+          key={i}
+          className={`level-seg${i < level ? ` seg-${color}` : ""}`}
+        />
+      ))}
+    </div>
+  );
+}
+
+function CooldownPanel({
+  cooldownUntil,
+  now,
+  totalMs,
+}: {
+  cooldownUntil: number;
+  now: number;
+  totalMs: number;
+}) {
+  const remaining = Math.max(0, cooldownUntil - now);
+  return (
+    <div className="cooldown-panel">
+      <div className="cooldown-top">
+        <span className="cooldown-label">ABKLINGZEIT</span>
+        <span className="cooldown-secs">{(remaining / 1000).toFixed(1)}s</span>
+      </div>
+      <div className="cooldown-track">
+        <div
+          className="cooldown-fill"
+          style={{ width: `${Math.max(0, (remaining / totalMs) * 100)}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ── Cards ─────────────────────────────────────────────────────────────────────
+
+interface UpgradeCardProps {
+  toolId: ToolId;
+  label: string;
+  level: number;
+  gold: number;
+  costs: number[];
+  maxLevel: number;
+}
+
+function UpgradeCard({
+  toolId,
+  label,
+  level,
+  gold,
+  costs,
+  maxLevel,
+}: UpgradeCardProps) {
+  const isMaxed = level >= maxLevel;
+  const nextCost = isMaxed ? null : costs[level];
+  const canAfford = nextCost !== null && gold >= nextCost;
+  const disabled = isMaxed || !canAfford;
+
+  let statText: string;
+  if (toolId === "tools") {
+    const speedMs = SOW_DURATION_MS * UPGRADE_SPEED_MULTIPLIERS[level];
+    statText = `SÄEN/ERNTEN: ${(speedMs / 1000).toFixed(1)}S`;
+  } else {
+    const gold = Math.round(GOLD_PER_HARVEST * FERTILIZER_GOLD_MULTIPLIERS[level]);
+    const growSec = Math.round(
+      (BASE_GROW_MS * FERTILIZER_GROW_MULTIPLIERS[level]) / 1000,
+    );
+    statText = `${gold}g IN ${growSec}s`;
+  }
+
+  return (
+    <div className="relative group">
+      {toolId === "fertilizer" ? (
+        <FertilizerHoverCard level={level} title={label} />
+      ) : toolId === "tools" ? (
+        <ToolsHoverCard level={level} title={label} />
+      ) : null}
+      <div className="upgrade-card">
+        <div className="card-header-bar">
+          <span className="card-title">{label}</span>
+          <span className={`lv-label${level === 0 ? " zero" : ""}`}>
+            LV {level}/{maxLevel}
+          </span>
+        </div>
+        <LevelSegs maxLevel={maxLevel} level={level} color="gold" />
+        <div className="card-body">
+          <div className="stat-line">{statText}</div>
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => dispatchUpgrade(toolId)}
+            className="btn-upgrade"
+          >
+            {isMaxed ? "MAXIMAL" : `▲ AUFWERTEN  ${nextCost}g`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CrowsCard({
+  level,
+  gold,
+  cooldownUntil,
+}: {
+  level: number;
+  gold: number;
+  cooldownUntil: number;
+}) {
+  const isMaxed = level >= MAX_CROW_LEVEL;
+  const nextCost = isMaxed ? null : CROW_UPGRADE_COSTS[level];
+  const canAffordUpgrade = nextCost !== null && gold >= nextCost;
+  const upgradeDisabled = isMaxed || !canAffordUpgrade;
+
+  const now = useNow(100);
+  const onCooldown = cooldownUntil > now;
+  const canSend = level > 0 && !onCooldown && gold >= CROW_SEND_COST;
+
+  const isTargeting = useTargetingStore((s) => s.active);
+  const chosenCount = useTargetingStore((s) => s.chosen.length);
+  const targetingStart = useTargetingStore((s) => s.start);
+  const targetingCancel = useTargetingStore((s) => s.cancel);
+  const fieldCount = level > 0 ? CROW_FIELD_COUNTS[level - 1] : 0;
+  const remaining = fieldCount - chosenCount;
+
+  const handleSendClick = () => {
+    if (isTargeting) {
+      targetingCancel();
+      return;
+    }
+    targetingStart(fieldCount, (indices) => {
+      useConnectionStore.getState().send?.({
+        type: "player_action",
+        action: { kind: "SendCrows", targetFieldIndices: indices },
+      });
+    });
+  };
+
+  let statText: string;
+  if (level === 0) {
+    statText = "▪ NOCH GESPERRT";
+  } else {
+    const fc = CROW_FIELD_COUNTS[level - 1];
+    const eatSec = (CROW_EAT_DURATIONS_MS[level - 1] / 1000).toFixed(1);
+    statText = `FRISST ${fc} FELD${fc > 1 ? "ER" : ""} IN ${eatSec}S`;
+  }
+
+  return (
+    <div className="relative group">
+      <CrowsHoverCard level={level} title="KRÄHEN" />
+      <div className="upgrade-card">
+        <div className="card-header-bar">
+          <span className="card-title">KRÄHEN</span>
+          <span className={`lv-label${level === 0 ? " zero" : ""}`}>
+            LV {level}/{MAX_CROW_LEVEL}
+          </span>
+        </div>
+        <LevelSegs maxLevel={MAX_CROW_LEVEL} level={level} color="red" />
+        <div className="card-body">
+          <div className="stat-line">{statText}</div>
+          {level === 0 ? (
+            <>
+              <button
+                type="button"
+                disabled={!canAffordUpgrade}
+                onClick={() => dispatchUpgrade("crows")}
+                className="btn-unlock"
+              >
+                FREISCHALTEN  {nextCost}g
+              </button>
+              <button type="button" disabled className="btn-upgrade-action">
+                ▶ SENDEN  {CROW_SEND_COST}g
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                disabled={upgradeDisabled}
+                onClick={() => dispatchUpgrade("crows")}
+                className="btn-upgrade"
+              >
+                {isMaxed ? "MAXIMAL" : `▲ AUFWERTEN  ${nextCost}g`}
+              </button>
+              {onCooldown ? (
+                <CooldownPanel
+                  cooldownUntil={cooldownUntil}
+                  now={now}
+                  totalMs={CROW_COOLDOWN_MS}
+                />
+              ) : (
+                <button
+                  type="button"
+                  disabled={!isTargeting && !canSend}
+                  onClick={handleSendClick}
+                  className={`btn-upgrade-action${isTargeting ? " targeting" : ""}`}
+                >
+                  {isTargeting
+                    ? `FELD WÄHLEN  ${remaining}`
+                    : `▶ SENDEN  ${CROW_SEND_COST}g`}
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ThiefCard({
+  level,
+  gold,
+  cooldownUntil,
+  opponentHasThief,
+}: {
+  level: number;
+  gold: number;
+  cooldownUntil: number;
+  opponentHasThief: boolean;
+}) {
+  const isMaxed = level >= MAX_THIEF_LEVEL;
+  const nextCost = isMaxed ? null : THIEF_UPGRADE_COSTS[level];
+  const canAffordUpgrade = nextCost !== null && gold >= nextCost;
+  const upgradeDisabled = isMaxed || !canAffordUpgrade;
+
+  const now = useNow(100);
+  const onCooldown = cooldownUntil > now;
+  const sendCost = level > 0 ? THIEF_SEND_COSTS[level - 1] : 0;
+  const canSend =
+    level > 0 && !onCooldown && gold >= sendCost && !opponentHasThief;
+
+  const handleSend = () => {
+    useConnectionStore.getState().send?.({
+      type: "player_action",
+      action: { kind: "SendThief" },
+    });
+  };
+
+  let statText: string;
+  if (level === 0) {
+    statText = "▪ NOCH GESPERRT";
+  } else {
+    const lvIdx = level - 1;
+    statText = `STIEHLT ${THIEF_STEAL_PER_SEC[lvIdx]}G/S · MAX ${THIEF_MAX_STOLEN[lvIdx]}G`;
+  }
+
+  return (
+    <div className="relative group">
+      <ThiefHoverCard level={level} title="DIEB" />
+      <div className="upgrade-card">
+        <div className="card-header-bar">
+          <span className="card-title">DIEB</span>
+          <span className={`lv-label${level === 0 ? " zero" : ""}`}>
+            LV {level}/{MAX_THIEF_LEVEL}
+          </span>
+        </div>
+        <LevelSegs maxLevel={MAX_THIEF_LEVEL} level={level} color="purple" />
+        <div className="card-body">
+          <div className="stat-line">{statText}</div>
+          {level === 0 ? (
+            <>
+              <button
+                type="button"
+                disabled={!canAffordUpgrade}
+                onClick={() => dispatchUpgrade("thief")}
+                className="btn-unlock"
+              >
+                FREISCHALTEN  {nextCost}g
+              </button>
+              <button type="button" disabled className="btn-upgrade-action">
+                ▶ SENDEN  {THIEF_SEND_COSTS[0]}g
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                disabled={upgradeDisabled}
+                onClick={() => dispatchUpgrade("thief")}
+                className="btn-upgrade"
+              >
+                {isMaxed ? "MAXIMAL" : `▲ AUFWERTEN  ${nextCost}g`}
+              </button>
+              {onCooldown ? (
+                <CooldownPanel
+                  cooldownUntil={cooldownUntil}
+                  now={now}
+                  totalMs={THIEF_COOLDOWN_MS}
+                />
+              ) : (
+                <button
+                  type="button"
+                  disabled={!canSend}
+                  onClick={handleSend}
+                  className="btn-upgrade-action"
+                >
+                  {opponentHasThief ? "BESETZT" : `▶ SENDEN  ${sendCost}g`}
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -555,9 +667,8 @@ function WeatherCard({
   const canAffordUpgrade = nextCost !== null && gold >= nextCost;
   const upgradeDisabled = isMaxed || !canAffordUpgrade;
 
-  const now = useNow();
+  const now = useNow(100);
   const onCooldown = cooldownUntil > now;
-  const cooldownSec = onCooldown ? Math.ceil((cooldownUntil - now) / 1000) : 0;
   const sendCost = level > 0 ? WEATHER_SEND_COSTS[level - 1] : 0;
   const canSend =
     level > 0 && !onCooldown && gold >= sendCost && !opponentHasWeather;
@@ -569,49 +680,72 @@ function WeatherCard({
     });
   };
 
+  let statText: string;
+  if (level === 0) {
+    statText = "▪ NOCH GESPERRT";
+  } else {
+    const lvIdx = level - 1;
+    const slowPct = Math.round(WEATHER_SLOW_FACTORS[lvIdx] * 100);
+    const durSec = Math.round(WEATHER_DURATION_MS / 1000);
+    statText = `VERLANGSAMT -${slowPct}% · ${durSec}S DAUER`;
+  }
+
   return (
     <div className="relative group">
-      <WeatherHoverCard level={level} />
-      <div className="upgrade-card text-parchment flex flex-col items-center gap-2 min-w-35">
-        <div className="flex items-center justify-between w-full">
-          <span className="text-gold tracking-widest">UNWETTER</span>
-          <span className="flex gap-1">
-            {Array.from({ length: MAX_WEATHER_LEVEL }, (_, i) => (
-              <span
-                key={i}
-                className={`level-dot${i < level ? " filled-sky" : ""}`}
-              />
-            ))}
+      <WeatherHoverCard level={level} title="UNWETTER" />
+      <div className="upgrade-card">
+        <div className="card-header-bar">
+          <span className="card-title">UNWETTER</span>
+          <span className={`lv-label${level === 0 ? " zero" : ""}`}>
+            LV {level}/{MAX_WEATHER_LEVEL}
           </span>
         </div>
-
-        <button
-          type="button"
-          disabled={upgradeDisabled}
-          onClick={() => dispatchUpgrade("weather")}
-          className="btn-upgrade"
-        >
-          {isMaxed
-            ? "MAXIMAL"
-            : level === 0
-              ? `Freischalten  ${nextCost}g`
-              : `Aufwerten  ${nextCost}g`}
-        </button>
-
-        {level > 0 && (
-          <button
-            type="button"
-            disabled={!canSend}
-            onClick={handleSend}
-            className="btn-upgrade-action"
-          >
-            {opponentHasWeather
-              ? "Aktiv"
-              : onCooldown
-                ? `Abkling.  ${cooldownSec}s`
-                : `Senden  ${sendCost}g`}
-          </button>
-        )}
+        <LevelSegs maxLevel={MAX_WEATHER_LEVEL} level={level} color="sky" />
+        <div className="card-body">
+          <div className="stat-line">{statText}</div>
+          {level === 0 ? (
+            <>
+              <button
+                type="button"
+                disabled={!canAffordUpgrade}
+                onClick={() => dispatchUpgrade("weather")}
+                className="btn-unlock"
+              >
+                FREISCHALTEN  {nextCost}g
+              </button>
+              <button type="button" disabled className="btn-upgrade-action">
+                ▶ SENDEN  {WEATHER_SEND_COSTS[0]}g
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                disabled={upgradeDisabled}
+                onClick={() => dispatchUpgrade("weather")}
+                className="btn-upgrade"
+              >
+                {isMaxed ? "MAXIMAL" : `▲ AUFWERTEN  ${nextCost}g`}
+              </button>
+              {onCooldown ? (
+                <CooldownPanel
+                  cooldownUntil={cooldownUntil}
+                  now={now}
+                  totalMs={WEATHER_COOLDOWN_MS}
+                />
+              ) : (
+                <button
+                  type="button"
+                  disabled={!canSend}
+                  onClick={handleSend}
+                  className="btn-upgrade-action"
+                >
+                  {opponentHasWeather ? "AKTIV" : `▶ SENDEN  ${sendCost}g`}
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
