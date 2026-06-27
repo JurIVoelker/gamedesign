@@ -1,5 +1,6 @@
 import type { PlayerAction } from "./actions.js";
 import type { GameState } from "./game-state.js";
+import type { TutorialStageId } from "../tutorial.js";
 
 // ---------------------------------------------------------------------------
 // Client → Server
@@ -14,6 +15,9 @@ export type LeaveGameMsg = { type: "leave_game" };
 export type VillagersMsg = { type: "villagers"; count: number };
 export type MerchantWindowMsg = { type: "merchant_window"; open: boolean };
 
+export type StartTutorialMsg = { type: "start_tutorial"; stage: TutorialStageId };
+export type TutorialCueMsg = { type: "tutorial_cue"; cue: string; level?: number };
+
 export type ClientMessage =
   | HelloMsg
   | CreateRoomMsg
@@ -22,7 +26,9 @@ export type ClientMessage =
   | PongMsg
   | LeaveGameMsg
   | VillagersMsg
-  | MerchantWindowMsg;
+  | MerchantWindowMsg
+  | StartTutorialMsg
+  | TutorialCueMsg;
 
 // ---------------------------------------------------------------------------
 // Server → Client
@@ -72,7 +78,9 @@ export function isClientMessage(msg: unknown): msg is ClientMessage {
     t === "pong" ||
     t === "leave_game" ||
     t === "villagers" ||
-    t === "merchant_window"
+    t === "merchant_window" ||
+    t === "start_tutorial" ||
+    t === "tutorial_cue"
   );
 }
 

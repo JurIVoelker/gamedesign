@@ -109,7 +109,9 @@ export class ThiefEntity {
     const frameIndex = Math.floor(this.walkFrame / 8) % FRAME_COUNT;
     // Lv3 full disguise: subtle sinusoidal body bob to hint at nervousness (attacker only)
     const nervousY =
-      this.disguise === "full" && this.isAttacker ? Math.sin(this.nervousFrame / 25) * 0.6 : 0;
+      this.disguise === "full" && this.isAttacker
+        ? Math.sin(this.nervousFrame / 25) * 0.6
+        : 0;
     this.sprite.texture = this.frames[this.direction][frameIndex];
     this.sprite.x = this.x;
     this.sprite.y = this.y - nervousY;

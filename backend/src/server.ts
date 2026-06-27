@@ -60,9 +60,13 @@ setInterval(() => {
   }
 }, HEARTBEAT_INTERVAL_MS);
 
-// Tick active sabotages every second so effects update in real time
+// Tick active sabotages and bot controllers every second
 setInterval(() => {
-  for (const game of gameManager.getAllGames()) game.processSabotages();
+  const now = Date.now();
+  for (const game of gameManager.getAllGames()) {
+    game.processSabotages();
+    game.tickBot(now);
+  }
 }, 1_000);
 
 console.log(`[server] Listening on ws://localhost:${PORT}`);

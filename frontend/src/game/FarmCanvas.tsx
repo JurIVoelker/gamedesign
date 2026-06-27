@@ -6,6 +6,11 @@ import { useTargetingStore } from "../state/targetingStore";
 import { useCenterToastStore } from "../state/centerToastStore";
 import { AccusationModal } from "../ui/AccusationModal";
 import { MerchantShopModal } from "../ui/MerchantShopModal";
+import {
+  useTutorialStore,
+  useRevealedSurfaces,
+  getRevealedSurfaces,
+} from "../state/tutorialStore";
 const MERCHANT_BUBBLE_SHOW_MS = 8000;
 
 export type AccusationTarget =
@@ -49,6 +54,7 @@ export function FarmCanvas() {
     null,
   );
   const [merchantOpen, setMerchantOpen] = useState(false);
+  const revealed = useRevealedSurfaces();
 
   // Anger bubble: shown above the house when sow/harvest is blocked
   const [angerBubble, setAngerBubble] = useState<{
@@ -162,7 +168,13 @@ export function FarmCanvas() {
       );
     };
 
+    const isWelcomeStep = () => {
+      const s = useTutorialStore.getState();
+      return s.active && s.stepIndex === 0;
+    };
+
     const onSow = (fieldIndex: number) => {
+      if (isWelcomeStep()) return;
       if (isFieldBlocked(fieldIndex)) {
         showAngerBubble(fieldIndex);
         return;
@@ -174,6 +186,7 @@ export function FarmCanvas() {
     };
 
     const onHarvest = (fieldIndex: number) => {
+      if (isWelcomeStep()) return;
       if (isFieldBlocked(fieldIndex)) {
         showAngerBubble(fieldIndex);
         return;
@@ -192,6 +205,7 @@ export function FarmCanvas() {
     };
 
     const onThiefClicked = () => {
+      if (useTutorialStore.getState().active) return;
       const { game: g } = useGameStore.getState();
       const { playerId: pid } = useConnectionStore.getState();
       const disguise = g?.players[pid ?? ""]?.thiefAttack?.disguise ?? "none";
@@ -200,6 +214,7 @@ export function FarmCanvas() {
     };
 
     const onVillagerClicked = (id: number) => {
+      if (useTutorialStore.getState().active) return;
       const pos = engineRef.current?.getPlayerHouseScreenPos(id);
       setAccusationAnchorY(pos?.y ?? null);
       setAccusationTarget({ type: "villager", villagerId: id });
@@ -234,6 +249,13 @@ export function FarmCanvas() {
           engine.destroy();
           return;
         }
+        // Re-apply tutorial reveal state that may have changed during async init
+        const tutState = useTutorialStore.getState();
+        if (tutState.active) {
+          engine.setTutorialReveal({
+            opponentFarm: getRevealedSurfaces(tutState).has("opponentFarm"),
+          });
+        }
         const { game } = useGameStore.getState();
         const { playerId } = useConnectionStore.getState();
         if (game && playerId) engine.updateGameState(game, playerId);
@@ -252,6 +274,13 @@ export function FarmCanvas() {
       engineRef.current.updateGameState(game, playerId);
     }
   }, [game, playerId]);
+
+  // Tutorial disclosure bridge: propagate surface visibility to PixiJS engine
+  useEffect(() => {
+    engineRef.current?.setTutorialReveal({
+      opponentFarm: revealed.has("opponentFarm"),
+    });
+  }, [revealed]);
 
   const remaining = fieldCount - chosen.length;
 
@@ -301,21 +330,23 @@ export function FarmCanvas() {
       >
         Dein Hof
       </span>
-      <span
-        className="panel-pixel text-parchment"
-        style={{
-          position: "absolute",
-          top: 12,
-          right: 16,
-          fontFamily: "'Press Start 2P', monospace",
-          fontSize: 11,
-          padding: "5px 10px",
-          pointerEvents: "none",
-          userSelect: "none",
-        }}
-      >
-        Gegner
-      </span>
+      {revealed.has("opponentFarm") && (
+        <span
+          className="panel-pixel text-parchment"
+          style={{
+            position: "absolute",
+            top: 12,
+            right: 16,
+            fontFamily: "'Press Start 2P', monospace",
+            fontSize: 11,
+            padding: "5px 10px",
+            pointerEvents: "none",
+            userSelect: "none",
+          }}
+        >
+          Gegner
+        </span>
+      )}
       {targeting && (
         <span style={targetingHintStyle}>
           {ownFarm

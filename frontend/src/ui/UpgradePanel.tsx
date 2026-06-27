@@ -27,6 +27,7 @@ import { useEffect, useState } from "react";
 import { useConnectionStore } from "../state/connectionStore";
 import { useGameStore } from "../state/gameStore";
 import { useTargetingStore } from "../state/targetingStore";
+import { useRevealedSurfaces } from "../state/tutorialStore";
 
 const CROW_EAT_DURATIONS_MS = CROW_LEVEL_CONFIG.map((c) =>
   Math.round(1 / c.eatRatePerMs),
@@ -124,7 +125,13 @@ function ToolsHoverCard({ level, title }: { level: number; title: string }) {
   );
 }
 
-function FertilizerHoverCard({ level, title }: { level: number; title: string }) {
+function FertilizerHoverCard({
+  level,
+  title,
+}: {
+  level: number;
+  title: string;
+}) {
   const isMaxed = level >= MAX_FERTILIZER_LEVEL;
   const currentGrowMs = BASE_GROW_MS * FERTILIZER_GROW_MULTIPLIERS[level];
   const currentGold = Math.round(
@@ -199,9 +206,7 @@ function CrowsHoverCard({ level, title }: { level: number; title: string }) {
             frisst in {formatSeconds(CROW_EAT_DURATIONS_MS[level])}
           </span>
           {level + 1 >= 2 && (
-            <span className="ml-1">
-              · {CROW_FIELD_COUNTS[level]} Felder
-            </span>
+            <span className="ml-1">· {CROW_FIELD_COUNTS[level]} Felder</span>
           )}
         </div>
       )}
@@ -405,7 +410,9 @@ function UpgradeCard({
     const speedMs = SOW_DURATION_MS * UPGRADE_SPEED_MULTIPLIERS[level];
     statText = `SÄEN/ERNTEN: ${(speedMs / 1000).toFixed(1)}S`;
   } else {
-    const gold = Math.round(GOLD_PER_HARVEST * FERTILIZER_GOLD_MULTIPLIERS[level]);
+    const gold = Math.round(
+      GOLD_PER_HARVEST * FERTILIZER_GOLD_MULTIPLIERS[level],
+    );
     const growSec = Math.round(
       (BASE_GROW_MS * FERTILIZER_GROW_MULTIPLIERS[level]) / 1000,
     );
@@ -511,10 +518,10 @@ function CrowsCard({
                 onClick={() => dispatchUpgrade("crows")}
                 className="btn-unlock"
               >
-                FREISCHALTEN  {nextCost}g
+                FREISCHALTEN {nextCost}g
               </button>
               <button type="button" disabled className="btn-upgrade-action">
-                ▶ SENDEN  {CROW_SEND_COST}g
+                ▶ SENDEN {CROW_SEND_COST}g
               </button>
             </>
           ) : (
@@ -611,10 +618,10 @@ function ThiefCard({
                 onClick={() => dispatchUpgrade("thief")}
                 className="btn-unlock"
               >
-                FREISCHALTEN  {nextCost}g
+                FREISCHALTEN {nextCost}g
               </button>
               <button type="button" disabled className="btn-upgrade-action">
-                ▶ SENDEN  {THIEF_SEND_COSTS[0]}g
+                ▶ SENDEN {THIEF_SEND_COSTS[0]}g
               </button>
             </>
           ) : (
@@ -711,10 +718,10 @@ function WeatherCard({
                 onClick={() => dispatchUpgrade("weather")}
                 className="btn-unlock"
               >
-                FREISCHALTEN  {nextCost}g
+                FREISCHALTEN {nextCost}g
               </button>
               <button type="button" disabled className="btn-upgrade-action">
-                ▶ SENDEN  {WEATHER_SEND_COSTS[0]}g
+                ▶ SENDEN {WEATHER_SEND_COSTS[0]}g
               </button>
             </>
           ) : (
@@ -754,6 +761,7 @@ function WeatherCard({
 export function UpgradePanel() {
   const game = useGameStore((s) => s.game);
   const playerId = useConnectionStore((s) => s.playerId);
+  const revealed = useRevealedSurfaces();
 
   const me = playerId ? game?.players[playerId] : null;
   const opponent = playerId
@@ -778,39 +786,59 @@ export function UpgradePanel() {
   return (
     <div className="absolute inset-bottom-safe left-0 right-0 flex justify-center pointer-events-none">
       <div className="flex gap-3 pointer-events-auto">
-        <UpgradeCard
-          toolId="tools"
-          label="WERKZEUG"
-          level={toolsLevel}
-          gold={gold}
-          costs={TOOLS_UPGRADE_COSTS}
-          maxLevel={MAX_TOOL_LEVEL}
-        />
-        <UpgradeCard
-          toolId="fertilizer"
-          label="DÜNGER"
-          level={fertilizerLevel}
-          gold={gold}
-          costs={FERTILIZER_UPGRADE_COSTS}
-          maxLevel={MAX_FERTILIZER_LEVEL}
-        />
-        <CrowsCard
-          level={crowsLevel}
-          gold={gold}
-          cooldownUntil={crowsCooldownUntil}
-        />
-        <ThiefCard
-          level={thiefLevel}
-          gold={gold}
-          cooldownUntil={thiefCooldownUntil}
-          opponentHasThief={opponentHasThief}
-        />
-        <WeatherCard
-          level={weatherLevel}
-          gold={gold}
-          cooldownUntil={weatherCooldownUntil}
-          opponentHasWeather={opponentHasWeather}
-        />
+        {revealed.has("toolsCard") && (
+          <div data-tutorial-id="toolsCard">
+            <UpgradeCard
+              toolId="tools"
+              label="WERKZEUG"
+              level={toolsLevel}
+              gold={gold}
+              costs={TOOLS_UPGRADE_COSTS}
+              maxLevel={MAX_TOOL_LEVEL}
+            />
+          </div>
+        )}
+        {revealed.has("fertilizerCard") && (
+          <div data-tutorial-id="fertilizerCard">
+            <UpgradeCard
+              toolId="fertilizer"
+              label="DÜNGER"
+              level={fertilizerLevel}
+              gold={gold}
+              costs={FERTILIZER_UPGRADE_COSTS}
+              maxLevel={MAX_FERTILIZER_LEVEL}
+            />
+          </div>
+        )}
+        {revealed.has("crowsCard") && (
+          <div data-tutorial-id="crowsCard">
+            <CrowsCard
+              level={crowsLevel}
+              gold={gold}
+              cooldownUntil={crowsCooldownUntil}
+            />
+          </div>
+        )}
+        {revealed.has("thiefCard") && (
+          <div data-tutorial-id="thiefCard">
+            <ThiefCard
+              level={thiefLevel}
+              gold={gold}
+              cooldownUntil={thiefCooldownUntil}
+              opponentHasThief={opponentHasThief}
+            />
+          </div>
+        )}
+        {revealed.has("weatherCard") && (
+          <div data-tutorial-id="weatherCard">
+            <WeatherCard
+              level={weatherLevel}
+              gold={gold}
+              cooldownUntil={weatherCooldownUntil}
+              opponentHasWeather={opponentHasWeather}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

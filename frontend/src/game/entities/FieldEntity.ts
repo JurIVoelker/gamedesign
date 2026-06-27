@@ -3,6 +3,7 @@ import type { CropStage, Field } from "@gamedesign/shared";
 import { ACCUSATION_PAUSE_MS } from "@gamedesign/shared";
 import { Entity } from "./Entity";
 import { useTargetingStore } from "../../state/targetingStore";
+import { useTutorialStore } from "../../state/tutorialStore";
 import { CrowAnimator } from "./CrowAnimator";
 import { SeededRandom } from "../SeededRandom";
 import { serverTime } from "../../net/clockSync";
@@ -382,6 +383,21 @@ export class FieldEntity extends Entity {
         }
         base.stroke({ color: 0x050100, width: 1.5, alpha: a * 0.7 });
       }
+    }
+
+    // Tutorial highlight: gold pulsing ring when this field is the step focus
+    const highlight = useTutorialStore.getState().highlightField;
+    if (
+      highlight &&
+      highlight.owner === this.owner &&
+      highlight.index === this.id
+    ) {
+      const pulse = 0.55 + 0.45 * Math.sin(now / 180);
+      base.rect(0, 0, FIELD_W, FIELD_H).stroke({
+        color: 0xffd700,
+        width: 4,
+        alpha: pulse,
+      });
     }
 
     // Interactivity — update listeners when relevant state changes

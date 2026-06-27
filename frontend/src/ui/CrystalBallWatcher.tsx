@@ -3,6 +3,7 @@ import { useGameStore } from "../state/gameStore";
 import { useConnectionStore } from "../state/connectionStore";
 import { useToastStore } from "../state/toastStore";
 import { CRYSTAL_BALL_LEAD_MS } from "@gamedesign/shared";
+import { useTutorialStore, getRevealedSurfaces } from "../state/tutorialStore";
 
 const SABOTAGE_TOOLS = ["crows", "thief", "weather"] as const;
 type SabotageTool = (typeof SABOTAGE_TOOLS)[number];
@@ -18,6 +19,9 @@ export function CrystalBallWatcher() {
 
   useEffect(() => {
     const id = setInterval(() => {
+      if (!getRevealedSurfaces(useTutorialStore.getState()).has("crystalBall"))
+        return;
+
       const { game } = useGameStore.getState();
       const { playerId } = useConnectionStore.getState();
       if (!game || !playerId) return;
@@ -30,7 +34,9 @@ export function CrystalBallWatcher() {
       );
       if (!hasCrystalBall) return;
 
-      const opponentId = Object.keys(game.players).find((id) => id !== playerId);
+      const opponentId = Object.keys(game.players).find(
+        (id) => id !== playerId,
+      );
       if (!opponentId) return;
       const opponent = game.players[opponentId];
       if (!opponent) return;
@@ -45,7 +51,9 @@ export function CrystalBallWatcher() {
         if (notifiedRef.current.has(key)) continue;
 
         notifiedRef.current.add(key);
-        useToastStore.getState().push(TOOL_WARNINGS[toolId], CRYSTAL_BALL_LEAD_MS + 5_000);
+        useToastStore
+          .getState()
+          .push(TOOL_WARNINGS[toolId], CRYSTAL_BALL_LEAD_MS + 5_000);
       }
     }, 500);
 

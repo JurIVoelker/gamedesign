@@ -1,6 +1,7 @@
 import { isClientMessage } from '@gamedesign/shared';
 import { Session } from './session.js';
 import { gameManager } from './game.js';
+import type { TutorialStageId } from '@gamedesign/shared';
 
 export function handleMessage(session: Session, raw: string | Buffer): void {
   let parsed: unknown;
@@ -165,7 +166,30 @@ export function handleMessage(session: Session, raw: string | Buffer): void {
       const game = gameManager.getGame(roomCode);
       game?.forfeit(session.playerId);
       gameManager.clearSlot(session.playerId);
+      if (game?.isTutorial()) gameManager.clearGame(roomCode);
       console.log(`[game] ${session.playerId} forfeited room ${roomCode}`);
+      break;
+    }
+
+    case 'start_tutorial': {
+      const stage = parsed.stage as TutorialStageId;
+      const { slot } = gameManager.createTutorialRoom(session, stage);
+      const roomCode = gameManager.getRoomCodeOf(session.playerId)!;
+      // Send room_created so the client stores the roomCode in localStorage,
+      // enabling seamless reconnection after a page refresh.
+      session.send({ type: 'room_created', roomCode });
+      session.send({ type: 'assigned', slot, playerId: session.playerId });
+      session.send({ type: 'game_ready' });
+      gameManager.getGame(roomCode)?.startGame();
+      console.log(`[game] Tutorial stage ${stage} started for ${session.playerId}`);
+      break;
+    }
+
+    case 'tutorial_cue': {
+      const roomCode = gameManager.getRoomCodeOf(session.playerId);
+      if (!roomCode) return;
+      const game = gameManager.getGame(roomCode);
+      game?.botController?.handleCue(parsed.cue, parsed.level);
       break;
     }
 

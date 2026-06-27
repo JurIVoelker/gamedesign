@@ -4,6 +4,8 @@ import { ITEM_DEFS, SPY_REPORT_INTERVAL_MS } from "@gamedesign/shared";
 import { useConnectionStore } from "../state/connectionStore";
 import { useGameStore } from "../state/gameStore";
 import { useNow } from "../hooks/useNow";
+import { useTutorialStore, useRevealedSurfaces } from "../state/tutorialStore";
+import { TUTORIAL_STEPS } from "../tutorial/stages";
 
 function formatTime(ms: number): string {
   const totalSec = Math.max(0, Math.ceil(ms / 1000));
@@ -18,14 +20,21 @@ export function HUD() {
   const now = useNow(500);
   const [remaining, setRemaining] = useState<number | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const {
+    active: tutorialActive,
+    stage: tutorialStage,
+    stepIndex: tutorialStepIndex,
+    exit: tutorialExit,
+  } = useTutorialStore();
+  const revealed = useRevealedSurfaces();
+
+  const totalSteps = tutorialStage ? TUTORIAL_STEPS[tutorialStage].length : 0;
 
   const me = game?.players[playerId ?? ""];
-  // Effects on me (incoming debuffs or my own buffs) that are still ticking
   const myTimedEffects = (me?.activeEffects ?? []).filter(
     (e) => e.endsAt !== null && (e.endsAt ?? 0) > now,
   );
 
-  // Spy glass: snapshot opponent gold at report interval (not realtime)
   const [spyGold, setSpyGold] = useState<number | null>(null);
   const hasSpyGlass = myTimedEffects.some((e) => e.itemId === "spy_glass");
   useEffect(() => {
@@ -61,7 +70,6 @@ export function HUD() {
 
   const gold = me?.gold ?? 0;
 
-  // Build effect pills: one separator + label per active timed effect
   const effectPills = myTimedEffects.flatMap((e) => {
     const secs = Math.max(0, Math.ceil(((e.endsAt ?? 0) - now) / 1000));
     if (secs <= 0) return [];
@@ -73,9 +81,7 @@ export function HUD() {
       label = `Blind ${secs}s`;
     } else if (e.itemId === "spy_glass") {
       label =
-        spyGold !== null
-          ? `Spion ${spyGold}G ${secs}s`
-          : `Spion ${secs}s`;
+        spyGold !== null ? `Spion ${spyGold}G ${secs}s` : `Spion ${secs}s`;
     } else {
       label = `${def?.name ?? e.itemId} ${secs}s`;
     }
@@ -93,16 +99,78 @@ export function HUD() {
   function handleLeaveConfirm() {
     send?.({ type: "leave_game" });
     disconnect?.();
+    if (tutorialActive) tutorialExit();
   }
+
+  // Tutorial mode: always-visible bar with step progress + cancel
+  if (tutorialActive) {
+    return (
+      <div className="absolute inset-top-safe left-0 right-0 flex justify-center pointer-events-none z-10">
+        <div className="panel-pixel px-4 py-2 text-parchment text-[8px] flex gap-4 items-center pointer-events-auto">
+          {confirming ? (
+            <span className="flex gap-2 items-center">
+              <span className="text-parchment">Tutorial verlassen?</span>
+              <button onClick={handleLeaveConfirm} className="btn-pixel-danger">
+                Ja
+              </button>
+              <button
+                onClick={() => setConfirming(false)}
+                className="btn-pixel-secondary"
+              >
+                Nein
+              </button>
+            </span>
+          ) : (
+            <button
+              onClick={() => setConfirming(true)}
+              className="btn-pixel-secondary"
+            >
+              Tutorial verlassen
+            </button>
+          )}
+          {totalSteps > 0 && (
+            <>
+              <span className="text-muted-gold">|</span>
+              <span>
+                Schritt{" "}
+                <span className="text-gold">
+                  {Math.min(tutorialStepIndex + 1, totalSteps)}/{totalSteps}
+                </span>
+              </span>
+            </>
+          )}
+          {revealed.has("goldHud") && (
+            <>
+              <span className="text-muted-gold">|</span>
+              <span>
+                Gold: <span className="text-gold">{gold}</span>
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // PvP mode: only render the panel when there is something to show
+  const hasContent =
+    revealed.has("goldHud") ||
+    (revealed.has("effectsTimeline") && myTimedEffects.length > 0) ||
+    (revealed.has("matchTimer") && remaining !== null) ||
+    revealed.has("exitButton");
+
+  if (!hasContent) return null;
 
   return (
     <div className="absolute inset-top-safe left-0 right-0 flex justify-center pointer-events-none z-10">
       <div className="panel-pixel px-4 py-2 text-parchment text-[8px] flex gap-4 items-center pointer-events-auto">
-        <span>
-          Gold: <span className="text-gold">{gold}</span>
-        </span>
-        {effectPills}
-        {remaining !== null && (
+        {revealed.has("goldHud") && (
+          <span>
+            Gold: <span className="text-gold">{gold}</span>
+          </span>
+        )}
+        {revealed.has("effectsTimeline") && effectPills}
+        {revealed.has("matchTimer") && remaining !== null && (
           <>
             <span className="text-muted-gold">|</span>
             <span>
@@ -115,27 +183,34 @@ export function HUD() {
             </span>
           </>
         )}
-        <span className="text-muted-gold">|</span>
-        {confirming ? (
-          <span className="flex gap-2 items-center">
-            <span className="text-parchment">Aufgeben?</span>
-            <button onClick={handleLeaveConfirm} className="btn-pixel-danger">
-              Ja
-            </button>
-            <button
-              onClick={() => setConfirming(false)}
-              className="btn-pixel-secondary"
-            >
-              Nein
-            </button>
-          </span>
-        ) : (
-          <button
-            onClick={() => setConfirming(true)}
-            className="btn-pixel-secondary"
-          >
-            Aufgeben
-          </button>
+        {revealed.has("exitButton") && (
+          <>
+            <span className="text-muted-gold">|</span>
+            {confirming ? (
+              <span className="flex gap-2 items-center">
+                <span className="text-parchment">Aufgeben?</span>
+                <button
+                  onClick={handleLeaveConfirm}
+                  className="btn-pixel-danger"
+                >
+                  Ja
+                </button>
+                <button
+                  onClick={() => setConfirming(false)}
+                  className="btn-pixel-secondary"
+                >
+                  Nein
+                </button>
+              </span>
+            ) : (
+              <button
+                onClick={() => setConfirming(true)}
+                className="btn-pixel-secondary"
+              >
+                Aufgeben
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>

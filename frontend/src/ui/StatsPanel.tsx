@@ -305,18 +305,47 @@ export function StatsPanel() {
 
       <SectionHeader label="ITEMS" />
       {(Object.keys(ITEM_DEFS) as (keyof typeof ITEM_DEFS)[]).map((itemId) => {
-        const myBought = (my.itemsBought as Record<string, number>)[itemId] ?? 0;
-        const oppBought = (opp.itemsBought as Record<string, number>)[itemId] ?? 0;
+        const myBought =
+          (my.itemsBought as Record<string, number>)[itemId] ?? 0;
+        const oppBought =
+          (opp.itemsBought as Record<string, number>)[itemId] ?? 0;
         if (myBought === 0 && oppBought === 0) return null;
-        const myUsed = (my.itemsUsedByType as Record<string, number>)[itemId] ?? 0;
-        const oppUsed = (opp.itemsUsedByType as Record<string, number>)[itemId] ?? 0;
-        const myLabel = myUsed > 0 && myUsed < myBought ? `${myBought} (${myUsed}✓)` : myBought > 0 ? `${myBought}` : "—";
-        const oppLabel = oppUsed > 0 && oppUsed < oppBought ? `${oppBought} (${oppUsed}✓)` : oppBought > 0 ? `${oppBought}` : "—";
+        const myUsed =
+          (my.itemsUsedByType as Record<string, number>)[itemId] ?? 0;
+        const oppUsed =
+          (opp.itemsUsedByType as Record<string, number>)[itemId] ?? 0;
+        const myLabel =
+          myUsed > 0 && myUsed < myBought
+            ? `${myBought} (${myUsed}✓)`
+            : myBought > 0
+              ? `${myBought}`
+              : "—";
+        const oppLabel =
+          oppUsed > 0 && oppUsed < oppBought
+            ? `${oppBought} (${oppUsed}✓)`
+            : oppBought > 0
+              ? `${oppBought}`
+              : "—";
         return (
-          <div key={itemId} className="score-row text-[7px] flex justify-between items-center gap-2">
-            <span className="text-muted-gold flex-1">{ITEM_DEFS[itemId].name}</span>
-            <span className="text-gold" style={{ minWidth: 48, textAlign: "right" }}>{myLabel}</span>
-            <span className="text-parchment" style={{ minWidth: 48, textAlign: "right" }}>{oppLabel}</span>
+          <div
+            key={itemId}
+            className="score-row text-[7px] flex justify-between items-center gap-2"
+          >
+            <span className="text-muted-gold flex-1">
+              {ITEM_DEFS[itemId].name}
+            </span>
+            <span
+              className="text-gold"
+              style={{ minWidth: 48, textAlign: "right" }}
+            >
+              {myLabel}
+            </span>
+            <span
+              className="text-parchment"
+              style={{ minWidth: 48, textAlign: "right" }}
+            >
+              {oppLabel}
+            </span>
           </div>
         );
       })}
@@ -425,7 +454,9 @@ export function StatsPanel() {
         label="Händler"
         ausgaben={my.goldSpentMerchant}
         profit={my.goldGainedItems > 0 ? my.goldGainedItems : null}
-        schaden={my.goldDrainedFakeMerchant > 0 ? my.goldDrainedFakeMerchant : null}
+        schaden={
+          my.goldDrainedFakeMerchant > 0 ? my.goldDrainedFakeMerchant : null
+        }
       />
     </div>
   );

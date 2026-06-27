@@ -1,23 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useConnectionStore } from "../state/connectionStore";
-import { OnboardingModal } from "./OnboardingModal";
+import { LearningPath } from "./LearningPath";
 
 export function Lobby() {
   const { status, roomCode, error, send, playerId, disconnect, setRoomCode } =
     useConnectionStore();
   const [joinCode, setJoinCode] = useState("");
-  const [showOnboarding, setShowOnboarding] = useState(false);
-
-  useEffect(() => {
-    if (!localStorage.getItem("onboarding_seen")) {
-      setShowOnboarding(true);
-    }
-  }, []);
-
-  function handleCloseOnboarding() {
-    localStorage.setItem("onboarding_seen", "true");
-    setShowOnboarding(false);
-  }
+  const [showPvP, setShowPvP] = useState(false);
 
   function handleCreateRoom() {
     send?.({ type: "create_room" });
@@ -33,17 +22,18 @@ export function Lobby() {
 
   return (
     <div className="absolute inset-0 flex items-center justify-center">
-      <OnboardingModal open={showOnboarding} onClose={handleCloseOnboarding} />
       <div className="panel-pixel lobby-panel flex flex-col gap-4 text-parchment">
         <div className="flex items-center justify-between">
           <h1 className="text-gold text-[12px] tracking-wide">Farmyard Duel</h1>
-          <button
-            onClick={() => setShowOnboarding(true)}
-            className="btn-pixel-secondary"
-            title="Spielanleitung"
-          >
-            ?
-          </button>
+          {showPvP && (
+            <button
+              onClick={() => setShowPvP(false)}
+              className="btn-pixel-secondary"
+              title="Zurück zum Lernpfad"
+            >
+              ←
+            </button>
+          )}
         </div>
 
         {(status === "disconnected" || status === "connecting") && (
@@ -62,7 +52,11 @@ export function Lobby() {
           </>
         )}
 
-        {status === "lobby" && (
+        {status === "lobby" && !showPvP && (
+          <LearningPath onDirectPlay={() => setShowPvP(true)} />
+        )}
+
+        {status === "lobby" && showPvP && (
           <div className="flex flex-col gap-3">
             <button onClick={handleCreateRoom} className="btn-pixel w-full">
               Raum erstellen

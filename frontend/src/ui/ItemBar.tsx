@@ -6,6 +6,7 @@ import { useGameStore } from "../state/gameStore";
 import { useTargetingStore } from "../state/targetingStore";
 import { useNow } from "../hooks/useNow";
 import { ItemIcon } from "./ItemIcons";
+import { useRevealedSurfaces } from "../state/tutorialStore";
 
 const SLOT_STYLE = {
   width: 88,
@@ -281,12 +282,14 @@ export function ItemBar() {
   const send = useConnectionStore((s) => s.send);
   const now = useNow(1_000);
   const targetingStart = useTargetingStore((s) => s.start);
+  const revealed = useRevealedSurfaces();
 
   const me = playerId ? game?.players[playerId] : null;
   const opponent =
     Object.values(game?.players ?? {}).find((p) => p.id !== playerId) ?? null;
 
   if (!me) return null;
+  if (!revealed.has("itemBar")) return null;
 
   const heldItems = me.items.filter((i) => i.count > 0);
 
@@ -367,6 +370,7 @@ export function ItemBar() {
       }
     `}</style>
       <div
+        data-tutorial-id="itemBar"
         className="absolute"
         style={{
           left: 16,

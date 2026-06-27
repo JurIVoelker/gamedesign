@@ -82,6 +82,8 @@ export class GameEngine {
   private blindnessOverlay: Graphics | null = null;
   private onBlindnessStart: (() => void) | null = null;
 
+  private soloLeft = false;
+
   private mirrorParticles: Array<{
     x: number;
     y: number;
@@ -269,6 +271,18 @@ export class GameEngine {
 
   getMerchantScreenPos(): { x: number; y: number } | null {
     return this.farmToScreen(MERCHANT_FARM_X, MERCHANT_FARM_Y);
+  }
+
+  setTutorialReveal(flags: { opponentFarm?: boolean }): void {
+    const showOpponent = flags.opponentFarm ?? true;
+    const newSoloLeft = !showOpponent;
+    const changed = newSoloLeft !== this.soloLeft;
+    this.soloLeft = newSoloLeft;
+    if (this.opponentFarm) this.opponentFarm.visible = showOpponent;
+    if (changed && this.app) {
+      const root = this.app.stage.children[0] as import("pixi.js").Container;
+      this.rescale(this.app, root);
+    }
   }
 
   setModalTarget(
@@ -503,17 +517,23 @@ export class GameEngine {
     const logicalW = w / scale;
     // Fixed gap between the two farms; farms are re-centered horizontally on resize.
     const centerGap = 200;
-    const leftX = Math.max(
-      4,
-      Math.round((logicalW - 2 * FARM_W - centerGap) / 2),
-    );
+
+    let leftX: number;
+    if (this.soloLeft) {
+      // Tutorial solo layout: center the player farm, hide opponent
+      leftX = Math.max(4, Math.round((logicalW - FARM_W) / 2));
+    } else {
+      leftX = Math.max(4, Math.round((logicalW - 2 * FARM_W - centerGap) / 2));
+    }
 
     if (this.playerFarm) this.playerFarm.x = leftX;
     if (this.opponentFarm) this.opponentFarm.x = leftX + FARM_W + centerGap;
 
     this.rebuildTrees(leftX, centerGap, logicalW);
 
-    const centerX = (leftX + FARM_W + centerGap / 2) * scale;
+    const centerX = this.soloLeft
+      ? w / 2
+      : (leftX + FARM_W + centerGap / 2) * scale;
     this.centerX = centerX;
     this.canvasH = h;
     if (this.blindnessOverlay) {
@@ -561,7 +581,7 @@ export class GameEngine {
       );
       this.merchantSpotlightSprite.texture = this.merchantSpotlightTexture;
     }
-    if (this.edgeFade) this.drawEdgeFade(w, h, centerX);
+    if (this.edgeFade) this.drawEdgeFade(w, h, this.soloLeft ? null : centerX);
   }
 
   private triggerPlayerLightningStrike(): void {
@@ -689,7 +709,8 @@ export class GameEngine {
     const spawnX = this.centerX - 12;
     const COUNT = 80;
     for (let i = 0; i < COUNT; i++) {
-      const spawnY = (i / COUNT) * this.canvasH + Math.random() * (this.canvasH / COUNT);
+      const spawnY =
+        (i / COUNT) * this.canvasH + Math.random() * (this.canvasH / COUNT);
       const sprite = new Sprite(Assets.get("/assets/particle.png"));
       sprite.anchor.set(0.5, 0.5);
       sprite.scale.set(0);
@@ -869,7 +890,7 @@ export class GameEngine {
 
   // Pixel-art border: solid dark core + smaller checkerboard transition zone,
   // jagged outer edge.  B drives tooth/solid size; CB drives checker square size.
-  private drawEdgeFade(w: number, h: number, centerX: number): void {
+  private drawEdgeFade(w: number, h: number, centerX: number | null): void {
     const g = this.edgeFade!;
     g.clear();
 
@@ -939,15 +960,18 @@ export class GameEngine {
 
     // CENTER — solid core + checker transition, symmetric, full-height.
     // cxSnap aligns the seam to the CB grid so both halves meet without partial blocks.
-    const cxSnap = Math.round(centerX / CB) * CB;
-    const CTC = 3; // checker-transition depth for center (3 CB-block each side)
-    for (const [ri, tb] of jag(rows, CTC + 2, CTC + 4).entries()) {
-      const y0 = ri * B;
-      const sb = tb - CTC; // solid half-width in blocks (always ≥ 1)
-      g.rect(cxSnap - sb * B, y0, sb * 2 * B, B).fill({ color: DARK });
-      fill(cxSnap - tb * B, cxSnap - sb * B, y0, y0 + B);
-      fill(cxSnap + sb * B, cxSnap + tb * B, y0, y0 + B);
-    }
+    // Skipped in soloLeft (tutorial) mode where there is no opponent farm.
+    if (centerX !== null) {
+      const cxSnap = Math.round(centerX / CB) * CB;
+      const CTC = 3; // checker-transition depth for center (3 CB-block each side)
+      for (const [ri, tb] of jag(rows, CTC + 2, CTC + 4).entries()) {
+        const y0 = ri * B;
+        const sb = tb - CTC; // solid half-width in blocks (always ≥ 1)
+        g.rect(cxSnap - sb * B, y0, sb * 2 * B, B).fill({ color: DARK });
+        fill(cxSnap - tb * B, cxSnap - sb * B, y0, y0 + B);
+        fill(cxSnap + sb * B, cxSnap + tb * B, y0, y0 + B);
+      }
+    } // end if (centerX !== null)
   }
 
   private addFarmTrees(farm: Container, owner: "player" | "opponent"): void {
