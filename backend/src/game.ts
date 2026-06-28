@@ -1581,6 +1581,13 @@ export class Game {
     this.broadcastState();
   }
 
+  // Tutorial: forcibly end a player's active weather and restore its slowed
+  // field timers, so a fresh storm can be cast at them right away. No-op if the
+  // player has no active weather. Reuses the normal expiry path.
+  cancelWeather(playerId: string): void {
+    this.expireWeather(playerId);
+  }
+
   broadcastState(): void {
     if (!this.state) return;
     const serverNow = Date.now();

@@ -4,8 +4,6 @@ import type { TutorialStep, SendFn } from "./types";
 import { useConnectionStore } from "../state/connectionStore";
 import { useTutorialStore } from "../state/tutorialStore";
 
-type PlayerState = NonNullable<GameState["players"][string]>;
-
 // Stage 1: baseline for harvest count (lazy-set on first gate call, reset by onEnter)
 let harvestedBaseline: number | null = null;
 
@@ -16,14 +14,21 @@ let s2CrowsTrackedFields: number[] = [];
 // We can't infer "saved" from crop stage afterwards because the bot re-sows
 // eaten fields, making an eaten field look defended.
 let s2ScaredFields: number[] = [];
-// Arrival flag wrapped in a holder object so the shared gate factory can flip
-// it while each step's onEnter still resets it by reference. (Weather only —
-// the thief defense uses its own catch-detecting gate below.)
-const s2WeatherArrival = { arrived: false };
 let s2CrowsSentBaseline: number | null = null;
 let s2ThievesSentBaseline: number | null = null;
 let s2WeatherSentBaseline: number | null = null;
-let s2HarvestedBaseline: number | null = null;
+
+// Stage 2: weather Lv1 "experience" step — once the bot's storm hits the player,
+// linger this long (rather than waiting out the whole 40s storm) before moving
+// on. Timestamp the storm landed, or null before it has hit.
+const WEATHER_EXPERIENCE_LINGER_MS = 10_000;
+let s2WeatherExperiencedAt: number | null = null;
+
+// Stage 2: weather attack — after the player casts a storm on the opponent,
+// linger this long so they see it take effect (and, at Lv3, the lightning
+// strike) before advancing. Timestamp of the send, or null before it lands.
+const WEATHER_ATTACK_LINGER_MS = 5_000;
+let s2WeatherAttackLandedAt: number | null = null;
 
 // Stage 2: thief attack — wait until the player's own thief has stolen this
 // much gold from the opponent before advancing (proves the thief works).
@@ -54,7 +59,6 @@ const THIEF_DEFEND_SUCCESS_LINGER_MS = 800;
 // the player can always finish. The step still only advances on a real catch.
 const THIEF_HELP_AFTER_TRIES = 4;
 
-const FREE_PLAY_ATTACK_GOAL = 2;
 // Delay before bot sends crows after player presses "Bereit" (ms)
 const CROW_DEFEND_DELAY_MS = 3_000;
 // Delay before retry after a failed defense (Lv1/2 and Lv3)
@@ -139,23 +143,44 @@ function s2AttackCrowsGate(game: GameState | null): boolean {
   return now - s2CrowsClearedAt >= S2_CROW_LINGER_MS;
 }
 
-// Gate for "an attack arrives, then clears" steps (thief catch, weather wait):
-// latches `arrived` while the effect is active, advances once it's gone.
-function makeArrivalGate(
-  arrival: { arrived: boolean },
-  isActive: (ps: PlayerState) => boolean,
-): (game: GameState | null) => boolean {
-  return (game) => {
-    const pid = useConnectionStore.getState().playerId;
-    if (!game || !pid) return false;
-    const ps = game.players[pid];
-    if (!ps) return false;
-    if (isActive(ps)) {
-      arrival.arrived = true;
-      return false;
-    }
-    return arrival.arrived;
-  };
+// Shared gate for the player's weather-attack steps (Lv2 / Lv3).
+// Phase 1: wait until the player's weatherSent increases (storm cast on the
+// opponent). Phase 2: linger so the player watches it work — and at Lv3 sees
+// the lightning strike — before advancing.
+function s2AttackWeatherGate(game: GameState | null): boolean {
+  const pid = useConnectionStore.getState().playerId;
+  if (!game || !pid) return false;
+  const count = game.players[pid]?.stats.weatherSent ?? 0;
+
+  if (s2WeatherSentBaseline === null) {
+    s2WeatherSentBaseline = count;
+    return false;
+  }
+  if (count <= s2WeatherSentBaseline) return false;
+
+  const now = Date.now();
+  if (s2WeatherAttackLandedAt === null) {
+    s2WeatherAttackLandedAt = now;
+    return false;
+  }
+  return now - s2WeatherAttackLandedAt >= WEATHER_ATTACK_LINGER_MS;
+}
+
+// Gate for the Lv1 weather "experience" step: once the bot's storm lands on the
+// player, linger a short while so they feel the slowdown — then advance without
+// waiting out the full storm (the next step clears the leftover storm).
+function s2ExperienceWeatherGate(game: GameState | null): boolean {
+  const pid = useConnectionStore.getState().playerId;
+  if (!game || !pid) return false;
+  const ps = game.players[pid];
+  if (!ps) return false;
+
+  const now = Date.now();
+  if (ps.weatherEffect !== null && s2WeatherExperiencedAt === null) {
+    s2WeatherExperiencedAt = now;
+  }
+  if (s2WeatherExperiencedAt === null) return false;
+  return now - s2WeatherExperiencedAt >= WEATHER_EXPERIENCE_LINGER_MS;
 }
 
 // onEnter for a thief defend step: reset per-step state and disarm. The bot's
@@ -680,34 +705,38 @@ export const TUTORIAL_STEPS: Record<TutorialStageId, TutorialStep[]> = {
       gate: makeThiefDefendGate(3),
     },
 
-    // ── UNWETTER LEKTION ───────────────────────────────────────────────────────
+    // ── UNWETTER — ERLEBEN (Stufe 1) ─────────────────────────────────────────────
 
-    // Step 15: Weather explanation — manual advance, no attack yet
+    // Step: Weather explanation — manual advance, no attack yet
     {
-      text: "Unwetter! Dein Gegner kann einen Sturm über deinen Hof schicken, der alles verlangsamt. Auf Stufe 3 trifft zusätzlich ein Blitzschlag und vernichtet sofort ein Feld. Du kannst nichts tun — warte einfach ab. Gleich zieht ein Sturm auf!",
+      text: "Unwetter! Dein Gegner kann einen Sturm über deinen Hof schicken, der alles verlangsamt. Dagegen kannst du dich nicht wehren — du musst ihn einfach abwarten. Gleich zieht ein Sturm auf!",
       reveals: ["weatherCard"],
       allow: [],
     },
 
-    // Step 16: Bot sends Lv1 weather — player waits it out
+    // Step: Bot sends Lv1 weather — player experiences it briefly (no need to
+    // wait out the whole storm; the next step clears the leftover).
     {
-      text: "Ein schwaches Gewitter — alles läuft etwas langsamer. Warte geduldig, bis es aufhört!",
+      text: "Da ist er! Dein ganzer Hof läuft jetzt langsamer, und deine Dorfbewohner verkriechen sich in den Häusern. Du kannst nichts tun — warte einfach ab, bis der Sturm vorüberzieht.",
       allow: [],
       onEnter: (send) => {
-        s2WeatherArrival.arrived = false;
+        s2WeatherExperiencedAt = null;
         send?.({ type: "tutorial_cue", cue: "bot_send_weather", level: 1 });
       },
-      gate: makeArrivalGate(
-        s2WeatherArrival,
-        (ps) => ps.weatherEffect !== null,
-      ),
+      gate: s2ExperienceWeatherGate,
     },
 
-    // Step 14: Upgrade weather to Lv2
+    // ── UNWETTER — ANGRIFF (Stufe 2) ─────────────────────────────────────────────
+
+    // Step: Upgrade weather to Lv2. onEnter clears the leftover Lv1 storm so the
+    // player isn't still slowed while they learn to attack ("Vorbei!").
     {
-      text: "Vorbei! Das Unwetter auf Stufe 1 ist noch harmlos. Werte es auf Stufe 2 auf — dann wird der Sturm deutlich stärker!",
+      text: "Vorbei! Jetzt bist du dran. Werte das Unwetter auf Stufe 2 auf — dann wird dein Sturm deutlich stärker.",
       highlight: { kind: "dom", id: "weatherCard" },
       allow: ["upgrade:weather"],
+      onEnter: (send) => {
+        send?.({ type: "tutorial_cue", cue: "cancel_weather" });
+      },
       gate: (game) => {
         const pid = useConnectionStore.getState().playerId;
         if (!game || !pid) return false;
@@ -718,23 +747,22 @@ export const TUTORIAL_STEPS: Record<TutorialStageId, TutorialStep[]> = {
       },
     },
 
-    // Step 15: Bot sends Lv2 weather — player waits it out
+    // Step: Player casts Lv2 weather on the opponent — linger 5s to see it work
     {
-      text: "Stärkerer Sturm — der Hof läuft deutlich langsamer. Warte, bis es vorbeigeht.",
-      allow: [],
-      onEnter: (send) => {
-        s2WeatherArrival.arrived = false;
-        send?.({ type: "tutorial_cue", cue: "bot_send_weather", level: 2 });
+      text: "Schick das Unwetter auf Stufe 2 zu deinem Gegner — es verlangsamt seinen ganzen Hof. Klicke SENDEN!",
+      allow: ["sendWeather"],
+      onEnter: () => {
+        s2WeatherSentBaseline = null;
+        s2WeatherAttackLandedAt = null;
       },
-      gate: makeArrivalGate(
-        s2WeatherArrival,
-        (ps) => ps.weatherEffect !== null,
-      ),
+      gate: s2AttackWeatherGate,
     },
 
-    // Step 16: Upgrade weather to Lv3
+    // ── UNWETTER — ANGRIFF (Stufe 3, Blitz) ──────────────────────────────────────
+
+    // Step: Upgrade weather to Lv3
     {
-      text: "Gut! Werte das Unwetter auf Stufe 3 auf — dann trifft zusätzlich ein Blitz und vernichtet sofort ein Feld.",
+      text: "Stark! Werte das Unwetter auf Stufe 3 auf — dann schlägt zusätzlich ein Blitz ein und vernichtet sofort ein Feld deines Gegners.",
       highlight: { kind: "dom", id: "weatherCard" },
       allow: ["upgrade:weather"],
       gate: (game) => {
@@ -747,63 +775,26 @@ export const TUTORIAL_STEPS: Record<TutorialStageId, TutorialStep[]> = {
       },
     },
 
-    // Step 17: Bot sends Lv3 weather (lightning!) — player waits it out
+    // Step: Player casts Lv3 weather — watch the lightning strike. onEnter clears
+    // the still-active Lv2 storm (a target can hold only one weather at a time)
+    // and resets the player's cooldown so the fresh storm can be cast at once.
     {
-      text: "Das Unwetter auf Stufe 3 bringt einen Blitz! Ein Feld wird sofort zerstört. Schau zu — und warte, bis der Sturm vorbei ist.",
-      allow: [],
-      onEnter: (send) => {
-        s2WeatherArrival.arrived = false;
-        send?.({ type: "tutorial_cue", cue: "bot_send_weather", level: 3 });
-      },
-      gate: makeArrivalGate(
-        s2WeatherArrival,
-        (ps) => ps.weatherEffect !== null,
-      ),
-    },
-
-    // Step 18: Player sends weather
-    {
-      text: "Jetzt bist du dran! Schicke selbst ein Unwetter zum Gegner.",
+      text: "Jetzt der Blitz! Schick das Unwetter auf Stufe 3 zum Gegner und sieh zu, wie ein Blitz eines seiner Felder vernichtet.",
       allow: ["sendWeather"],
-      onEnter: () => {
+      onEnter: (send) => {
         s2WeatherSentBaseline = null;
+        s2WeatherAttackLandedAt = null;
+        send?.({ type: "tutorial_cue", cue: "cancel_weather" });
+        send?.({ type: "tutorial_cue", cue: "reset_player_cooldowns" });
       },
-      gate: (game) => {
-        const pid = useConnectionStore.getState().playerId;
-        if (!game || !pid) return false;
-        const count = game.players[pid]?.stats.weatherSent ?? 0;
-        if (s2WeatherSentBaseline === null) {
-          s2WeatherSentBaseline = count;
-          return false;
-        }
-        return count > s2WeatherSentBaseline;
-      },
+      gate: s2AttackWeatherGate,
     },
 
-    // ── FREIES SPIEL ───────────────────────────────────────────────────────────
+    // ── ABSCHLUSS ────────────────────────────────────────────────────────────────
 
-    // Step 19: Free-play — send 2 more attacks to complete Stage 2
+    // Step: Completion — "Fertig" returns to the menu
     {
-      text: `Du hast alles gelernt! Dein Gegner greift weiter an. Schicke noch ${FREE_PLAY_ATTACK_GOAL} Angriffe, um Stufe 2 abzuschließen.`,
-      onEnter: (send) => {
-        s2HarvestedBaseline = null;
-        send?.({ type: "tutorial_cue", cue: "free_play_start" });
-      },
-      gate: (game) => {
-        const pid = useConnectionStore.getState().playerId;
-        if (!game || !pid) return false;
-        const stats = game.players[pid]?.stats;
-        if (!stats) return false;
-        const total =
-          (stats.crowsSent ?? 0) +
-          (stats.thievesSent ?? 0) +
-          (stats.weatherSent ?? 0);
-        if (s2HarvestedBaseline === null) {
-          s2HarvestedBaseline = total;
-          return false;
-        }
-        return total >= s2HarvestedBaseline + FREE_PLAY_ATTACK_GOAL;
-      },
+      text: "Stark gespielt! Du beherrschst jetzt Krähen, Dieb und Unwetter — Angriff wie Verteidigung. Damit bist du bereit für echte Duelle. Viel Erfolg!",
     },
   ],
 

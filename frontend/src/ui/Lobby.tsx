@@ -25,13 +25,13 @@ export function Lobby() {
       <div className="panel-pixel lobby-panel flex flex-col gap-4 text-parchment">
         <div className="flex items-center justify-between">
           <h1 className="text-gold text-[12px] tracking-wide">Farmyard Duel</h1>
-          {showPvP && (
+          {showPvP && status === "lobby" && (
             <button
               onClick={() => setShowPvP(false)}
               className="btn-pixel-secondary"
               title="Zurück zum Lernpfad"
             >
-              ←
+              ?
             </button>
           )}
         </div>

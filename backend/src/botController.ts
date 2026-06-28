@@ -146,6 +146,13 @@ export class BotController {
       this.game.resetPlayerCooldowns(playerId);
       return true;
     }
+    if (cue === "cancel_weather") {
+      // Clear any active storm on both farms so the player can re-cast a fresh
+      // (stronger) weather at the bot during the tutorial.
+      this.game.cancelWeather(this.botId);
+      this.game.cancelWeather(playerId);
+      return true;
+    }
     return true; // unknown cue — don't retry
   }
 

@@ -19,6 +19,7 @@ function SpotlightImpl({ targetId }: { targetId: string }) {
     let cleanupTarget: HTMLElement | null = null;
     let prevPosition = "";
     let prevZIndex = "";
+    let observed: HTMLElement | null = null;
 
     const update = () => {
       const target = document.querySelector<HTMLElement>(
@@ -34,6 +35,15 @@ function SpotlightImpl({ targetId }: { targetId: string }) {
         cleanupTarget = target;
       }
 
+      // Track the card's live bounds: its width changes when the level/cost text
+      // updates after an upgrade (or when the pixel font finishes loading), and
+      // a once-only measurement would leave the ring misaligned.
+      if (observed !== target) {
+        if (observed) resizeObserver.unobserve(observed);
+        resizeObserver.observe(target);
+        observed = target;
+      }
+
       const rect = target.getBoundingClientRect();
       const ring = ringRef.current;
       ring.style.left = `${rect.left - 4}px`;
@@ -42,11 +52,13 @@ function SpotlightImpl({ targetId }: { targetId: string }) {
       ring.style.height = `${rect.height + 8}px`;
     };
 
+    const resizeObserver = new ResizeObserver(update);
     update();
     window.addEventListener("resize", update);
 
     return () => {
       window.removeEventListener("resize", update);
+      resizeObserver.disconnect();
       if (cleanupTarget) {
         cleanupTarget.style.position = prevPosition;
         cleanupTarget.style.zIndex = prevZIndex;
