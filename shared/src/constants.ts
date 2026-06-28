@@ -34,6 +34,11 @@ export const MAX_CROW_LEVEL = 3;
 export const CROW_UPGRADE_COSTS = [20, 55, 110] as const;  // to Lv1, Lv2, Lv3
 export const CROW_SEND_COST = 8;
 export const CROW_COOLDOWN_MS = 35_000;
+// Tutorial only: a crop must have grown to at least this fraction before the
+// scripted crow attack will target it. Keeps crows from landing on a freshly
+// re-sown (≈0%) field, which would be invisible and impossible to defend. Used
+// by the bot (send eligibility) and the frontend defend gate (retry pacing).
+export const CROW_TUTORIAL_MIN_GROWTH = 0.3;
 
 // Thief sabotage tool: sneaks onto opponent farm disguised as a villager.
 // cost — gold deducted per send; disguise — visual level on the client.

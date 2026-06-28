@@ -121,6 +121,7 @@ function createEmptyStats(): MatchStats {
     fieldsHarvested: 0,
     crowsSent: 0,
     thievesSent: 0,
+    thievesCaught: 0,
     weatherSent: 0,
     itemsBought: {},
     itemsUsedByType: {},
@@ -726,6 +727,7 @@ export class Game {
     const now = Date.now();
     this.drainThief(playerId, now);
     playerState.thiefAttack = null;
+    playerState.stats.thievesCaught++;
     this.cancelTimer(`thief_expire:${playerId}`);
 
     this.broadcastState();

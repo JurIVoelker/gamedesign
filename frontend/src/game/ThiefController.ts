@@ -26,6 +26,7 @@ export class ThiefController {
   private rand: () => number;
   private frozen: boolean = false;
   private blinded: boolean = false;
+  private hint: boolean = false;
 
   private readonly fieldCenters: { x: number; y: number }[];
   private readonly houseEntrances: { x: number; y: number }[];
@@ -92,6 +93,8 @@ export class ThiefController {
       if (this.moveState.kind === "moving") this.entity.walkFrame++;
     }
     this.entity.showAttackerGlow(this.role === "attacker");
+    // Hint outline only makes sense for the incoming thief the player must catch.
+    this.entity.setHint(this.hint && this.role === "victim");
     this.entity.update();
   }
 
@@ -205,6 +208,11 @@ export class ThiefController {
   setBlinded(b: boolean): void {
     this.blinded = b;
     if (this.entity) this.entity.blinded = b;
+  }
+
+  /** Tutorial assist: reveal the incoming thief with a blinking outline. */
+  setHint(b: boolean): void {
+    this.hint = b;
   }
 
   setModalOpen(v: boolean): void {

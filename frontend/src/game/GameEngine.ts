@@ -122,6 +122,7 @@ export class GameEngine {
   private prevStartedAt: number | null = null;
   // Tutorial gating for villager accusation affordance (applied on seed too).
   private accuseEnabled = true;
+  private thiefHintActive = false;
   private prevPhase: string | null = null;
 
   async init(
@@ -282,6 +283,12 @@ export class GameEngine {
     }
   }
 
+  /** Tutorial assist: reveal the incoming thief with a blinking outline. */
+  setThiefHint(active: boolean): void {
+    this.thiefHintActive = active;
+    this.playerThief?.setHint(active);
+  }
+
   setTutorialReveal(flags: { opponentFarm?: boolean }): void {
     const showOpponent = flags.opponentFarm ?? true;
     const newSoloLeft = !showOpponent;
@@ -411,6 +418,7 @@ export class GameEngine {
         this.onThiefClicked ?? undefined,
         () => myThiefRand.next(),
       );
+      this.playerThief.setHint(this.thiefHintActive);
       this.opponentThief = new ThiefController(
         "opponent",
         this.opponentFarm,

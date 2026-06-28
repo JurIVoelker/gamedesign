@@ -72,6 +72,7 @@ export function FarmCanvas() {
   const tutActive = useTutorialStore((s) => s.active);
   const tutStage = useTutorialStore((s) => s.stage);
   const tutStepIndex = useTutorialStore((s) => s.stepIndex);
+  const thiefHintActive = useTutorialStore((s) => s.thiefHintActive);
 
   // Anger bubble: shown above the house when sow/harvest is blocked
   const [angerBubble, setAngerBubble] = useState<{
@@ -278,6 +279,7 @@ export function FarmCanvas() {
           engine.setInteractionAllowed({
             accuse: isInteractionAllowed(tutState, "accuse"),
           });
+          engine.setThiefHint(tutState.thiefHintActive);
         }
         const { game } = useGameStore.getState();
         const { playerId } = useConnectionStore.getState();
@@ -304,6 +306,12 @@ export function FarmCanvas() {
       opponentFarm: revealed.has("opponentFarm"),
     });
   }, [revealed]);
+
+  // Tutorial assist bridge: reveal the incoming thief once the defend gate has
+  // turned the hint on (after repeated failed catches).
+  useEffect(() => {
+    engineRef.current?.setThiefHint(thiefHintActive);
+  }, [thiefHintActive]);
 
   // Tutorial interaction bridge: propagate per-step accusation permission so
   // villagers only show a clickable affordance when the current step allows it.

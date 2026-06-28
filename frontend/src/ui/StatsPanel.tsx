@@ -42,6 +42,7 @@ function emptyStats(): MatchStats {
     fieldsHarvested: 0,
     crowsSent: 0,
     thievesSent: 0,
+    thievesCaught: 0,
     weatherSent: 0,
     itemsBought: {},
     itemsUsedByType: {},

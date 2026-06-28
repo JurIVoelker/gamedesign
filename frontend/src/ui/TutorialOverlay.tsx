@@ -115,6 +115,7 @@ export function TutorialOverlay() {
             fontSize: 8,
             color: "#c8a84b",
             lineHeight: 1.9,
+            whiteSpace: "pre-line",
           }}
         >
           {currentStep.text}

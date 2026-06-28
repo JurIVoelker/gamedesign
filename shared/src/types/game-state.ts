@@ -49,6 +49,7 @@ export interface MatchStats {
   fieldsHarvested: number;
   crowsSent: number;
   thievesSent: number;
+  thievesCaught: number;
   weatherSent: number;
   itemsBought: Partial<Record<ItemId, number>>;
   itemsUsedByType: Partial<Record<ItemId, number>>;

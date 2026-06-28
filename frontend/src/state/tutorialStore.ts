@@ -28,12 +28,17 @@ interface TutorialState {
   stage: TutorialStageId | null;
   stepIndex: number;
   highlightField: { owner: "player" | "opponent"; index: number } | null;
+  // Ephemeral assist flag: when true, the incoming tutorial thief is revealed
+  // with a blinking outline (set by the defend gate after repeated failures).
+  // Deliberately not persisted — it's per-wave UI state, not tutorial progress.
+  thiefHintActive: boolean;
   start: (stage: TutorialStageId) => void;
   advance: () => void;
   exit: () => void;
   setHighlightField: (
     field: { owner: "player" | "opponent"; index: number } | null,
   ) => void;
+  setThiefHintActive: (active: boolean) => void;
 }
 
 export const useTutorialStore = create<TutorialState>()(
@@ -43,11 +48,21 @@ export const useTutorialStore = create<TutorialState>()(
       stage: null,
       stepIndex: 0,
       highlightField: null,
-      start: (stage) => set({ active: true, stage, stepIndex: 0 }),
-      advance: () => set((s) => ({ stepIndex: s.stepIndex + 1 })),
+      thiefHintActive: false,
+      start: (stage) =>
+        set({ active: true, stage, stepIndex: 0, thiefHintActive: false }),
+      advance: () =>
+        set((s) => ({ stepIndex: s.stepIndex + 1, thiefHintActive: false })),
       exit: () =>
-        set({ active: false, stage: null, stepIndex: 0, highlightField: null }),
+        set({
+          active: false,
+          stage: null,
+          stepIndex: 0,
+          highlightField: null,
+          thiefHintActive: false,
+        }),
       setHighlightField: (field) => set({ highlightField: field }),
+      setThiefHintActive: (active) => set({ thiefHintActive: active }),
     }),
     {
       name: "farmyard-tutorial",

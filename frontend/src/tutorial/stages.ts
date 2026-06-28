@@ -1,6 +1,8 @@
 import type { TutorialStageId, GameState } from "@gamedesign/shared";
+import { CROW_TUTORIAL_MIN_GROWTH } from "@gamedesign/shared";
 import type { TutorialStep, SendFn } from "./types";
 import { useConnectionStore } from "../state/connectionStore";
+import { useTutorialStore } from "../state/tutorialStore";
 
 type PlayerState = NonNullable<GameState["players"][string]>;
 
@@ -14,14 +16,43 @@ let s2CrowsTrackedFields: number[] = [];
 // We can't infer "saved" from crop stage afterwards because the bot re-sows
 // eaten fields, making an eaten field look defended.
 let s2ScaredFields: number[] = [];
-// Arrival flags wrapped in holder objects so a shared gate factory can flip
-// them while each step's onEnter still resets them by reference.
-const s2ThiefArrival = { arrived: false };
+// Arrival flag wrapped in a holder object so the shared gate factory can flip
+// it while each step's onEnter still resets it by reference. (Weather only —
+// the thief defense uses its own catch-detecting gate below.)
 const s2WeatherArrival = { arrived: false };
 let s2CrowsSentBaseline: number | null = null;
 let s2ThievesSentBaseline: number | null = null;
 let s2WeatherSentBaseline: number | null = null;
 let s2HarvestedBaseline: number | null = null;
+
+// Stage 2: thief attack — wait until the player's own thief has stolen this
+// much gold from the opponent before advancing (proves the thief works).
+const THIEF_ATTACK_STEAL_GOAL = 20;
+let s2ThiefStolenBaseline: number | null = null;
+
+// Stage 2: thief defense (catch the bot's escalating-disguise thief).
+// Detect a real catch via the thievesCaught stat — an incoming thief that
+// simply expires (player missed it) is otherwise indistinguishable from a
+// caught one once thiefAttack clears.
+let s2ThiefCaughtBaseline: number | null = null;
+let s2ThiefArrived = false; // a thief has appeared this wave
+let s2ThiefTryCount = 0; // misses so far this step
+// Non-null while a retry is pending: the time the bot re-sends the thief.
+let s2ThiefRetryAt: number | null = null;
+let s2ThiefSuccessAt: number | null = null;
+// Armed only after "Bereit!" is pressed, so the gate doesn't evaluate (or the
+// bot doesn't attack) until the player says they're ready — mirrors the crows.
+let s2ThiefArmed = false;
+
+// Delay before the bot sends its thief after "Bereit!" is pressed (ms).
+const THIEF_DEFEND_DELAY_MS = 1_500;
+// Delay before re-sending the bot's thief after a miss (ms).
+const THIEF_DEFEND_RETRY_DELAY_MS = 2_000;
+// Linger after a successful catch so it registers before advancing (ms).
+const THIEF_DEFEND_SUCCESS_LINGER_MS = 800;
+// After this many misses on a step, reveal the thief with a blinking outline so
+// the player can always finish. The step still only advances on a real catch.
+const THIEF_HELP_AFTER_TRIES = 4;
 
 const FREE_PLAY_ATTACK_GOAL = 2;
 // Delay before bot sends crows after player presses "Bereit" (ms)
@@ -45,15 +76,9 @@ const MAX_DEFEND_TRIES = 4;
 let s2DefendSuccessAt: number | null = null;
 const CROW_DEFEND_SUCCESS_LINGER_MS = 1_000;
 
-// On a failed defense retry, only re-send crows once enough of the player's
-// fields have actually REGROWN to at least this fraction. The plain "growing"
-// stage is reached the instant the bot re-sows (≈0% grown), which made the next
-// wave arrive on near-empty fields and feel impossible. Requiring real growth
-// both guarantees a defendable crop and gives the farm time to recover.
-const CROW_RETRY_MIN_GROWTH = 0.3;
-
-// Linear growth fraction (0..1) of a field from sow → ready. Used only to pace
-// defense retries; an approximation is fine for that purpose.
+// Linear growth fraction (0..1) of a field from sow → ready. Used to pace defense
+// retries and to gate the bot's scripted crow sends (see CROW_TUTORIAL_MIN_GROWTH,
+// which both sides share so they never disagree); an approximation is fine here.
 function fieldGrowthFraction(
   f: { stage: string; sowedAt: number | null; readyAt: number | null },
   now: number,
@@ -133,6 +158,114 @@ function makeArrivalGate(
   };
 }
 
+// onEnter for a thief defend step: reset per-step state and disarm. The bot's
+// thief is NOT sent here — it waits until the player presses "Bereit!".
+function resetThiefDefendState() {
+  cancelDefendTimer();
+  s2ThiefCaughtBaseline = null;
+  s2ThiefArrived = false;
+  s2ThiefTryCount = 0;
+  s2ThiefRetryAt = null;
+  s2ThiefSuccessAt = null;
+  s2ThiefArmed = false;
+  useTutorialStore.getState().setThiefHintActive(false);
+}
+
+// "Bereit!" button shared by the crow- and thief-defend steps: runs `arm` (sets
+// the gate's per-defense armed flag), then dispatches the bot's attack cue after
+// a short delay so the player has a moment to prepare.
+function makeReadyButton(
+  cue: "bot_send_crows" | "bot_send_thief",
+  level: number,
+  delayMs: number,
+  arm: () => void,
+) {
+  return {
+    label: "Bereit!",
+    action: (send: SendFn) => {
+      arm();
+      cancelDefendTimer();
+      s2DefendTimer = setTimeout(() => {
+        s2DefendTimer = null;
+        send?.({ type: "tutorial_cue", cue, level });
+      }, delayMs);
+    },
+  };
+}
+
+// "Bereit!" button for a thief defend step: arms the gate, then sends the bot's
+// thief after a short delay so the player has a moment to watch the villagers.
+function makeThiefReadyButton(level: number) {
+  return makeReadyButton("bot_send_thief", level, THIEF_DEFEND_DELAY_MS, () => {
+    s2ThiefArmed = true;
+  });
+}
+
+// Gate factory for thief defend steps. Advances only on a real catch
+// (thievesCaught increases), lingering briefly so the catch registers. A missed
+// thief (it arrived, then cleared without a catch) is counted and the bot
+// re-sends after a short delay. After THIEF_HELP_AFTER_TRIES misses the thief is
+// revealed with a blinking outline — the step never auto-advances, so the player
+// always finishes on an actual catch.
+function makeThiefDefendGate(
+  level: number,
+): (game: GameState | null) => boolean {
+  return (game) => {
+    const pid = useConnectionStore.getState().playerId;
+    if (!game || !pid) return false;
+    const ps = game.players[pid];
+    if (!ps) return false;
+
+    // Wait for "Bereit!" before evaluating — no thief is in play until then.
+    if (!s2ThiefArmed) return false;
+
+    const caught = ps.stats.thievesCaught ?? 0;
+    if (s2ThiefCaughtBaseline === null) {
+      s2ThiefCaughtBaseline = caught;
+      return false;
+    }
+
+    // Retry path: wait out the delay, then re-send the bot's thief.
+    if (s2ThiefRetryAt !== null) {
+      if (Date.now() < s2ThiefRetryAt) return false;
+      s2ThiefRetryAt = null;
+      s2ThiefArrived = false;
+      useConnectionStore
+        .getState()
+        .send?.({ type: "tutorial_cue", cue: "bot_send_thief", level });
+      return false;
+    }
+
+    const thiefActive = ps.thiefAttack !== null;
+    if (thiefActive) s2ThiefArrived = true;
+
+    // Caught it — linger briefly so the catch registers, then advance. Checked
+    // before the miss branch so a catch (which also clears thiefAttack) wins.
+    if (caught > s2ThiefCaughtBaseline) {
+      const now = Date.now();
+      if (s2ThiefSuccessAt === null) {
+        s2ThiefSuccessAt = now;
+        return false;
+      }
+      return now - s2ThiefSuccessAt >= THIEF_DEFEND_SUCCESS_LINGER_MS;
+    }
+
+    // The thief arrived and is now gone but wasn't caught — a miss. Count it,
+    // reveal the thief once the player has struggled enough, and retry.
+    if (s2ThiefArrived && !thiefActive) {
+      s2ThiefArrived = false;
+      s2ThiefTryCount++;
+      if (s2ThiefTryCount >= THIEF_HELP_AFTER_TRIES) {
+        useTutorialStore.getState().setThiefHintActive(true);
+      }
+      s2ThiefRetryAt = Date.now() + THIEF_DEFEND_RETRY_DELAY_MS;
+      return false;
+    }
+
+    return false; // thief still in play (or not yet arrived) — wait
+  };
+}
+
 // Clears the per-wave crow-tracking flags (shared by the defend gate's success
 // and failure branches). Does NOT touch retry/try-count state.
 function resetCrowTracking() {
@@ -153,20 +286,12 @@ function resetDefendState(send?: SendFn) {
   send?.({ type: "tutorial_cue", cue: "reset_player_cooldowns" });
 }
 
-// "Bereit!" button for a defend step: arms the gate, then sends the bot's
+// "Bereit!" button for a crow defend step: arms the gate, then sends the bot's
 // crows after a short delay so the player has a moment to prepare.
 function makeDefendReadyButton(level: number) {
-  return {
-    label: "Bereit!",
-    action: (send: SendFn) => {
-      s2WaitingForCrows = true;
-      cancelDefendTimer();
-      s2DefendTimer = setTimeout(() => {
-        s2DefendTimer = null;
-        send?.({ type: "tutorial_cue", cue: "bot_send_crows", level });
-      }, CROW_DEFEND_DELAY_MS);
-    },
-  };
+  return makeReadyButton("bot_send_crows", level, CROW_DEFEND_DELAY_MS, () => {
+    s2WaitingForCrows = true;
+  });
 }
 
 // Gate factory for crow defend steps.
@@ -202,7 +327,7 @@ function makeCrowDefendGate(
         (f) =>
           (f.stage === "growing" || f.stage === "ready") &&
           f.crowAttack === null &&
-          fieldGrowthFraction(f, now) >= CROW_RETRY_MIN_GROWTH,
+          fieldGrowthFraction(f, now) >= CROW_TUTORIAL_MIN_GROWTH,
       ).length;
       if (eligibleCount < minForRetry) return false;
       s2RetryPending = false;
@@ -361,7 +486,7 @@ export const TUTORIAL_STEPS: Record<TutorialStageId, TutorialStep[]> = {
 
     // Step 1: Explain crows + unlock (upgrade to Lv1)
     {
-      text: "Krähen! Du kannst Krähen auf die Felder deines Gegners schicken — sie fressen seine Ernte. Kaufe die Krähen-Karte auf Stufe 1, um sie freizuschalten!",
+      text: "Krähen! Du kannst Krähen auf die Felder deines Gegners schicken — sie fressen seine Ernte. Schalte die Krähen auf Stufe 1 frei, um anzugreifen!",
       reveals: ["crowsCard"],
       highlight: { kind: "dom", id: "crowsCard" },
       allow: ["upgrade:crows"],
@@ -388,7 +513,7 @@ export const TUTORIAL_STEPS: Record<TutorialStageId, TutorialStep[]> = {
 
     // Step 3: Upgrade to Lv2
     {
-      text: "Gut! Stufe 1 greift 1 Feld an. Upgrade auf Stufe 2 — dann werden 2 Felder gleichzeitig angegriffen!",
+      text: "Gut! Die Krähen auf Stufe 1 greifen 1 Feld an. Werte sie auf Stufe 2 auf — dann werden 2 Felder gleichzeitig angegriffen!",
       highlight: { kind: "dom", id: "crowsCard" },
       allow: ["upgrade:crows"],
       gate: (game) => {
@@ -403,7 +528,7 @@ export const TUTORIAL_STEPS: Record<TutorialStageId, TutorialStep[]> = {
 
     // Step 4: Player attacks with Lv2
     {
-      text: "Stufe 2 — schick jetzt Krähen auf 2 Felder deines Gegners!",
+      text: "Deine Krähen sind jetzt auf Stufe 2 — schick sie auf 2 Felder deines Gegners!",
       allow: ["sendCrows"],
       onEnter: (send) => {
         s2CrowsSentBaseline = null;
@@ -415,7 +540,7 @@ export const TUTORIAL_STEPS: Record<TutorialStageId, TutorialStep[]> = {
 
     // Step 5: Upgrade to Lv3
     {
-      text: "Sehr gut! Upgrade auf Stufe 3 — dann greifen 3 Felder gleichzeitig an und das Scheuchen dauert länger!",
+      text: "Sehr gut! Werte die Krähen auf Stufe 3 auf — dann greifen sie 3 Felder gleichzeitig an und das Verscheuchen dauert länger!",
       highlight: { kind: "dom", id: "crowsCard" },
       allow: ["upgrade:crows"],
       gate: (game) => {
@@ -430,7 +555,7 @@ export const TUTORIAL_STEPS: Record<TutorialStageId, TutorialStep[]> = {
 
     // Step 6: Player attacks with Lv3
     {
-      text: "Stufe 3 — schick jetzt Krähen auf 3 Felder deines Gegners!",
+      text: "Deine Krähen sind jetzt auf Stufe 3 — schick sie auf 3 Felder deines Gegners!",
       allow: ["sendCrows"],
       onEnter: (send) => {
         s2CrowsSentBaseline = null;
@@ -444,7 +569,7 @@ export const TUTORIAL_STEPS: Record<TutorialStageId, TutorialStep[]> = {
 
     // Step 7: Defend against Lv1 crows
     {
-      text: "Jetzt lernt dein Gegner dasselbe! Stufe 1 greift 1 Feld an. Klicke auf das befallene Feld, um die Krähen zu verscheuchen. Drücke BEREIT, wenn du vorbereitet bist!",
+      text: "Jetzt lernt dein Gegner dasselbe! Seine Krähen auf Stufe 1 greifen 1 Feld an. Klicke auf das befallene Feld, um die Krähen zu verscheuchen. Drücke BEREIT, wenn du vorbereitet bist!",
       allow: ["scareCrow"],
       onEnter: resetDefendState,
       readyButton: makeDefendReadyButton(1),
@@ -453,7 +578,7 @@ export const TUTORIAL_STEPS: Record<TutorialStageId, TutorialStep[]> = {
 
     // Step 8: Defend against Lv2 crows
     {
-      text: "Gut! Jetzt greift Stufe 2 an — 2 Felder gleichzeitig. Klicke auf jedes befallene Feld. Drücke BEREIT, wenn du bereit bist!",
+      text: "Gut! Jetzt greifen seine Krähen auf Stufe 2 an — 2 Felder gleichzeitig. Klicke auf jedes befallene Feld. Drücke BEREIT, wenn du bereit bist!",
       allow: ["scareCrow"],
       onEnter: resetDefendState,
       readyButton: makeDefendReadyButton(2),
@@ -462,36 +587,19 @@ export const TUTORIAL_STEPS: Record<TutorialStageId, TutorialStep[]> = {
 
     // Step 9: Defend against Lv3 crows (2 out of 3 sufficient)
     {
-      text: "Stufe 3 — jetzt greifen bis zu 3 Felder gleichzeitig an! Drücke BEREIT, wenn du bereit bist!",
+      text: "Seine Krähen auf Stufe 3 greifen jetzt bis zu 3 Felder gleichzeitig an! Drücke BEREIT, wenn du bereit bist!",
       allow: ["scareCrow"],
       onEnter: resetDefendState,
       readyButton: makeDefendReadyButton(3),
       gate: makeCrowDefendGate(3, 2, CROW_DEFEND_LV3_RETRY_MS),
     },
 
-    // ── DIEB LEKTION ───────────────────────────────────────────────────────────
+    // ── DIEB — ANGRIFF ─────────────────────────────────────────────────────────
 
-    // Step 8: Thief explanation — manual advance, no attack yet
+    // Step: Explain thief + unlock (upgrade to Lv1)
     {
-      text: "Dieb! Dein Gegner kann einen Dieb zwischen deine Dorfbewohner schmuggeln, der dein Gold klaut. Klicke auf den Dieb, um ihn zu fangen — aber klicke nicht auf echte Dorfbewohner! Gleich schleicht er sich rein.",
-      reveals: ["thiefCard", "villagers", "villagerAccuse", "thiefEntity"],
-      allow: [],
-    },
-
-    // Step 9: Bot sends Lv1 thief — player catches
-    {
-      text: "Er trägt keine Verkleidung — leicht zu erkennen! Klicke auf ihn, bevor er zu viel klaut.",
-      allow: ["accuse"],
-      onEnter: (send) => {
-        s2ThiefArrival.arrived = false;
-        send?.({ type: "tutorial_cue", cue: "bot_send_thief", level: 1 });
-      },
-      gate: makeArrivalGate(s2ThiefArrival, (ps) => ps.thiefAttack !== null),
-    },
-
-    // Step 8: Upgrade thief to Lv2
-    {
-      text: "Erwischt! Stufe 1 hat keine Tarnung. Upgrade auf Stufe 2 — dann trägt er eine Teilverkleidung und ist schwerer zu erkennen!",
+      text: "Dieb! Du kannst einen Dieb zum Gegner schmuggeln — als Dorfbewohner verkleidet schleicht er sich ein und klaut Gold. Schalte den Dieb auf Stufe 1 frei, um ihn loszuschicken!",
+      reveals: ["thiefCard"],
       highlight: { kind: "dom", id: "thiefCard" },
       allow: ["upgrade:thief"],
       gate: (game) => {
@@ -499,51 +607,14 @@ export const TUTORIAL_STEPS: Record<TutorialStageId, TutorialStep[]> = {
         if (!game || !pid) return false;
         return (
           (game.players[pid]?.tools.find((t) => t.id === "thief")?.level ??
-            0) >= 2
+            0) >= 1
         );
       },
     },
 
-    // Step 9: Bot sends Lv2 thief — player catches
+    // Step: Player sends their own thief (explain how it sneaks in)
     {
-      text: "Jetzt trägt er eine Verkleidung — schau genau hin und fange ihn!",
-      allow: ["accuse"],
-      onEnter: (send) => {
-        s2ThiefArrival.arrived = false;
-        send?.({ type: "tutorial_cue", cue: "bot_send_thief", level: 2 });
-      },
-      gate: makeArrivalGate(s2ThiefArrival, (ps) => ps.thiefAttack !== null),
-    },
-
-    // Step 10: Upgrade thief to Lv3
-    {
-      text: "Gut! Upgrade auf Stufe 3 — dann trägt er eine Vollverkleidung und sieht fast aus wie ein echter Dorfbewohner.",
-      highlight: { kind: "dom", id: "thiefCard" },
-      allow: ["upgrade:thief"],
-      gate: (game) => {
-        const pid = useConnectionStore.getState().playerId;
-        if (!game || !pid) return false;
-        return (
-          (game.players[pid]?.tools.find((t) => t.id === "thief")?.level ??
-            0) >= 3
-        );
-      },
-    },
-
-    // Step 11: Bot sends Lv3 thief — player catches
-    {
-      text: "Vollverkleidung! Er sieht aus wie ein normaler Dorfbewohner. Kannst du ihn trotzdem finden?",
-      allow: ["accuse"],
-      onEnter: (send) => {
-        s2ThiefArrival.arrived = false;
-        send?.({ type: "tutorial_cue", cue: "bot_send_thief", level: 3 });
-      },
-      gate: makeArrivalGate(s2ThiefArrival, (ps) => ps.thiefAttack !== null),
-    },
-
-    // Step 12: Player sends thief
-    {
-      text: "Jetzt bist du dran! Schicke deinen eigenen Dieb zum Gegner.",
+      text: "Jetzt greifst du an! Klicke auf SENDEN, um deinen Dieb loszuschicken. Er wartet am Rand, bis ein Dorfbewohner in ein Haus geht — dann schlüpft er verkleidet aus genau diesem Haus heraus und beginnt zu klauen.",
       allow: ["sendThief"],
       onEnter: () => {
         s2ThievesSentBaseline = null;
@@ -558,6 +629,55 @@ export const TUTORIAL_STEPS: Record<TutorialStageId, TutorialStep[]> = {
         }
         return count > s2ThievesSentBaseline;
       },
+    },
+
+    // Step: Wait until the player's thief has stolen enough gold
+    {
+      text: `Dein Dieb ist drüben und stiehlt Gold. Beobachte ihn — sobald er ${THIEF_ATTACK_STEAL_GOAL} Gold geklaut hat, geht es weiter.`,
+      allow: [],
+      onEnter: () => {
+        s2ThiefStolenBaseline = null;
+      },
+      gate: (game) => {
+        const pid = useConnectionStore.getState().playerId;
+        if (!game || !pid) return false;
+        const stolen = game.players[pid]?.stats.goldStolenByThief ?? 0;
+        if (s2ThiefStolenBaseline === null) {
+          s2ThiefStolenBaseline = stolen;
+          return false;
+        }
+        return stolen >= s2ThiefStolenBaseline + THIEF_ATTACK_STEAL_GOAL;
+      },
+    },
+
+    // ── DIEB — VERTEIDIGUNG ────────────────────────────────────────────────────
+
+    // Step: Defend against Lv1 thief (no disguise)
+    {
+      text: "Jetzt lernt dein Gegner dasselbe! Sein Dieb schleicht sich gleich zwischen deine Dorfbewohner. So fängst du ihn: Klicke den Dieb an und bestätige — aber klicke NICHT auf echte Dorfbewohner, sonst wirst du bestraft! Der Dieb auf Stufe 1 trägt keine Verkleidung. Drücke BEREIT, wenn du bereit bist!",
+      reveals: ["villagers", "villagerAccuse", "thiefEntity"],
+      allow: ["accuse"],
+      onEnter: resetThiefDefendState,
+      readyButton: makeThiefReadyButton(1),
+      gate: makeThiefDefendGate(1),
+    },
+
+    // Step: Defend against Lv2 thief (partial disguise)
+    {
+      text: "Gut gefangen! Der Dieb auf Stufe 2 ist verkleidet — aber nicht perfekt: Er trägt ein helleres Hemd und hat rote Augen. Schau genau hin! Drücke BEREIT, wenn du bereit bist!",
+      allow: ["accuse"],
+      onEnter: resetThiefDefendState,
+      readyButton: makeThiefReadyButton(2),
+      gate: makeThiefDefendGate(2),
+    },
+
+    // Step: Defend against Lv3 thief (full disguise — observational tips)
+    {
+      text: "Der Dieb auf Stufe 3 sieht genau wie ein echter Dorfbewohner aus. So erkennst du ihn trotzdem:\n• Sinkt plötzlich dein Gold? Dann ist ein Dieb da.\n• Achte darauf, in welche Häuser Dorfbewohner gehen — kommt jemand aus einem Haus, in das niemand hineingegangen ist, ist das dein Dieb.\nDrücke BEREIT, wenn du bereit bist!",
+      allow: ["accuse"],
+      onEnter: resetThiefDefendState,
+      readyButton: makeThiefReadyButton(3),
+      gate: makeThiefDefendGate(3),
     },
 
     // ── UNWETTER LEKTION ───────────────────────────────────────────────────────
@@ -585,7 +705,7 @@ export const TUTORIAL_STEPS: Record<TutorialStageId, TutorialStep[]> = {
 
     // Step 14: Upgrade weather to Lv2
     {
-      text: "Vorbei! Stufe 1 ist noch harmlos. Upgrade auf Stufe 2 — dann wird der Sturm deutlich stärker!",
+      text: "Vorbei! Das Unwetter auf Stufe 1 ist noch harmlos. Werte es auf Stufe 2 auf — dann wird der Sturm deutlich stärker!",
       highlight: { kind: "dom", id: "weatherCard" },
       allow: ["upgrade:weather"],
       gate: (game) => {
@@ -614,7 +734,7 @@ export const TUTORIAL_STEPS: Record<TutorialStageId, TutorialStep[]> = {
 
     // Step 16: Upgrade weather to Lv3
     {
-      text: "Gut! Upgrade auf Stufe 3 — dann trifft zusätzlich ein Blitz und vernichtet sofort ein Feld.",
+      text: "Gut! Werte das Unwetter auf Stufe 3 auf — dann trifft zusätzlich ein Blitz und vernichtet sofort ein Feld.",
       highlight: { kind: "dom", id: "weatherCard" },
       allow: ["upgrade:weather"],
       gate: (game) => {
@@ -629,7 +749,7 @@ export const TUTORIAL_STEPS: Record<TutorialStageId, TutorialStep[]> = {
 
     // Step 17: Bot sends Lv3 weather (lightning!) — player waits it out
     {
-      text: "Stufe 3 mit Blitz! Ein Feld wird sofort zerstört. Schau zu — und warte, bis der Sturm vorbei ist.",
+      text: "Das Unwetter auf Stufe 3 bringt einen Blitz! Ein Feld wird sofort zerstört. Schau zu — und warte, bis der Sturm vorbei ist.",
       allow: [],
       onEnter: (send) => {
         s2WeatherArrival.arrived = false;
