@@ -35,13 +35,13 @@ export type TutorialStageId = 1 | 2 | 3;
 const TUTORIAL_SOW_DURATION_MS = 1_000;
 const TUTORIAL_HARVEST_DURATION_MS = 1_000;
 const TUTORIAL_BASE_GROW_MS = 12_000;
+// Stage 2 uses a slightly slower grow time so attacks feel less frantic
+const STAGE2_BASE_GROW_MS = 25_000;
 const TUTORIAL_GROW_VARIANCE = 0.05;
 const TUTORIAL_GOLD_PER_HARVEST = 40;
 const TUTORIAL_STARTING_GOLD = 300;
 const TUTORIAL_MATCH_DURATION_MS = 5 * 60 * 1_000;
-const TUTORIAL_MERCHANT_VISITS = [
-  { atMs: 45_000, jitterMs: 5_000 },
-] as const;
+const TUTORIAL_MERCHANT_VISITS = [{ atMs: 45_000, jitterMs: 5_000 }] as const;
 
 // DEFAULT_GAME_CONFIG matches the existing shared constants exactly so PvP is byte-identical.
 // If any shared constant changes, update the corresponding field here too.
@@ -90,6 +90,7 @@ export function gameConfigForStage(stage: TutorialStageId): GameConfig {
   if (stage === 2) {
     return {
       ...base,
+      baseGrowMs: STAGE2_BASE_GROW_MS,
       enabled: { ...base.enabled, crows: true, thief: true, weather: true },
     };
   }

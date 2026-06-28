@@ -120,6 +120,8 @@ export class GameEngine {
   // Lazy init: created once startedAt is known so both clients use the same seed
   private villagersSeeded = false;
   private prevStartedAt: number | null = null;
+  // Tutorial gating for villager accusation affordance (applied on seed too).
+  private accuseEnabled = true;
   private prevPhase: string | null = null;
 
   async init(
@@ -273,6 +275,13 @@ export class GameEngine {
     return this.farmToScreen(MERCHANT_FARM_X, MERCHANT_FARM_Y);
   }
 
+  setInteractionAllowed(flags: { accuse?: boolean }): void {
+    if (flags.accuse !== undefined) {
+      this.accuseEnabled = flags.accuse;
+      this.playerVillagers?.setClickEnabled(flags.accuse);
+    }
+  }
+
   setTutorialReveal(flags: { opponentFarm?: boolean }): void {
     const showOpponent = flags.opponentFarm ?? true;
     const newSoloLeft = !showOpponent;
@@ -389,6 +398,7 @@ export class GameEngine {
         this.onVillagersChange ?? undefined,
         this.onVillagerClicked ?? undefined,
       );
+      this.playerVillagers.setClickEnabled(this.accuseEnabled);
       this.opponentVillagers = new VillagerController(
         "opponent",
         this.opponentFarm,

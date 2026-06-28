@@ -141,6 +141,11 @@ export class VillagerController {
     for (const v of this.villagers) v.entity.blinded = blinded;
   }
 
+  /** Enable/disable the click affordance on all villagers (tutorial gating). */
+  setClickEnabled(enabled: boolean): void {
+    for (const v of this.villagers) v.entity.setClickEnabled(enabled);
+  }
+
   setFrozenVillager(id: number | null): void {
     this.frozenVillagerId = id;
     if (id !== null) {

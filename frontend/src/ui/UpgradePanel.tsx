@@ -27,7 +27,13 @@ import { useEffect, useState } from "react";
 import { useConnectionStore } from "../state/connectionStore";
 import { useGameStore } from "../state/gameStore";
 import { useTargetingStore } from "../state/targetingStore";
-import { useRevealedSurfaces } from "../state/tutorialStore";
+import {
+  useRevealedSurfaces,
+  useTutorialState,
+  isInteractionAllowed,
+  isTutorialAction,
+} from "../state/tutorialStore";
+import type { TutorialInteraction } from "../tutorial/types";
 
 const CROW_EAT_DURATIONS_MS = CROW_LEVEL_CONFIG.map((c) =>
   Math.round(1 / c.eatRatePerMs),
@@ -68,6 +74,22 @@ function dispatchUpgrade(toolId: ToolId): void {
     type: "player_action",
     action: { kind: "UpgradeTool", toolId },
   });
+}
+
+// Per-card tutorial gating: whether the upgrade/send actions are permitted on
+// the current step, and whether either is the step's pulsing required action.
+// Reads the tutorial slice once, then derives all four flags purely.
+function useCardInteractions(
+  upgrade: TutorialInteraction,
+  send: TutorialInteraction,
+) {
+  const tut = useTutorialState();
+  return {
+    upgradeAllowed: isInteractionAllowed(tut, upgrade),
+    isUpgradeAction: isTutorialAction(tut, upgrade),
+    sendAllowed: isInteractionAllowed(tut, send),
+    isSendAction: isTutorialAction(tut, send),
+  };
 }
 
 function formatSeconds(ms: number): string {
@@ -403,7 +425,11 @@ function UpgradeCard({
   const isMaxed = level >= maxLevel;
   const nextCost = isMaxed ? null : costs[level];
   const canAfford = nextCost !== null && gold >= nextCost;
-  const disabled = isMaxed || !canAfford;
+  const upgradeInteraction = `upgrade:${toolId}` as TutorialInteraction;
+  const tut = useTutorialState();
+  const upgradeAllowed = isInteractionAllowed(tut, upgradeInteraction);
+  const isUpgradeAction = isTutorialAction(tut, upgradeInteraction);
+  const disabled = isMaxed || !canAfford || !upgradeAllowed;
 
   let statText: string;
   if (toolId === "tools") {
@@ -440,7 +466,7 @@ function UpgradeCard({
             type="button"
             disabled={disabled}
             onClick={() => dispatchUpgrade(toolId)}
-            className="btn-upgrade"
+            className={`btn-upgrade${isUpgradeAction ? " tutorial-pulse" : ""}`}
           >
             {isMaxed ? "MAXIMAL" : `▲ AUFWERTEN  ${nextCost}g`}
           </button>
@@ -462,11 +488,14 @@ function CrowsCard({
   const isMaxed = level >= MAX_CROW_LEVEL;
   const nextCost = isMaxed ? null : CROW_UPGRADE_COSTS[level];
   const canAffordUpgrade = nextCost !== null && gold >= nextCost;
-  const upgradeDisabled = isMaxed || !canAffordUpgrade;
+  const { upgradeAllowed, isUpgradeAction, sendAllowed, isSendAction } =
+    useCardInteractions("upgrade:crows", "sendCrows");
+  const upgradeDisabled = isMaxed || !canAffordUpgrade || !upgradeAllowed;
 
   const now = useNow(100);
   const onCooldown = cooldownUntil > now;
-  const canSend = level > 0 && !onCooldown && gold >= CROW_SEND_COST;
+  const canSend =
+    level > 0 && !onCooldown && gold >= CROW_SEND_COST && sendAllowed;
 
   const isTargeting = useTargetingStore((s) => s.active);
   const chosenCount = useTargetingStore((s) => s.chosen.length);
@@ -493,8 +522,7 @@ function CrowsCard({
     statText = "▪ NOCH GESPERRT";
   } else {
     const fc = CROW_FIELD_COUNTS[level - 1];
-    const eatSec = (CROW_EAT_DURATIONS_MS[level - 1] / 1000).toFixed(1);
-    statText = `FRISST ${fc} FELD${fc > 1 ? "ER" : ""} IN ${eatSec}S`;
+    statText = `FRISST ${fc} FELD${fc > 1 ? "ER" : ""}`;
   }
 
   return (
@@ -514,9 +542,9 @@ function CrowsCard({
             <>
               <button
                 type="button"
-                disabled={!canAffordUpgrade}
+                disabled={!canAffordUpgrade || !upgradeAllowed}
                 onClick={() => dispatchUpgrade("crows")}
-                className="btn-unlock"
+                className={`btn-unlock${isUpgradeAction ? " tutorial-pulse" : ""}`}
               >
                 FREISCHALTEN {nextCost}g
               </button>
@@ -530,7 +558,7 @@ function CrowsCard({
                 type="button"
                 disabled={upgradeDisabled}
                 onClick={() => dispatchUpgrade("crows")}
-                className="btn-upgrade"
+                className={`btn-upgrade${isUpgradeAction ? " tutorial-pulse" : ""}`}
               >
                 {isMaxed ? "MAXIMAL" : `▲ AUFWERTEN  ${nextCost}g`}
               </button>
@@ -543,9 +571,11 @@ function CrowsCard({
               ) : (
                 <button
                   type="button"
-                  disabled={!isTargeting && !canSend}
+                  disabled={(!isTargeting && !canSend) || !sendAllowed}
                   onClick={handleSendClick}
-                  className={`btn-upgrade-action${isTargeting ? " targeting" : ""}`}
+                  className={`btn-upgrade-action${isTargeting ? " targeting" : ""}${
+                    isSendAction && !isTargeting ? " tutorial-pulse" : ""
+                  }`}
                 >
                   {isTargeting
                     ? `FELD WÄHLEN  ${remaining}`
@@ -574,13 +604,19 @@ function ThiefCard({
   const isMaxed = level >= MAX_THIEF_LEVEL;
   const nextCost = isMaxed ? null : THIEF_UPGRADE_COSTS[level];
   const canAffordUpgrade = nextCost !== null && gold >= nextCost;
-  const upgradeDisabled = isMaxed || !canAffordUpgrade;
+  const { upgradeAllowed, isUpgradeAction, sendAllowed, isSendAction } =
+    useCardInteractions("upgrade:thief", "sendThief");
+  const upgradeDisabled = isMaxed || !canAffordUpgrade || !upgradeAllowed;
 
   const now = useNow(100);
   const onCooldown = cooldownUntil > now;
   const sendCost = level > 0 ? THIEF_SEND_COSTS[level - 1] : 0;
   const canSend =
-    level > 0 && !onCooldown && gold >= sendCost && !opponentHasThief;
+    level > 0 &&
+    !onCooldown &&
+    gold >= sendCost &&
+    !opponentHasThief &&
+    sendAllowed;
 
   const handleSend = () => {
     useConnectionStore.getState().send?.({
@@ -614,9 +650,9 @@ function ThiefCard({
             <>
               <button
                 type="button"
-                disabled={!canAffordUpgrade}
+                disabled={!canAffordUpgrade || !upgradeAllowed}
                 onClick={() => dispatchUpgrade("thief")}
-                className="btn-unlock"
+                className={`btn-unlock${isUpgradeAction ? " tutorial-pulse" : ""}`}
               >
                 FREISCHALTEN {nextCost}g
               </button>
@@ -630,7 +666,7 @@ function ThiefCard({
                 type="button"
                 disabled={upgradeDisabled}
                 onClick={() => dispatchUpgrade("thief")}
-                className="btn-upgrade"
+                className={`btn-upgrade${isUpgradeAction ? " tutorial-pulse" : ""}`}
               >
                 {isMaxed ? "MAXIMAL" : `▲ AUFWERTEN  ${nextCost}g`}
               </button>
@@ -645,7 +681,7 @@ function ThiefCard({
                   type="button"
                   disabled={!canSend}
                   onClick={handleSend}
-                  className="btn-upgrade-action"
+                  className={`btn-upgrade-action${isSendAction ? " tutorial-pulse" : ""}`}
                 >
                   {opponentHasThief ? "BESETZT" : `▶ SENDEN  ${sendCost}g`}
                 </button>
@@ -672,13 +708,19 @@ function WeatherCard({
   const isMaxed = level >= MAX_WEATHER_LEVEL;
   const nextCost = isMaxed ? null : WEATHER_UPGRADE_COSTS[level];
   const canAffordUpgrade = nextCost !== null && gold >= nextCost;
-  const upgradeDisabled = isMaxed || !canAffordUpgrade;
+  const { upgradeAllowed, isUpgradeAction, sendAllowed, isSendAction } =
+    useCardInteractions("upgrade:weather", "sendWeather");
+  const upgradeDisabled = isMaxed || !canAffordUpgrade || !upgradeAllowed;
 
   const now = useNow(100);
   const onCooldown = cooldownUntil > now;
   const sendCost = level > 0 ? WEATHER_SEND_COSTS[level - 1] : 0;
   const canSend =
-    level > 0 && !onCooldown && gold >= sendCost && !opponentHasWeather;
+    level > 0 &&
+    !onCooldown &&
+    gold >= sendCost &&
+    !opponentHasWeather &&
+    sendAllowed;
 
   const handleSend = () => {
     useConnectionStore.getState().send?.({
@@ -714,9 +756,9 @@ function WeatherCard({
             <>
               <button
                 type="button"
-                disabled={!canAffordUpgrade}
+                disabled={!canAffordUpgrade || !upgradeAllowed}
                 onClick={() => dispatchUpgrade("weather")}
-                className="btn-unlock"
+                className={`btn-unlock${isUpgradeAction ? " tutorial-pulse" : ""}`}
               >
                 FREISCHALTEN {nextCost}g
               </button>
@@ -730,7 +772,7 @@ function WeatherCard({
                 type="button"
                 disabled={upgradeDisabled}
                 onClick={() => dispatchUpgrade("weather")}
-                className="btn-upgrade"
+                className={`btn-upgrade${isUpgradeAction ? " tutorial-pulse" : ""}`}
               >
                 {isMaxed ? "MAXIMAL" : `▲ AUFWERTEN  ${nextCost}g`}
               </button>
@@ -745,7 +787,7 @@ function WeatherCard({
                   type="button"
                   disabled={!canSend}
                   onClick={handleSend}
-                  className="btn-upgrade-action"
+                  className={`btn-upgrade-action${isSendAction ? " tutorial-pulse" : ""}`}
                 >
                   {opponentHasWeather ? "AKTIV" : `▶ SENDEN  ${sendCost}g`}
                 </button>

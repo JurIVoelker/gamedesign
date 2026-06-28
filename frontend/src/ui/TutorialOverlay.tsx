@@ -1,20 +1,30 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useTutorialStore } from "../state/tutorialStore";
 import { useGameStore } from "../state/gameStore";
 import { useConnectionStore } from "../state/connectionStore";
 import { TUTORIAL_STEPS } from "../tutorial/stages";
 import { markStageCompleted } from "../tutorial/progress";
 
+// How often active gates are re-evaluated, independent of game_state arrivals.
+// Keeps time-based gate conditions (lingers, retry delays) responsive.
+const GATE_POLL_INTERVAL_MS = 200;
+
 export function TutorialOverlay() {
   const { active, stage, stepIndex, advance, exit } = useTutorialStore();
-  const game = useGameStore((s) => s.game);
   const gamePhase = useGameStore((s) => s.game?.phase);
   const send = useConnectionStore((s) => s.send);
   const disconnect = useConnectionStore((s) => s.disconnect);
   const setHighlightField = useTutorialStore((s) => s.setHighlightField);
 
+  const [readyButtonPressed, setReadyButtonPressed] = useState(false);
+
   const steps = stage ? (TUTORIAL_STEPS[stage] ?? []) : [];
   const currentStep = steps[stepIndex] ?? null;
+
+  // Reset ready button state whenever the step changes
+  useEffect(() => {
+    setReadyButtonPressed(false);
+  }, [stepIndex]);
 
   // Run onEnter and update field highlight when step changes
   useEffect(() => {
@@ -30,13 +40,21 @@ export function TutorialOverlay() {
     }
   }, [active, stepIndex, currentStep, send, setHighlightField]);
 
-  // Check gate on every gameStore update — auto-advance when condition met
+  // Re-evaluate the active gate on a single long-lived poll interval, reading
+  // the latest game state on each tick. Polling (rather than re-checking on
+  // every game_state broadcast) is required because time-based gates — "linger
+  // 2s after the crows clear", retry delays — must advance even when no new
+  // state arrives. Keeping `game` out of the deps avoids tearing down and
+  // recreating the timer on every broadcast.
   useEffect(() => {
     if (!active || !currentStep?.gate) return;
-    if (currentStep.gate(game)) {
-      advance();
-    }
-  }, [active, currentStep, game, advance]);
+    const check = () => {
+      if (currentStep.gate!(useGameStore.getState().game)) advance();
+    };
+    check();
+    const id = setInterval(check, GATE_POLL_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [active, currentStep, advance]);
 
   // When all steps complete, mark stage done and return to lobby
   useEffect(() => {
@@ -101,7 +119,21 @@ export function TutorialOverlay() {
         >
           {currentStep.text}
         </div>
-        {!currentStep.gate && (
+        {currentStep.readyButton ? (
+          <div style={{ marginTop: 12 }}>
+            <button
+              onClick={() => {
+                setReadyButtonPressed(true);
+                currentStep.readyButton!.action(send);
+              }}
+              disabled={readyButtonPressed}
+              className="btn-pixel"
+              style={{ fontSize: 7, width: "100%" }}
+            >
+              {readyButtonPressed ? "Gleich..." : currentStep.readyButton.label}
+            </button>
+          </div>
+        ) : !currentStep.gate ? (
           <div style={{ marginTop: 12 }}>
             <button
               onClick={advance}
@@ -111,7 +143,7 @@ export function TutorialOverlay() {
               {advanceLabel}
             </button>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

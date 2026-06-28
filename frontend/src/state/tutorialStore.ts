@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { TutorialStageId } from "@gamedesign/shared";
-import type { TutorialSurface } from "../tutorial/types";
+import type { TutorialSurface, TutorialInteraction } from "../tutorial/types";
 import { TUTORIAL_STEPS } from "../tutorial/stages";
 
 const ALL_SURFACES: Set<TutorialSurface> = new Set([
@@ -83,4 +83,60 @@ export function useRevealedSurfaces(): Set<TutorialSurface> {
   const stage = useTutorialStore((s) => s.stage);
   const stepIndex = useTutorialStore((s) => s.stepIndex);
   return getRevealedSurfaces({ active, stage, stepIndex });
+}
+
+/**
+ * The current step's `allow` list, or null when the tutorial is inactive or the
+ * step is unrestricted (`allow` undefined). Pure — safe outside React.
+ */
+function currentAllowList(state: {
+  active: boolean;
+  stage: TutorialStageId | null;
+  stepIndex: number;
+}): TutorialInteraction[] | null {
+  const { active, stage, stepIndex } = state;
+  if (!active || stage === null) return null;
+  const step = (TUTORIAL_STEPS[stage] ?? [])[stepIndex];
+  return step?.allow ?? null;
+}
+
+export interface TutorialStateSlice {
+  active: boolean;
+  stage: TutorialStageId | null;
+  stepIndex: number;
+}
+
+/**
+ * Whether an interaction is currently permitted. True when the tutorial is
+ * inactive or the step is unrestricted; otherwise only if explicitly listed.
+ * Pure — safe to call from PixiJS / event handlers.
+ */
+export function isInteractionAllowed(
+  state: TutorialStateSlice,
+  interaction: TutorialInteraction,
+): boolean {
+  const allow = currentAllowList(state);
+  if (allow === null) return true;
+  return allow.includes(interaction);
+}
+
+/**
+ * Whether this interaction is the step's *required* action — i.e. the step is
+ * restricted (`allow` defined) and lists it. Used to pulse the relevant button.
+ * Unrestricted steps (free-play) never pulse. Pure.
+ */
+export function isTutorialAction(
+  state: TutorialStateSlice,
+  interaction: TutorialInteraction,
+): boolean {
+  const allow = currentAllowList(state);
+  return allow !== null && allow.includes(interaction);
+}
+
+/** Subscribe to the step-identifying slice (one subscription per primitive). */
+export function useTutorialState(): TutorialStateSlice {
+  const active = useTutorialStore((s) => s.active);
+  const stage = useTutorialStore((s) => s.stage);
+  const stepIndex = useTutorialStore((s) => s.stepIndex);
+  return { active, stage, stepIndex };
 }

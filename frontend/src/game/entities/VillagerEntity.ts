@@ -19,6 +19,9 @@ export class VillagerEntity {
   private clickable: boolean;
   private onClick: (() => void) | null;
   private outlineFilter: OutlineFilter;
+  // Runtime gate (tutorial): when false, the villager shows no pointer
+  // affordance and ignores clicks even if constructed clickable.
+  clickEnabled: boolean = true;
 
   constructor(
     id: number,
@@ -44,11 +47,23 @@ export class VillagerEntity {
   render(stage: Container): void {
     stage.addChild(this.sprite);
     if (this.clickable) {
-      this.sprite.eventMode = "static";
-      this.sprite.cursor = "pointer";
-      this.sprite.on("pointerdown", () => this.onClick?.());
+      this.sprite.on("pointerdown", () => {
+        if (this.clickEnabled) this.onClick?.();
+      });
+      this.applyClickAffordance();
     }
     this.draw();
+  }
+
+  /** Toggle the pointer affordance/interaction at runtime (tutorial gating). */
+  setClickEnabled(enabled: boolean): void {
+    this.clickEnabled = enabled;
+    if (this.clickable) this.applyClickAffordance();
+  }
+
+  private applyClickAffordance(): void {
+    this.sprite.eventMode = this.clickEnabled ? "static" : "none";
+    this.sprite.cursor = this.clickEnabled ? "pointer" : "default";
   }
 
   update(): void {

@@ -16,11 +16,24 @@ function SpotlightImpl({ targetId }: { targetId: string }) {
   const ringRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    let cleanupTarget: HTMLElement | null = null;
+    let prevPosition = "";
+    let prevZIndex = "";
+
     const update = () => {
       const target = document.querySelector<HTMLElement>(
         `[data-tutorial-id="${targetId}"]`,
       );
       if (!target || !ringRef.current) return;
+
+      if (!cleanupTarget) {
+        prevPosition = target.style.position;
+        prevZIndex = target.style.zIndex;
+        target.style.position = "relative";
+        target.style.zIndex = "42";
+        cleanupTarget = target;
+      }
+
       const rect = target.getBoundingClientRect();
       const ring = ringRef.current;
       ring.style.left = `${rect.left - 4}px`;
@@ -31,7 +44,14 @@ function SpotlightImpl({ targetId }: { targetId: string }) {
 
     update();
     window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
+
+    return () => {
+      window.removeEventListener("resize", update);
+      if (cleanupTarget) {
+        cleanupTarget.style.position = prevPosition;
+        cleanupTarget.style.zIndex = prevZIndex;
+      }
+    };
   }, [targetId]);
 
   return (
@@ -40,9 +60,9 @@ function SpotlightImpl({ targetId }: { targetId: string }) {
         style={{
           position: "fixed",
           inset: 0,
-          backgroundColor: "rgba(0,0,0,0.5)",
-          pointerEvents: "none",
+          backgroundColor: "rgba(0,0,0,0.55)",
           zIndex: 40,
+          pointerEvents: "none",
         }}
       />
       <div
@@ -52,7 +72,7 @@ function SpotlightImpl({ targetId }: { targetId: string }) {
           border: "2px solid #c8a84b",
           boxShadow: "0 0 12px 4px rgba(200,168,75,0.5)",
           pointerEvents: "none",
-          zIndex: 41,
+          zIndex: 43,
         }}
       />
     </>

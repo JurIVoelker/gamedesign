@@ -10,12 +10,26 @@ import {
   useTutorialStore,
   useRevealedSurfaces,
   getRevealedSurfaces,
+  isInteractionAllowed,
 } from "../state/tutorialStore";
 const MERCHANT_BUBBLE_SHOW_MS = 8000;
 
 export type AccusationTarget =
   | { type: "thief"; disguise: "none" | "partial" | "full" }
   | { type: "villager"; villagerId: number };
+
+// Whether the player may open an accusation right now: outside the tutorial
+// always; inside, only once villager accusation is revealed AND the current
+// step allows it.
+function canAccuse(
+  tutState: ReturnType<typeof useTutorialStore.getState>,
+): boolean {
+  if (!tutState.active) return true;
+  return (
+    getRevealedSurfaces(tutState).has("villagerAccuse") &&
+    isInteractionAllowed(tutState, "accuse")
+  );
+}
 
 const targetingHintStyle: CSSProperties = {
   position: "absolute",
@@ -55,6 +69,9 @@ export function FarmCanvas() {
   );
   const [merchantOpen, setMerchantOpen] = useState(false);
   const revealed = useRevealedSurfaces();
+  const tutActive = useTutorialStore((s) => s.active);
+  const tutStage = useTutorialStore((s) => s.stage);
+  const tutStepIndex = useTutorialStore((s) => s.stepIndex);
 
   // Anger bubble: shown above the house when sow/harvest is blocked
   const [angerBubble, setAngerBubble] = useState<{
@@ -198,6 +215,9 @@ export function FarmCanvas() {
     };
 
     const onScareCrow = (fieldIndex: number) => {
+      const tutState = useTutorialStore.getState();
+      if (tutState.active && !isInteractionAllowed(tutState, "scareCrow"))
+        return;
       useConnectionStore.getState().send?.({
         type: "player_action",
         action: { kind: "ScareCrow", fieldIndex },
@@ -205,7 +225,7 @@ export function FarmCanvas() {
     };
 
     const onThiefClicked = () => {
-      if (useTutorialStore.getState().active) return;
+      if (!canAccuse(useTutorialStore.getState())) return;
       const { game: g } = useGameStore.getState();
       const { playerId: pid } = useConnectionStore.getState();
       const disguise = g?.players[pid ?? ""]?.thiefAttack?.disguise ?? "none";
@@ -214,7 +234,7 @@ export function FarmCanvas() {
     };
 
     const onVillagerClicked = (id: number) => {
-      if (useTutorialStore.getState().active) return;
+      if (!canAccuse(useTutorialStore.getState())) return;
       const pos = engineRef.current?.getPlayerHouseScreenPos(id);
       setAccusationAnchorY(pos?.y ?? null);
       setAccusationTarget({ type: "villager", villagerId: id });
@@ -255,6 +275,9 @@ export function FarmCanvas() {
           engine.setTutorialReveal({
             opponentFarm: getRevealedSurfaces(tutState).has("opponentFarm"),
           });
+          engine.setInteractionAllowed({
+            accuse: isInteractionAllowed(tutState, "accuse"),
+          });
         }
         const { game } = useGameStore.getState();
         const { playerId } = useConnectionStore.getState();
@@ -281,6 +304,17 @@ export function FarmCanvas() {
       opponentFarm: revealed.has("opponentFarm"),
     });
   }, [revealed]);
+
+  // Tutorial interaction bridge: propagate per-step accusation permission so
+  // villagers only show a clickable affordance when the current step allows it.
+  useEffect(() => {
+    engineRef.current?.setInteractionAllowed({
+      accuse: isInteractionAllowed(
+        { active: tutActive, stage: tutStage, stepIndex: tutStepIndex },
+        "accuse",
+      ),
+    });
+  }, [tutActive, tutStage, tutStepIndex]);
 
   const remaining = fieldCount - chosen.length;
 
