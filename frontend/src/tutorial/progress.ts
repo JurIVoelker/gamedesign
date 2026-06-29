@@ -2,10 +2,6 @@ import type { TutorialStageId } from "@gamedesign/shared";
 import { TUTORIAL_STEPS } from "./stages";
 
 const PROGRESS_KEY = "tutorial_progress";
-// One-time flag: the bot test match auto-launches the first time the player
-// finishes the last tutorial stage; afterwards it's only reachable via the
-// replay button in the Lernpfad.
-const BOT_MATCH_INTRO_KEY = "farmyard-botmatch-intro-seen";
 
 const STAGES: TutorialStageId[] = [1, 2, 3];
 
@@ -61,12 +57,4 @@ export function lastStageWithSteps(): TutorialStageId {
 /** True once the player has completed the final stage that has content. */
 export function isTutorialComplete(): boolean {
   return isStageCompleted(lastStageWithSteps());
-}
-
-export function isBotMatchIntroSeen(): boolean {
-  return localStorage.getItem(BOT_MATCH_INTRO_KEY) === "1";
-}
-
-export function markBotMatchIntroSeen(): void {
-  localStorage.setItem(BOT_MATCH_INTRO_KEY, "1");
 }
