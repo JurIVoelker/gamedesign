@@ -312,7 +312,12 @@ export function ItemBar() {
   const heldItems = me.items.filter((i) => i.count > 0);
 
   // Effects I cast on the opponent that are still running → shown as faded timer slots
-  const activeSourceEffects = (opponent?.activeEffects ?? []).filter(
+  // Effects I activated that are still running — includes effects on the opponent
+  // (blindness, paranoia) and effects on myself (spy_glass, mirror_curse).
+  const activeSourceEffects = [
+    ...(opponent?.activeEffects ?? []),
+    ...(me.activeEffects ?? []),
+  ].filter(
     (e) =>
       e.sourcePlayerId === playerId &&
       e.endsAt !== null &&
