@@ -27,6 +27,12 @@ export interface GameConfig {
     items: boolean;
   };
   persist: boolean;
+  // True only for the guided tutorial stages. Drives tutorial-specific behavior
+  // (no pre-sow, scripted-bot assists). Decoupled from `persist` so the bot test
+  // match can be a real (pre-sown) match that still isn't saved to the leaderboard.
+  tutorial: boolean;
+  // True for the post-tutorial test match against an autonomous bot.
+  botMatch: boolean;
 }
 
 export type TutorialStageId = 1 | 2 | 3;
@@ -64,6 +70,16 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
     items: true,
   },
   persist: true,
+  tutorial: false,
+  botMatch: false,
+};
+
+// Post-tutorial practice match: identical PvP pacing/mechanics to DEFAULT, but
+// driven by an autonomous bot opponent and never written to the leaderboard.
+export const BOT_MATCH_CONFIG: GameConfig = {
+  ...DEFAULT_GAME_CONFIG,
+  persist: false,
+  botMatch: true,
 };
 
 export function gameConfigForStage(stage: TutorialStageId): GameConfig {
@@ -77,6 +93,8 @@ export function gameConfigForStage(stage: TutorialStageId): GameConfig {
     matchDurationMs: TUTORIAL_MATCH_DURATION_MS,
     merchantVisits: TUTORIAL_MERCHANT_VISITS,
     persist: false,
+    tutorial: true,
+    botMatch: false,
     enabled: {
       tools: true,
       fertilizer: true,

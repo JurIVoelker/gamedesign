@@ -166,7 +166,8 @@ export function handleMessage(session: Session, raw: string | Buffer): void {
       const game = gameManager.getGame(roomCode);
       game?.forfeit(session.playerId);
       gameManager.clearSlot(session.playerId);
-      if (game?.isTutorial()) gameManager.clearGame(roomCode);
+      if (game?.isTutorial() || game?.isBotMatch())
+        gameManager.clearGame(roomCode);
       console.log(`[game] ${session.playerId} forfeited room ${roomCode}`);
       break;
     }
@@ -185,11 +186,24 @@ export function handleMessage(session: Session, raw: string | Buffer): void {
       break;
     }
 
+    case 'start_bot_match': {
+      const { slot } = gameManager.createBotMatchRoom(session);
+      const roomCode = gameManager.getRoomCodeOf(session.playerId)!;
+      // Send room_created so the client stores the roomCode in localStorage,
+      // enabling seamless reconnection after a page refresh.
+      session.send({ type: 'room_created', roomCode });
+      session.send({ type: 'assigned', slot, playerId: session.playerId });
+      session.send({ type: 'game_ready' });
+      gameManager.getGame(roomCode)?.startGame();
+      console.log(`[game] Bot match started for ${session.playerId}`);
+      break;
+    }
+
     case 'tutorial_cue': {
       const roomCode = gameManager.getRoomCodeOf(session.playerId);
       if (!roomCode) return;
       const game = gameManager.getGame(roomCode);
-      game?.botController?.handleCue(parsed.cue, parsed.level, parsed.itemId);
+      game?.botController?.handleCue?.(parsed.cue, parsed.level, parsed.itemId);
       break;
     }
 
