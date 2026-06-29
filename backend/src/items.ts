@@ -126,11 +126,8 @@ export const ITEM_HANDLERS: Partial<Record<ItemId, ItemEffectHandler>> = {
   fake_merchant: (ctx) => {
     const { opponent, user, now } = ctx;
     if (opponent.merchant?.fake) return "not_applicable";
-    const afterMs = opponent.merchant
-      ? Math.max(
-          0,
-          opponent.merchant.leavesAt - now + FAKE_MERCHANT_POST_REAL_DELAY_MS,
-        )
+    const afterMs = opponent.merchant?.leavesAt !== undefined
+      ? Math.max(0, opponent.merchant.leavesAt - now + FAKE_MERCHANT_POST_REAL_DELAY_MS)
       : undefined;
     ctx.deployFakeMerchant(opponent.id, user.id, afterMs);
     return "ok";

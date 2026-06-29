@@ -30,7 +30,11 @@ function SpotlightImpl({ targetId }: { targetId: string }) {
       if (!cleanupTarget) {
         prevPosition = target.style.position;
         prevZIndex = target.style.zIndex;
-        target.style.position = "relative";
+        // Only override position if the element is statically positioned;
+        // overriding absolute/fixed breaks layout (e.g. the ItemBar).
+        if (getComputedStyle(target).position === "static") {
+          target.style.position = "relative";
+        }
         target.style.zIndex = "42";
         cleanupTarget = target;
       }
@@ -67,26 +71,15 @@ function SpotlightImpl({ targetId }: { targetId: string }) {
   }, [targetId]);
 
   return (
-    <>
-      <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          backgroundColor: "rgba(0,0,0,0.55)",
-          zIndex: 40,
-          pointerEvents: "none",
-        }}
-      />
-      <div
-        ref={ringRef}
-        style={{
-          position: "fixed",
-          border: "2px solid #c8a84b",
-          boxShadow: "0 0 12px 4px rgba(200,168,75,0.5)",
-          pointerEvents: "none",
-          zIndex: 43,
-        }}
-      />
-    </>
+    <div
+      ref={ringRef}
+      style={{
+        position: "fixed",
+        border: "2px solid #c8a84b",
+        boxShadow: "0 0 12px 4px rgba(200,168,75,0.5)",
+        pointerEvents: "none",
+        zIndex: 43,
+      }}
+    />
   );
 }

@@ -6,7 +6,7 @@ import { useGameStore } from "../state/gameStore";
 import { useTargetingStore } from "../state/targetingStore";
 import { useNow } from "../hooks/useNow";
 import { ItemIcon } from "./ItemIcons";
-import { useRevealedSurfaces } from "../state/tutorialStore";
+import { useRevealedSurfaces, useTutorialState, isInteractionAllowed } from "../state/tutorialStore";
 
 const SLOT_STYLE = {
   width: 88,
@@ -97,10 +97,11 @@ function PointlessParticleBurst({ burstKey }: { burstKey: number }) {
   );
 }
 
-function ItemSlot({ item, onUse }: { item: Item; onUse: () => void }) {
+function ItemSlot({ item, onUse, disabled }: { item: Item; onUse: () => void; disabled?: boolean }) {
   const [hovered, setHovered] = useState(false);
   const def = ITEM_DEFS[item.id as ItemId];
   const isPassive = def?.passive === true;
+  const blocked = disabled && !isPassive;
   const burstKey = usePointlessParticles(item);
 
   const description =
@@ -115,16 +116,19 @@ function ItemSlot({ item, onUse }: { item: Item; onUse: () => void }) {
         className="upgrade-card"
         style={{
           ...SLOT_STYLE,
-          cursor: isPassive ? "default" : "pointer",
+          cursor: blocked ? "not-allowed" : isPassive ? "default" : "pointer",
+          pointerEvents: blocked ? "none" : "auto",
           boxShadow: isPassive && hovered ? "0 0 8px 2px #6cde6c55" : undefined,
         }}
-        onClick={isPassive ? undefined : onUse}
+        onClick={isPassive || blocked ? undefined : onUse}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
       >
-        <ItemIcon itemId={item.id as ItemId} size={36} />
+        <div style={{ opacity: blocked ? 0.4 : 1 }}>
+          <ItemIcon itemId={item.id as ItemId} size={36} />
+        </div>
         {def && (
-          <div lang="de" style={{ ...NAME_STYLE, color: "#c8a84b" }}>
+          <div lang="de" style={{ ...NAME_STYLE, color: blocked ? "#6a5030" : "#c8a84b" }}>
             {def.name}
           </div>
         )}
@@ -283,6 +287,8 @@ export function ItemBar() {
   const now = useNow(1_000);
   const targetingStart = useTargetingStore((s) => s.start);
   const revealed = useRevealedSurfaces();
+  const tutorialState = useTutorialState();
+  const canUseItem = isInteractionAllowed(tutorialState, "useItem");
 
   const me = playerId ? game?.players[playerId] : null;
   const opponent =
@@ -290,6 +296,18 @@ export function ItemBar() {
 
   if (!me) return null;
   if (!revealed.has("itemBar")) return null;
+
+  // Tutorial-only: blindness potion is locked until crows AND thief reach Lv1.
+  const tools = me.tools ?? [];
+  const toolLevel = (id: string) => tools.find((t) => t.id === id)?.level ?? 0;
+  const sabotageToolsReady =
+    !tutorialState.active || (toolLevel("crows") >= 1 && toolLevel("thief") >= 1);
+
+  const isItemBlocked = (itemId: string) => {
+    if (!canUseItem) return true;
+    if (tutorialState.active && itemId === "blindness_potion" && !sabotageToolsReady) return true;
+    return false;
+  };
 
   const heldItems = me.items.filter((i) => i.count > 0);
 
@@ -317,6 +335,7 @@ export function ItemBar() {
   while (slots.length < 3) slots.push({ kind: "empty" });
 
   const handleUse = (item: Item) => {
+    if (isItemBlocked(item.id)) return;
     const def = ITEM_DEFS[item.id as ItemId];
     const targetType = def?.target ?? "none";
     if (targetType === "none") {
@@ -390,6 +409,7 @@ export function ItemBar() {
                 key={i}
                 item={slot.item}
                 onUse={() => handleUse(slot.item)}
+                disabled={isItemBlocked(slot.item.id)}
               />
             );
           if (slot.kind === "active")

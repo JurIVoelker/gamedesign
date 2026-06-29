@@ -11,6 +11,7 @@ import {
   useRevealedSurfaces,
   getRevealedSurfaces,
   isInteractionAllowed,
+  useTutorialMerchantItemId,
   type TutorialStateSlice,
 } from "../state/tutorialStore";
 const MERCHANT_BUBBLE_SHOW_MS = 8000;
@@ -72,6 +73,7 @@ export function FarmCanvas() {
   const tutStage = useTutorialStore((s) => s.stage);
   const tutStepIndex = useTutorialStore((s) => s.stepIndex);
   const thiefHintActive = useTutorialStore((s) => s.thiefHintActive);
+  const tutorialMerchantItemId = useTutorialMerchantItemId();
 
   // Anger bubble: shown above the house when sow/harvest is blocked
   const [angerBubble, setAngerBubble] = useState<{
@@ -500,6 +502,7 @@ export function FarmCanvas() {
         <MerchantShopModal
           visit={myPlayerState.merchant}
           gold={myPlayerState.gold}
+          allowedItemId={tutorialMerchantItemId}
           onBuy={(itemId) => {
             useConnectionStore.getState().send?.({
               type: "player_action",

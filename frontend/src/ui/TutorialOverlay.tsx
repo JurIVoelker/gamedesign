@@ -56,15 +56,18 @@ export function TutorialOverlay() {
     return () => clearInterval(id);
   }, [active, currentStep, advance]);
 
-  // When all steps complete, mark stage done and return to lobby
+  // When all steps complete, wait 3s then mark stage done and return to lobby
   useEffect(() => {
     if (!active || stage === null || currentStep !== null) return;
     if (steps.length === 0) return;
-    markStageCompleted(stage);
-    setHighlightField(null);
-    send?.({ type: "leave_game" });
-    disconnect?.();
-    exit();
+    const t = setTimeout(() => {
+      markStageCompleted(stage);
+      setHighlightField(null);
+      send?.({ type: "leave_game" });
+      disconnect?.();
+      exit();
+    }, 3_000);
+    return () => clearTimeout(t);
   }, [
     active,
     stage,

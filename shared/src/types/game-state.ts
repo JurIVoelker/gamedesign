@@ -25,12 +25,14 @@ export interface MerchantOffer {
 export interface MerchantVisit {
   visitIndex: number;
   arrivesAt: number;
-  leavesAt: number;
+  leavesAt?: number;
   discountPct: number;
   offers: MerchantOffer[];
   windowOpen: boolean;
   notice?: string;
   fake?: { byPlayerId: string; feeStep: number; drained: number };
+  /** Set on tutorial-scripted merchants — they never leave on their own. */
+  tutorial?: boolean;
 }
 
 export interface MatchStats {

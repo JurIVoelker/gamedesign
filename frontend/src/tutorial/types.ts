@@ -40,7 +40,8 @@ export type TutorialInteraction =
   | "sendThief"
   | "sendWeather"
   | "scareCrow"
-  | "accuse";
+  | "accuse"
+  | "useItem";
 
 export interface TutorialStep {
   text: string;
@@ -58,4 +59,6 @@ export interface TutorialStep {
   onEnter?: (send: SendFn) => void;
   /** Shows a named action button instead of "Weiter"; does NOT auto-advance */
   readyButton?: { label: string; action: (send: SendFn) => void };
+  /** The single item ID the player must buy on this merchant step (disables all other buy buttons). */
+  merchantItemId?: string;
 }

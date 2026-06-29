@@ -320,6 +320,17 @@ export class Game {
       }
     }
 
+    // Tutorial stage 3: pre-sow the bot's fields at the configured progress so
+    // the swap potion is immediately useful.
+    if (this.config.botPresowProgress !== undefined && this.botController) {
+      const botState = this.state.players[this.botController.botId];
+      if (botState) {
+        for (const field of botState.fields) {
+          this.presowField(botState.id, field, startedAt, this.config.botPresowProgress);
+        }
+      }
+    }
+
     this.scheduleTimer(
       "match_end",
       startedAt + this.config.matchDurationMs,
@@ -930,11 +941,12 @@ export class Game {
       if (playerState.weatherEffect && now >= playerState.weatherEffect.endsAt)
         this.expireWeather(playerId);
 
-      // Safety-net: merchant departure if timer was missed
+      // Safety-net: merchant departure if timer was missed (skip tutorial merchants)
       if (
         playerState.merchant &&
+        !playerState.merchant.tutorial &&
         !playerState.merchant.windowOpen &&
-        now >= playerState.merchant.leavesAt
+        now >= (playerState.merchant.leavesAt ?? Infinity)
       ) {
         playerState.merchant = null;
         changed = true;
@@ -1362,11 +1374,11 @@ export class Game {
     return playerState.tools.find((t) => t.id === toolId)?.level ?? 0;
   }
 
-  private presowField(playerId: string, field: Field, now: number): void {
+  private presowField(playerId: string, field: Field, now: number, progress = PRESOW_PROGRESS): void {
     const totalGrowMs = this.config.baseGrowMs;
     field.stage = "growing";
     field.cropType = PRESOW_CROP_TYPE;
-    field.sowedAt = now - PRESOW_PROGRESS * totalGrowMs;
+    field.sowedAt = now - progress * totalGrowMs;
     field.readyAt = field.sowedAt + totalGrowMs;
     this.scheduleTimer(`${playerId}:${field.index}`, field.readyAt, () =>
       this.completeGrowth(playerId, field.index),
@@ -1733,9 +1745,12 @@ export class Game {
     if (!this.state || this.state.phase !== "playing") return;
     const ps = this.state.players[playerId];
     if (!ps) return;
+
+    // Cancel any existing leave timer (no-op for tutorial merchants, which have none).
+    this.cancelTimer(`merchant_leave:${playerId}`);
+
     const now = Date.now();
     const arrivesAt = now + MERCHANT_TUTORIAL_ARRIVE_MS;
-    const leavesAt = arrivesAt + MERCHANT_STAY_MS;
     const def = ITEM_DEFS[forcedItemId];
     const forcedOffer: MerchantOffer = {
       itemId: forcedItemId,
@@ -1747,17 +1762,15 @@ export class Game {
       .filter((o) => o.itemId !== forcedItemId)
       .slice(0, MERCHANT_OFFER_COUNT - 1);
     const offers = [forcedOffer, ...padding];
+    // Tutorial merchants have no leavesAt — the tutorial flag governs all departure logic.
     ps.merchant = {
       visitIndex: this.tutorialMerchantVisits++,
       arrivesAt,
-      leavesAt,
       discountPct: 0,
       offers,
       windowOpen: false,
+      tutorial: true,
     };
-    this.scheduleTimer(`merchant_leave:${playerId}`, leavesAt, () =>
-      this.tryMerchantDepart(playerId),
-    );
     this.broadcastState();
   }
 
@@ -1781,10 +1794,12 @@ export class Game {
     if (!this.state) return;
     const ps = this.state.players[playerId];
     if (!ps?.merchant) return;
+    // Tutorial merchants never leave on their own.
+    if (ps.merchant.tutorial) return;
     const now = Date.now();
     if (
       ps.merchant.windowOpen &&
-      now < ps.merchant.leavesAt + MERCHANT_OVERSTAY_MAX_MS
+      now < (ps.merchant.leavesAt ?? Infinity) + MERCHANT_OVERSTAY_MAX_MS
     ) {
       this.scheduleTimer(
         `merchant_leave:${playerId}`,
@@ -1817,7 +1832,7 @@ export class Game {
     const now = Date.now();
     if (open && now < ps.merchant.arrivesAt) return;
     ps.merchant.windowOpen = open;
-    if (!open && now >= ps.merchant.leavesAt) {
+    if (!open && ps.merchant.leavesAt !== undefined && now >= ps.merchant.leavesAt) {
       ps.merchant = null;
       this.broadcastState();
       return;

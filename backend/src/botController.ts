@@ -29,7 +29,7 @@ const VILLAGERS_OUTSIDE_FOR_THIEF_ENTRY = 3;
 
 export class BotController {
   private game: Game;
-  private botId: string;
+  readonly botId: string;
   private pendingCue: {
     cue: string;
     level?: number;

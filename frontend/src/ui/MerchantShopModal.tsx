@@ -11,11 +11,15 @@ interface Props {
   gold: number;
   onBuy: (itemId: string) => void;
   onDismiss: () => void;
+  /** When set, only this item's buy button is enabled (tutorial mode). */
+  allowedItemId?: string;
 }
 
-export function MerchantShopModal({ visit, gold, onBuy, onDismiss }: Props) {
+export function MerchantShopModal({ visit, gold, onBuy, onDismiss, allowedItemId }: Props) {
   const now = useNow(1_000);
-  const countdown = Math.max(0, Math.ceil((visit.leavesAt - now) / 1000));
+  const countdown = visit.tutorial
+    ? null
+    : Math.max(0, Math.ceil(((visit.leavesAt ?? 0) - now) / 1000));
   const send = useConnectionStore((s) => s.send);
   const playerId = useConnectionStore((s) => s.playerId);
   const myItems = useGameStore(
@@ -80,19 +84,21 @@ export function MerchantShopModal({ visit, gold, onBuy, onDismiss }: Props) {
           >
             Wandernder Händler
           </div>
-          <div
-            style={{
-              fontFamily: "'Press Start 2P', monospace",
-              fontSize: 8,
-              color: isOverdue
-                ? "#a89060"
-                : countdown <= 10
-                  ? "#d04040"
-                  : "#a89060",
-            }}
-          >
-            {isOverdue ? "wartet…" : `${countdown}s`}
-          </div>
+          {!visit.tutorial && (
+            <div
+              style={{
+                fontFamily: "'Press Start 2P', monospace",
+                fontSize: 8,
+                color: isOverdue
+                  ? "#a89060"
+                  : (countdown ?? 0) <= 10
+                    ? "#d04040"
+                    : "#a89060",
+              }}
+            >
+              {isOverdue ? "wartet…" : `${countdown}s`}
+            </div>
+          )}
         </div>
 
         {/* Merchant notice (fake merchant speech, etc.) */}
@@ -236,7 +242,8 @@ export function MerchantShopModal({ visit, gold, onBuy, onDismiss }: Props) {
                       alreadyBought ||
                       !canAfford ||
                       inventoryFull ||
-                      alreadyHave
+                      alreadyHave ||
+                      (allowedItemId !== undefined && offer.itemId !== allowedItemId)
                     }
                     onClick={() => onBuy(offer.itemId)}
                   >
@@ -249,7 +256,7 @@ export function MerchantShopModal({ visit, gold, onBuy, onDismiss }: Props) {
         </div>
 
         {/* Overdone hint */}
-        {isOverdue && (
+        {isOverdue && !visit.tutorial && (
           <div
             style={{
               fontFamily: "'Press Start 2P', monospace",

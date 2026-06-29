@@ -30,10 +30,13 @@ export class MerchantEntity {
   }
 
   setVisit(visit: MerchantVisit | null): void {
+    const arrivesAtChanged = visit?.arrivesAt !== this.visit?.arrivesAt;
     this.visit = visit;
-    if (!visit) {
+    if (!visit || arrivesAtChanged) {
       this.appeared = false;
       this.fadeMs = 0;
+    }
+    if (!visit) {
       this.sprite.visible = false;
     }
   }

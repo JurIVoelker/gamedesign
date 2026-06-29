@@ -495,6 +495,7 @@ function makeMerchantPurchaseStep(
     text,
     ...(reveals ? { reveals } : {}),
     allow: [],
+    merchantItemId: itemId,
     onEnter: (send) => {
       send?.({ type: "tutorial_cue", cue: "tutorial_merchant", itemId });
     },
@@ -890,7 +891,7 @@ export const TUTORIAL_STEPS: Record<TutorialStageId, TutorialStep[]> = {
       text: "Mit dem Tauschtrank tauschst du Felder: Wähle zuerst eins deiner frisch wachsenden Felder, dann ein reifes Feld deines Gegners — so klaust du seine Ernte und drückst ihm deinen Setzling auf.",
       reveals: ["itemBar"],
       highlight: { kind: "dom", id: "itemBar" },
-      allow: [],
+      allow: ["useItem"],
       onEnter: () => {
         s3SwapUsedBaseline = null;
       },
@@ -914,7 +915,7 @@ export const TUTORIAL_STEPS: Record<TutorialStageId, TutorialStep[]> = {
     {
       text: "Aktiviere den Spiegelfluch! 30 Sekunden lang prallt jede Sabotage, die dein Gegner schickt, auf ihn selbst zurück.",
       highlight: { kind: "dom", id: "itemBar" },
-      allow: [],
+      allow: ["useItem"],
       gate: (game) => {
         const ps = s3PlayerState(game);
         return !!ps?.activeEffects.some((e) => e.itemId === MIRROR_ITEM_ID);
@@ -946,33 +947,47 @@ export const TUTORIAL_STEPS: Record<TutorialStageId, TutorialStep[]> = {
       "Letzter Besuch des Händlers — kauf den Blindheitstrank.",
       BLINDNESS_ITEM_ID,
     ),
-    // Step 7 — blind the enemy, then strike with thief + crows while he's blind.
+    // Step 7 — upgrade crows + thief to Lv1, then use the blindness potion.
     {
-      text: "Der Blindheitstrank macht den Gegner 15 Sekunden lang blind — er sieht deinen Dieb nicht und kann deine Krähen nicht verscheuchen. Setz ihn ein und schick dann sofort einen Dieb UND Krähen los!",
+      text: "Der Blindheitstrank macht den Gegner 15 Sekunden lang blind — er sieht deinen Dieb nicht und kann deine Krähen nicht verscheuchen. Schalte zuerst Krähen und Dieb auf Stufe 1 frei, dann setz den Trank ein!",
       highlight: { kind: "dom", id: "itemBar" },
-      allow: ["sendThief", "sendCrows"],
-      onEnter: (send) => {
+      allow: ["upgrade:crows", "upgrade:thief", "useItem"],
+      onEnter: () => {
         s3BlindUsedBaseline = null;
         s3ComboThiefBaseline = null;
         s3ComboCrowsBaseline = null;
-        // Unlock the player's crows + thief so they can be sent here (Stage 3
-        // doesn't teach upgrading).
-        send?.({ type: "tutorial_cue", cue: "grant_sabotage_tools" });
       },
       gate: (game) => {
         const ps = s3PlayerState(game);
         if (!ps) return false;
         const blindUsed = ps.stats.itemsUsedByType[BLINDNESS_ITEM_ID] ?? 0;
-        const thieves = ps.stats.thievesSent;
-        const crows = ps.stats.crowsSent;
         if (s3BlindUsedBaseline === null) {
           s3BlindUsedBaseline = blindUsed;
+          return false;
+        }
+        return blindUsed > s3BlindUsedBaseline;
+      },
+    },
+
+    // Step 8 — now send thief + crows while the opponent is blind.
+    {
+      text: "Perfekt! Der Gegner ist blind. Schick jetzt sofort einen Dieb UND Krähen los!",
+      allow: ["sendThief", "sendCrows"],
+      onEnter: () => {
+        s3ComboThiefBaseline = null;
+        s3ComboCrowsBaseline = null;
+      },
+      gate: (game) => {
+        const ps = s3PlayerState(game);
+        if (!ps) return false;
+        const thieves = ps.stats.thievesSent;
+        const crows = ps.stats.crowsSent;
+        if (s3ComboThiefBaseline === null) {
           s3ComboThiefBaseline = thieves;
           s3ComboCrowsBaseline = crows;
           return false;
         }
         return (
-          blindUsed > s3BlindUsedBaseline &&
           thieves > (s3ComboThiefBaseline ?? 0) &&
           crows > (s3ComboCrowsBaseline ?? 0)
         );

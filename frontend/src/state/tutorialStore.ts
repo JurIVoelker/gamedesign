@@ -155,3 +155,12 @@ export function useTutorialState(): TutorialStateSlice {
   const stepIndex = useTutorialStore((s) => s.stepIndex);
   return { active, stage, stepIndex };
 }
+
+/** The `merchantItemId` of the current tutorial step, or undefined outside tutorial / non-merchant steps. */
+export function useTutorialMerchantItemId(): string | undefined {
+  const active = useTutorialStore((s) => s.active);
+  const stage = useTutorialStore((s) => s.stage);
+  const stepIndex = useTutorialStore((s) => s.stepIndex);
+  if (!active || stage === null) return undefined;
+  return (TUTORIAL_STEPS[stage] ?? [])[stepIndex]?.merchantItemId;
+}

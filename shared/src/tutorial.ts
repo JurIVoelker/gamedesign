@@ -27,6 +27,8 @@ export interface GameConfig {
     items: boolean;
   };
   persist: boolean;
+  /** When set, the bot's fields are pre-sown at this growth fraction (0–1) on game start. */
+  botPresowProgress?: number;
 }
 
 export type TutorialStageId = 1 | 2 | 3;
@@ -102,6 +104,8 @@ export function gameConfigForStage(stage: TutorialStageId): GameConfig {
       // forces specific offers per step), so no scheduled visits.
       baseGrowMs: STAGE2_BASE_GROW_MS,
       merchantVisits: [],
+      // Bot starts with 50% growth so the swap potion is immediately useful.
+      botPresowProgress: 0.5,
       enabled: {
         ...base.enabled,
         crows: true,
