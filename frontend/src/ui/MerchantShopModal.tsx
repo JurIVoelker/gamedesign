@@ -5,6 +5,7 @@ import { useConnectionStore } from "../state/connectionStore";
 import { useGameStore } from "../state/gameStore";
 import { useNow } from "../hooks/useNow";
 import { ItemIcon } from "./ItemIcons";
+import { SoundManager } from "../game/sound/SoundManager";
 
 interface Props {
   visit: MerchantVisit;
@@ -15,7 +16,13 @@ interface Props {
   allowedItemId?: string;
 }
 
-export function MerchantShopModal({ visit, gold, onBuy, onDismiss, allowedItemId }: Props) {
+export function MerchantShopModal({
+  visit,
+  gold,
+  onBuy,
+  onDismiss,
+  allowedItemId,
+}: Props) {
   const now = useNow(1_000);
   const countdown = visit.tutorial
     ? null
@@ -243,7 +250,8 @@ export function MerchantShopModal({ visit, gold, onBuy, onDismiss, allowedItemId
                       !canAfford ||
                       inventoryFull ||
                       alreadyHave ||
-                      (allowedItemId !== undefined && offer.itemId !== allowedItemId)
+                      (allowedItemId !== undefined &&
+                        offer.itemId !== allowedItemId)
                     }
                     onClick={() => onBuy(offer.itemId)}
                   >
@@ -272,7 +280,10 @@ export function MerchantShopModal({ visit, gold, onBuy, onDismiss, allowedItemId
         <button
           className="btn-pixel-secondary"
           style={{ fontSize: 7 }}
-          onClick={onDismiss}
+          onClick={() => {
+            SoundManager.play("click");
+            onDismiss();
+          }}
         >
           Schließen [ESC]
         </button>

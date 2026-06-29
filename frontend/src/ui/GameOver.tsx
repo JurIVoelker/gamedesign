@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useConnectionStore } from "../state/connectionStore";
 import { useGameStore } from "../state/gameStore";
+import { SoundManager } from "../game/sound/SoundManager";
 
 export function GameOver() {
   const { playerId, slot, send, disconnect, opponentLeft } =
@@ -19,6 +20,7 @@ export function GameOver() {
 
   function handlePlayAgain() {
     if (clicked) return;
+    SoundManager.play("click");
     setClicked(true);
     send?.({ type: "play_again" });
   }
@@ -58,7 +60,10 @@ export function GameOver() {
             Gegner hat das Spiel verlassen.
           </p>
           <button
-            onClick={() => disconnect?.()}
+            onClick={() => {
+              SoundManager.play("click");
+              disconnect?.();
+            }}
             className="btn-pixel-secondary w-full"
           >
             Zum Hauptmenü
@@ -75,7 +80,10 @@ export function GameOver() {
               {clicked ? "✓ Bereit!" : "Nochmal spielen"}
             </button>
             <button
-              onClick={() => disconnect?.()}
+              onClick={() => {
+                SoundManager.play("click");
+                disconnect?.();
+              }}
               className="btn-pixel-secondary"
             >
               Verlassen

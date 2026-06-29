@@ -7,6 +7,7 @@ import {
   isTutorialComplete,
 } from "../tutorial/progress";
 import type { TutorialStageId } from "@gamedesign/shared";
+import { SoundManager } from "../game/sound/SoundManager";
 
 const STAGE_LABELS: Record<TutorialStageId, string> = {
   1: "Der Hof",
@@ -31,6 +32,7 @@ export function LearningPath({ onDirectPlay }: { onDirectPlay: () => void }) {
 
   function handleStartStage(stage: TutorialStageId) {
     if (!isStageUnlocked(stage)) return;
+    SoundManager.play("click");
     start(stage);
     send?.({ type: "start_tutorial", stage });
   }
@@ -102,6 +104,7 @@ export function LearningPath({ onDirectPlay }: { onDirectPlay: () => void }) {
         onClick={() => {
           tick((n) => n + 1); // refresh unlock state
           if (!isTutorialComplete()) return;
+          SoundManager.play("click");
           send?.({ type: "start_bot_match" });
         }}
         className="panel-pixel"

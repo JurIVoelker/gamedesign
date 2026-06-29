@@ -6,7 +6,11 @@ import { useGameStore } from "../state/gameStore";
 import { useTargetingStore } from "../state/targetingStore";
 import { useNow } from "../hooks/useNow";
 import { ItemIcon } from "./ItemIcons";
-import { useRevealedSurfaces, useTutorialState, isInteractionAllowed } from "../state/tutorialStore";
+import {
+  useRevealedSurfaces,
+  useTutorialState,
+  isInteractionAllowed,
+} from "../state/tutorialStore";
 
 const SLOT_STYLE = {
   width: 88,
@@ -97,7 +101,15 @@ function PointlessParticleBurst({ burstKey }: { burstKey: number }) {
   );
 }
 
-function ItemSlot({ item, onUse, disabled }: { item: Item; onUse: () => void; disabled?: boolean }) {
+function ItemSlot({
+  item,
+  onUse,
+  disabled,
+}: {
+  item: Item;
+  onUse: () => void;
+  disabled?: boolean;
+}) {
   const [hovered, setHovered] = useState(false);
   const def = ITEM_DEFS[item.id as ItemId];
   const isPassive = def?.passive === true;
@@ -128,7 +140,10 @@ function ItemSlot({ item, onUse, disabled }: { item: Item; onUse: () => void; di
           <ItemIcon itemId={item.id as ItemId} size={36} />
         </div>
         {def && (
-          <div lang="de" style={{ ...NAME_STYLE, color: blocked ? "#6a5030" : "#c8a84b" }}>
+          <div
+            lang="de"
+            style={{ ...NAME_STYLE, color: blocked ? "#6a5030" : "#c8a84b" }}
+          >
             {def.name}
           </div>
         )}
@@ -301,11 +316,17 @@ export function ItemBar() {
   const tools = me.tools ?? [];
   const toolLevel = (id: string) => tools.find((t) => t.id === id)?.level ?? 0;
   const sabotageToolsReady =
-    !tutorialState.active || (toolLevel("crows") >= 1 && toolLevel("thief") >= 1);
+    !tutorialState.active ||
+    (toolLevel("crows") >= 1 && toolLevel("thief") >= 1);
 
   const isItemBlocked = (itemId: string) => {
     if (!canUseItem) return true;
-    if (tutorialState.active && itemId === "blindness_potion" && !sabotageToolsReady) return true;
+    if (
+      tutorialState.active &&
+      itemId === "blindness_potion" &&
+      !sabotageToolsReady
+    )
+      return true;
     return false;
   };
 

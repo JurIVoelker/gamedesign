@@ -3,6 +3,7 @@ import type { Field } from "@gamedesign/shared";
 import { VillagerEntity } from "./entities/VillagerEntity";
 import { FIELD_W } from "./entities/FieldEntity";
 import { HOUSE_W, HOUSE_H } from "./entities/HouseEntity";
+import { SoundManager } from "./sound/SoundManager";
 import {
   H_GAP,
   MARGIN,
@@ -212,6 +213,7 @@ export class VillagerController {
         v.entity.x = entrance.x;
         v.entity.y = entrance.y;
         v.entity.isVisible = true;
+        if (this.isPlayer) SoundManager.playVillager();
         v.nextHouseVisitAt = now + this.jitter(30_000, 0.3);
         this.outsideCount++;
         this.onOutsideCountChange?.(this.outsideCount);
@@ -341,11 +343,14 @@ export class VillagerController {
           dt,
         );
         if (arrived) {
+          const id = v.entity.id;
+          if (this.isPlayer && this.forcedInsideUntil[id] > now) {
+            SoundManager.play("angry", { volume: 1.0 });
+          }
           v.entity.isVisible = false;
           const indoorMs = this.weatherActive
             ? this.jitter(30_000, 0.2)
             : this.jitter(15_000, 0.3);
-          const id = v.entity.id;
           const emergesAt = Math.max(
             now + indoorMs,
             this.forcedInsideUntil[id] ?? 0,
@@ -367,6 +372,7 @@ export class VillagerController {
           v.entity.x = entrance.x;
           v.entity.y = entrance.y;
           v.entity.isVisible = true;
+          if (this.isPlayer) SoundManager.playVillager();
           v.nextHouseVisitAt =
             now +
             (this.weatherActive

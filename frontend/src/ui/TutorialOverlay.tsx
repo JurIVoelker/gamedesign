@@ -4,6 +4,7 @@ import { useGameStore } from "../state/gameStore";
 import { useConnectionStore } from "../state/connectionStore";
 import { TUTORIAL_STEPS } from "../tutorial/stages";
 import { markStageCompleted } from "../tutorial/progress";
+import { SoundManager } from "../game/sound/SoundManager";
 
 // How often active gates are re-evaluated, independent of game_state arrivals.
 // Keeps time-based gate conditions (lingers, retry delays) responsive.
@@ -64,6 +65,7 @@ export function TutorialOverlay() {
     if (steps.length === 0) return;
     markStageCompleted(stage);
     setHighlightField(null);
+    SoundManager.play("victory");
 
     send?.({ type: "leave_game" });
     disconnect?.();
@@ -127,6 +129,7 @@ export function TutorialOverlay() {
           <div style={{ marginTop: 12 }}>
             <button
               onClick={() => {
+                SoundManager.play("click");
                 setReadyButtonPressed(true);
                 currentStep.readyButton!.action(send);
               }}
@@ -140,7 +143,10 @@ export function TutorialOverlay() {
         ) : !currentStep.gate ? (
           <div style={{ marginTop: 12 }}>
             <button
-              onClick={advance}
+              onClick={() => {
+                SoundManager.play("click");
+                advance();
+              }}
               className="btn-pixel"
               style={{ fontSize: 7, width: "100%" }}
             >

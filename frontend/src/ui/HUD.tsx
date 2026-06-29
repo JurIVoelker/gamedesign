@@ -6,6 +6,7 @@ import { useGameStore } from "../state/gameStore";
 import { useNow } from "../hooks/useNow";
 import { useTutorialStore, useRevealedSurfaces } from "../state/tutorialStore";
 import { TUTORIAL_STEPS } from "../tutorial/stages";
+import { SoundManager } from "../game/sound/SoundManager";
 
 function formatTime(ms: number): string {
   const totalSec = Math.max(0, Math.ceil(ms / 1000));
@@ -97,6 +98,7 @@ export function HUD() {
   });
 
   function handleLeaveConfirm() {
+    SoundManager.play("click");
     send?.({ type: "leave_game" });
     disconnect?.();
     if (tutorialActive) tutorialExit();
@@ -114,7 +116,10 @@ export function HUD() {
                 Ja
               </button>
               <button
-                onClick={() => setConfirming(false)}
+                onClick={() => {
+                  SoundManager.play("click");
+                  setConfirming(false);
+                }}
                 className="btn-pixel-secondary"
               >
                 Nein
@@ -122,7 +127,10 @@ export function HUD() {
             </span>
           ) : (
             <button
-              onClick={() => setConfirming(true)}
+              onClick={() => {
+                SoundManager.play("click");
+                setConfirming(true);
+              }}
               className="btn-pixel-secondary"
             >
               Tutorial verlassen
@@ -196,7 +204,10 @@ export function HUD() {
                   Ja
                 </button>
                 <button
-                  onClick={() => setConfirming(false)}
+                  onClick={() => {
+                    SoundManager.play("click");
+                    setConfirming(false);
+                  }}
                   className="btn-pixel-secondary"
                 >
                   Nein
@@ -204,7 +215,10 @@ export function HUD() {
               </span>
             ) : (
               <button
-                onClick={() => setConfirming(true)}
+                onClick={() => {
+                  SoundManager.play("click");
+                  setConfirming(true);
+                }}
                 className="btn-pixel-secondary"
               >
                 Aufgeben

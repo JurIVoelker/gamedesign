@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { GameOver } from "./GameOver";
 import { StatsPanel } from "./StatsPanel";
+import { SoundManager } from "../game/sound/SoundManager";
 
 export function EndScreen() {
   const [tab, setTab] = useState<"result" | "stats">("result");
@@ -14,13 +15,19 @@ export function EndScreen() {
         <div className="flex gap-2 mb-5">
           <button
             className={tab === "result" ? "btn-pixel" : "btn-pixel-secondary"}
-            onClick={() => setTab("result")}
+            onClick={() => {
+              SoundManager.play("click");
+              setTab("result");
+            }}
           >
             Ergebnis
           </button>
           <button
             className={tab === "stats" ? "btn-pixel" : "btn-pixel-secondary"}
-            onClick={() => setTab("stats")}
+            onClick={() => {
+              SoundManager.play("click");
+              setTab("stats");
+            }}
           >
             Statistiken
           </button>

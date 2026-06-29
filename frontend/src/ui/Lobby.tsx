@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useConnectionStore } from "../state/connectionStore";
 import { LearningPath } from "./LearningPath";
+import { SoundManager } from "../game/sound/SoundManager";
 
 export function Lobby() {
   const { status, roomCode, error, send, playerId, disconnect, setRoomCode } =
@@ -9,12 +10,14 @@ export function Lobby() {
   const [showPvP, setShowPvP] = useState(false);
 
   function handleCreateRoom() {
+    SoundManager.play("click");
     send?.({ type: "create_room" });
   }
 
   function handleJoinRoom() {
     const code = joinCode.trim().toUpperCase();
     if (!code || !playerId) return;
+    SoundManager.play("click");
     localStorage.setItem("roomCode", code);
     setRoomCode(code);
     send?.({ type: "hello", playerId, roomCode: code });
@@ -27,7 +30,10 @@ export function Lobby() {
           <h1 className="text-gold text-[12px] tracking-wide">Farmyard Duel</h1>
           {showPvP && status === "lobby" && (
             <button
-              onClick={() => setShowPvP(false)}
+              onClick={() => {
+                SoundManager.play("click");
+                setShowPvP(false);
+              }}
               className="btn-pixel-secondary"
               title="Zurück zum Lernpfad"
             >
@@ -43,7 +49,10 @@ export function Lobby() {
             </p>
             {roomCode && (
               <button
-                onClick={() => disconnect?.()}
+                onClick={() => {
+                  SoundManager.play("click");
+                  disconnect?.();
+                }}
                 className="btn-pixel-secondary w-full"
               >
                 Abbrechen
@@ -53,7 +62,12 @@ export function Lobby() {
         )}
 
         {status === "lobby" && !showPvP && (
-          <LearningPath onDirectPlay={() => setShowPvP(true)} />
+          <LearningPath
+            onDirectPlay={() => {
+              SoundManager.play("click");
+              setShowPvP(true);
+            }}
+          />
         )}
 
         {status === "lobby" && showPvP && (
@@ -96,7 +110,10 @@ export function Lobby() {
               Warte auf Gegner…
             </p>
             <button
-              onClick={() => disconnect?.()}
+              onClick={() => {
+                SoundManager.play("click");
+                disconnect?.();
+              }}
               className="btn-pixel-secondary w-full"
             >
               Raum verlassen

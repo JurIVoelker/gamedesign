@@ -2,6 +2,8 @@ import { CSSProperties, useEffect, useRef, useState } from "react";
 import { GameEngine } from "./GameEngine";
 import { useGameStore } from "../state/gameStore";
 import { useConnectionStore } from "../state/connectionStore";
+import { SoundManager } from "./sound/SoundManager";
+import { SOUND_CONFIG } from "./sound/soundConfig";
 import { useTargetingStore } from "../state/targetingStore";
 import { useCenterToastStore } from "../state/centerToastStore";
 import { AccusationModal } from "../ui/AccusationModal";
@@ -99,6 +101,49 @@ export function FarmCanvas() {
 
   const myPlayerState = game && playerId ? game.players[playerId] : undefined;
   const annoyanceLevel = myPlayerState?.wrongAccusationCount ?? 0;
+
+  // Play victory or loss when the game ends (only on the transition, not on reconnect).
+  const gamePhase = game?.phase;
+  const winnerId = game?.winnerId;
+  const prevGamePhaseRef = useRef<string | null>(null);
+  useEffect(() => {
+    const prev = prevGamePhaseRef.current;
+    if (gamePhase === "ended" && prev !== null && prev !== "ended") {
+      const isDraw = winnerId == null;
+      if (isDraw) SoundManager.play("notification");
+      else if (winnerId === playerId) SoundManager.play("victory");
+      else SoundManager.play("loss");
+    }
+    prevGamePhaseRef.current = gamePhase ?? null;
+  }, [gamePhase, winnerId, playerId]);
+
+  // Play angry sound when the thief disappears from the opponent (caught or stolen).
+  const opponentThiefAttack =
+    game && playerId
+      ? Object.values(game.players).find((p) => p.id !== playerId)?.thiefAttack
+      : undefined;
+  const prevOpponentThiefRef = useRef<boolean>(false);
+  useEffect(() => {
+    const hadThief = prevOpponentThiefRef.current;
+    const hasThief = opponentThiefAttack != null;
+    if (hadThief && !hasThief) SoundManager.play("angry");
+    prevOpponentThiefRef.current = hasThief;
+  }, [opponentThiefAttack]);
+
+  // Play cast-item sound when the server confirms an item was used (count drops).
+  // Fired here — not on click — so field-selection items (swap potion) only
+  // sound when the action actually completes.
+  const myItems = myPlayerState?.items;
+  const prevItemCountsRef = useRef<Map<string, number>>(new Map());
+  useEffect(() => {
+    if (!myItems) return;
+    const prev = prevItemCountsRef.current;
+    for (const item of myItems) {
+      const prevCount = prev.get(item.id) ?? item.count;
+      if (item.count < prevCount) SoundManager.play("cast-item");
+      prev.set(item.id, item.count);
+    }
+  }, [myItems]);
 
   // Merchant speech bubble: appear when merchant arrives, auto-dismiss after 8 s
   const merchant = myPlayerState?.merchant ?? null;
@@ -220,6 +265,7 @@ export function FarmCanvas() {
       const tutState = useTutorialStore.getState();
       if (tutState.active && !isInteractionAllowed(tutState, "scareCrow"))
         return;
+      SoundManager.play("crow-scare");
       useConnectionStore.getState().send?.({
         type: "player_action",
         action: { kind: "ScareCrow", fieldIndex },
@@ -228,6 +274,7 @@ export function FarmCanvas() {
 
     const onThiefClicked = () => {
       if (!canAccuse(useTutorialStore.getState())) return;
+      SoundManager.playVillager({ rate: SOUND_CONFIG.PITCH.thief });
       const { game: g } = useGameStore.getState();
       const { playerId: pid } = useConnectionStore.getState();
       const disguise = g?.players[pid ?? ""]?.thiefAttack?.disguise ?? "none";
@@ -237,6 +284,7 @@ export function FarmCanvas() {
 
     const onVillagerClicked = (id: number) => {
       if (!canAccuse(useTutorialStore.getState())) return;
+      SoundManager.playVillager();
       const pos = engineRef.current?.getPlayerHouseScreenPos(id);
       setAccusationAnchorY(pos?.y ?? null);
       setAccusationTarget({ type: "villager", villagerId: id });
@@ -247,6 +295,7 @@ export function FarmCanvas() {
     };
 
     const onMerchantClicked = () => {
+      SoundManager.playVillager({ rate: SOUND_CONFIG.PITCH.merchant });
       setMerchantOpen(true);
     };
 
@@ -504,6 +553,7 @@ export function FarmCanvas() {
           gold={myPlayerState.gold}
           allowedItemId={tutorialMerchantItemId}
           onBuy={(itemId) => {
+            SoundManager.play("coin");
             useConnectionStore.getState().send?.({
               type: "player_action",
               action: {

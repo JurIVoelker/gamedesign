@@ -9,6 +9,8 @@ import {
 } from "pixi.js";
 import type { GameState } from "@gamedesign/shared";
 import { LIGHTNING_STRIKE_DELAY_MS } from "@gamedesign/shared";
+import { SoundManager } from "./sound/SoundManager";
+import { SOUND_CONFIG } from "./sound/soundConfig";
 import { FieldEntity, FIELD_W, FIELD_H } from "./entities/FieldEntity";
 import { HouseEntity, HOUSE_W, HOUSE_H } from "./entities/HouseEntity";
 import { MerchantEntity } from "./entities/MerchantEntity";
@@ -95,6 +97,8 @@ export class GameEngine {
     rotationSpeed: number;
   }> = [];
   private prevMirrorReflectedAt: number | null = null;
+  private prevMyWeather = false;
+  private prevOppWeather = false;
   private centerX = 0;
   private canvasH = 0;
 
@@ -295,6 +299,7 @@ export class GameEngine {
     const changed = newSoloLeft !== this.soloLeft;
     this.soloLeft = newSoloLeft;
     if (this.opponentFarm) this.opponentFarm.visible = showOpponent;
+    SoundManager.muteEnemySounds(!showOpponent);
     if (changed && this.app) {
       const root = this.app.stage.children[0] as import("pixi.js").Container;
       this.rescale(this.app, root);
@@ -311,6 +316,7 @@ export class GameEngine {
   }
 
   destroy(): void {
+    SoundManager.stopAll();
     if (this.rafId !== null) {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
@@ -470,6 +476,7 @@ export class GameEngine {
     ) {
       this.prevMirrorReflectedAt = mirrorReflectedAt;
       this.triggerMirrorReflectEffect();
+      SoundManager.play("glass");
     }
 
     if (myState) {
@@ -486,6 +493,20 @@ export class GameEngine {
       if (this.playerWeatherOverlay)
         this.playerWeatherOverlay.visible = myWeather && !isBlinded;
       this.playerVillagers?.setWeather(myWeather);
+      // Rain loop on my farm (I am the victim — full volume)
+      if (myWeather !== this.prevMyWeather) {
+        if (myWeather) {
+          SoundManager.startLoop("rain", "rain-my", {
+            isEnemy: false,
+            fadeInMs: SOUND_CONFIG.RAIN_FADE_IN_MS,
+          });
+        } else {
+          SoundManager.stopLoop("rain-my", {
+            fadeOutMs: SOUND_CONFIG.RAIN_FADE_OUT_MS,
+          });
+        }
+        this.prevMyWeather = myWeather;
+      }
       const hadPlayerLightning = this.playerHasLightning;
       this.playerHasLightning = myState.weatherEffect?.lightning ?? false;
       if (!hadPlayerLightning && this.playerHasLightning && !isBlinded) {
@@ -511,6 +532,20 @@ export class GameEngine {
       if (this.opponentWeatherOverlay)
         this.opponentWeatherOverlay.visible = oppWeather && !isBlinded;
       this.opponentVillagers?.setWeather(oppWeather);
+      // Rain loop on opponent's farm (I am the attacker — reduced volume)
+      if (oppWeather !== this.prevOppWeather) {
+        if (oppWeather) {
+          SoundManager.startLoop("rain", "rain-opp", {
+            isEnemy: true,
+            fadeInMs: SOUND_CONFIG.RAIN_FADE_IN_MS,
+          });
+        } else {
+          SoundManager.stopLoop("rain-opp", {
+            fadeOutMs: SOUND_CONFIG.RAIN_FADE_OUT_MS,
+          });
+        }
+        this.prevOppWeather = oppWeather;
+      }
       const hadLightning = this.opponentHasLightning;
       this.opponentHasLightning =
         opponentState.weatherEffect?.lightning ?? false;
@@ -609,6 +644,7 @@ export class GameEngine {
       this.playerLightningOverlay.alpha = LTG_ALPHA1;
       this.playerLightningOverlay.visible = true;
     }
+    SoundManager.play("thunder", { isEnemy: false });
   }
 
   private triggerLightningStrike(): void {
@@ -618,6 +654,7 @@ export class GameEngine {
       this.opponentLightningOverlay.alpha = LTG_ALPHA1;
       this.opponentLightningOverlay.visible = true;
     }
+    SoundManager.play("thunder", { isEnemy: true });
   }
 
   private updatePlayerLightning(deltaMS: number): void {

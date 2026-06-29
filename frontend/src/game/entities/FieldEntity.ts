@@ -7,6 +7,8 @@ import { useTutorialStore } from "../../state/tutorialStore";
 import { CrowAnimator } from "./CrowAnimator";
 import { SeededRandom } from "../SeededRandom";
 import { serverTime } from "../../net/clockSync";
+import { SoundManager } from "../sound/SoundManager";
+import { SOUND_CONFIG } from "../sound/soundConfig";
 
 export const FIELD_W = 120;
 export const FIELD_H = 64;
@@ -57,6 +59,7 @@ export class FieldEntity extends Entity {
   private prevField: Field | null = null;
   private lastInteractiveStage: CropStage | null = null;
   private lastHadCrowAttack = false;
+  private lastSoundStage: CropStage | null = null;
   private lastWasTargetEligible = false;
   private lastWasChosen = false;
   private lastWasScaring = false;
@@ -342,8 +345,15 @@ export class FieldEntity extends Entity {
           field?.crowAttack?.level ?? 1,
         );
         this.crowAnimator.setBlinded(this.blinded);
+        SoundManager.startLoop("crows", `crows-${this.id}-${this.owner}`, {
+          isEnemy: this.owner === "opponent",
+          fadeInMs: SOUND_CONFIG.CROW_FADE_IN_MS,
+        });
       } else {
         this.crowAnimator?.startFlyAway();
+        SoundManager.stopLoop(`crows-${this.id}-${this.owner}`, {
+          fadeOutMs: SOUND_CONFIG.CROW_FADE_OUT_MS,
+        });
       }
     }
     this.crowAnimator?.setBlinded(this.blinded);
@@ -400,6 +410,24 @@ export class FieldEntity extends Entity {
       });
     }
 
+    // Sow / harvest loop sound — triggered on stage transitions.
+    // Uses a shared key per side so all sowing fields merge into one loop instance.
+    if (stage !== this.lastSoundStage) {
+      const isEnemy = this.owner === "opponent";
+      const sideKey = this.owner; // "player" | "opponent"
+      if (stage === "sowing") {
+        SoundManager.startLoop("sow", `sow-${sideKey}`, { isEnemy });
+      } else if (this.lastSoundStage === "sowing") {
+        SoundManager.stopLoop(`sow-${sideKey}`);
+      }
+      if (stage === "harvesting") {
+        SoundManager.startLoop("harvest", `harvest-${sideKey}`, { isEnemy });
+      } else if (this.lastSoundStage === "harvesting") {
+        SoundManager.stopLoop(`harvest-${sideKey}`);
+      }
+      this.lastSoundStage = stage;
+    }
+
     // Interactivity — update listeners when relevant state changes
     if (
       stage !== this.lastInteractiveStage ||
@@ -411,9 +439,10 @@ export class FieldEntity extends Entity {
       base.removeAllListeners();
       if (isEligibleTarget) {
         base.cursor = "crosshair";
-        base.on("pointerdown", () =>
-          useTargetingStore.getState().pick(this.id),
-        );
+        base.on("pointerdown", () => {
+          SoundManager.play("click");
+          useTargetingStore.getState().pick(this.id);
+        });
       } else if (hasCrow && !isScaring && isOwn && this.onScareCrow) {
         base.cursor = "pointer";
         base.on("pointerdown", this.onScareCrow);

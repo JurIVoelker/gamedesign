@@ -4,6 +4,7 @@ import { useConnectionStore } from "../state/connectionStore";
 import { useToastStore } from "../state/toastStore";
 import { CRYSTAL_BALL_LEAD_MS } from "@gamedesign/shared";
 import { useTutorialStore, getRevealedSurfaces } from "../state/tutorialStore";
+import { SoundManager } from "../game/sound/SoundManager";
 
 const SABOTAGE_TOOLS = ["crows", "thief", "weather"] as const;
 type SabotageTool = (typeof SABOTAGE_TOOLS)[number];
@@ -54,6 +55,7 @@ export function CrystalBallWatcher() {
         useToastStore
           .getState()
           .push(TOOL_WARNINGS[toolId], CRYSTAL_BALL_LEAD_MS + 5_000);
+        SoundManager.play("notification");
       }
     }, 500);
 

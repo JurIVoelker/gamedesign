@@ -1,4 +1,5 @@
 import type { ToolId } from "@gamedesign/shared";
+import { SoundManager } from "../game/sound/SoundManager";
 import {
   UPGRADE_SPEED_MULTIPLIERS,
   MAX_TOOL_LEVEL,
@@ -70,6 +71,7 @@ function useNow(intervalMs = 1_000): number {
 }
 
 function dispatchUpgrade(toolId: ToolId): void {
+  SoundManager.play("coin");
   useConnectionStore.getState().send?.({
     type: "player_action",
     action: { kind: "UpgradeTool", toolId },
@@ -505,6 +507,7 @@ function CrowsCard({
   const remaining = fieldCount - chosenCount;
 
   const handleSendClick = () => {
+    SoundManager.play("click");
     if (isTargeting) {
       targetingCancel();
       return;
@@ -619,6 +622,7 @@ function ThiefCard({
     sendAllowed;
 
   const handleSend = () => {
+    SoundManager.play("click");
     useConnectionStore.getState().send?.({
       type: "player_action",
       action: { kind: "SendThief" },
@@ -723,6 +727,7 @@ function WeatherCard({
     sendAllowed;
 
   const handleSend = () => {
+    SoundManager.play("click");
     useConnectionStore.getState().send?.({
       type: "player_action",
       action: { kind: "SendWeather" },

@@ -5,6 +5,7 @@ import { useGameStore } from "../state/gameStore";
 import { useToastStore } from "../state/toastStore";
 import { useCenterToastStore } from "../state/centerToastStore";
 import { setClockOffset } from "./clockSync";
+import { SoundManager } from "../game/sound/SoundManager";
 
 const WS_URL = `ws://${window.location.hostname}:3001`;
 const RECONNECT_DELAY_MS = 3_000;
@@ -96,9 +97,11 @@ export function useWebSocket() {
           break;
         case "toast":
           pushToast(msg.text);
+          SoundManager.play("notification");
           break;
         case "center_toast":
           pushCenterToast(msg.text, 4_000);
+          SoundManager.play("notification");
           break;
       }
     },

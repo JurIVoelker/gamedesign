@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { AccusationTarget } from "../game/FarmCanvas";
+import { SoundManager } from "../game/sound/SoundManager";
 
 const TIMEOUT_S = 10;
 const RESPONSE_MS = 2000;
@@ -95,6 +96,7 @@ export function AccusationModal({
   }, [response, onDismiss]);
 
   const handleYes = () => {
+    SoundManager.play("click");
     if (timerRef.current) clearInterval(timerRef.current);
     onAction();
     const text =
@@ -106,6 +108,7 @@ export function AccusationModal({
   };
 
   const handleNo = () => {
+    SoundManager.play("click");
     if (timerRef.current) clearInterval(timerRef.current);
     onDismiss();
   };
