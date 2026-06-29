@@ -31,6 +31,7 @@ export class ThiefController {
   private readonly fieldCenters: { x: number; y: number }[];
   private readonly houseEntrances: { x: number; y: number }[];
   private readonly lurkerX: number;
+  private readonly isPlayer: boolean;
 
   constructor(
     private readonly owner: "player" | "opponent",
@@ -40,6 +41,7 @@ export class ThiefController {
   ) {
     this.rand = rand;
     const isPlayer = owner === "player";
+    this.isPlayer = isPlayer;
 
     this.fieldCenters = Array.from({ length: 4 }, (_, i) => ({
       x: isPlayer ? HOUSE_W + H_GAP + FIELD_W / 2 : FIELD_W / 2,
@@ -159,7 +161,7 @@ export class ThiefController {
           } else {
             this.moveState = {
               kind: "moving",
-              tx: this.randBetween(8, FARM_W - 8),
+              tx: this.randomWanderX(),
               ty: this.randBetween(MARGIN + 8, SCENE_H_INNER - MARGIN - 8),
             };
           }
@@ -203,6 +205,15 @@ export class ThiefController {
 
   private randBetween(min: number, max: number): number {
     return min + this.rand() * (max - min);
+  }
+
+  // Keep the thief in the field column, never wandering over the houses —
+  // matches the villagers so the movement looks consistent (and realistic in 2D).
+  private randomWanderX(): number {
+    if (this.isPlayer) {
+      return this.randBetween(HOUSE_W + H_GAP + 4, FARM_W - 8);
+    }
+    return this.randBetween(8, FIELD_W - 4);
   }
 
   setBlinded(b: boolean): void {

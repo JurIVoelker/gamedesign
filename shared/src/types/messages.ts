@@ -1,6 +1,7 @@
 import type { PlayerAction } from "./actions.js";
 import type { GameState } from "./game-state.js";
 import type { TutorialStageId } from "../tutorial.js";
+import type { ItemId } from "../constants.js";
 
 // ---------------------------------------------------------------------------
 // Client → Server
@@ -16,7 +17,12 @@ export type VillagersMsg = { type: "villagers"; count: number };
 export type MerchantWindowMsg = { type: "merchant_window"; open: boolean };
 
 export type StartTutorialMsg = { type: "start_tutorial"; stage: TutorialStageId };
-export type TutorialCueMsg = { type: "tutorial_cue"; cue: string; level?: number };
+export type TutorialCueMsg = {
+  type: "tutorial_cue";
+  cue: string;
+  level?: number;
+  itemId?: ItemId;
+};
 
 export type ClientMessage =
   | HelloMsg

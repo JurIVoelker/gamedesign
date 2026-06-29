@@ -1,5 +1,5 @@
 import type { Game } from "./game.js";
-import type { ToolId, Field } from "@gamedesign/shared";
+import type { ToolId, Field, ItemId } from "@gamedesign/shared";
 import { CROW_LEVEL_CONFIG, CROW_TUTORIAL_MIN_GROWTH } from "./constants.js";
 
 // Linear grow progress (0..1) of a field from sow → ready. Mirrors the
@@ -30,7 +30,11 @@ const VILLAGERS_OUTSIDE_FOR_THIEF_ENTRY = 3;
 export class BotController {
   private game: Game;
   private botId: string;
-  private pendingCue: { cue: string; level?: number } | null = null;
+  private pendingCue: {
+    cue: string;
+    level?: number;
+    itemId?: ItemId;
+  } | null = null;
   private freePlayActive = false;
   private lastFreePlayAttackAt = 0;
 
@@ -102,7 +106,11 @@ export class BotController {
 
     // Retry a pending scripted cue until it succeeds
     if (this.pendingCue !== null) {
-      const done = this.executeCue(this.pendingCue.cue, this.pendingCue.level);
+      const done = this.executeCue(
+        this.pendingCue.cue,
+        this.pendingCue.level,
+        this.pendingCue.itemId,
+      );
       if (done) this.pendingCue = null;
     }
 
@@ -115,24 +123,32 @@ export class BotController {
     }
   }
 
-  handleCue(cue: string, level?: number): void {
+  handleCue(cue: string, level?: number, itemId?: ItemId): void {
     if (cue === "free_play_start") {
       this.freePlayActive = true;
       this.lastFreePlayAttackAt = Date.now();
       return;
     }
     // Attempt immediately; on failure store for retry on every tick
-    this.pendingCue = { cue, level };
-    const done = this.executeCue(cue, level);
+    this.pendingCue = { cue, level, itemId };
+    const done = this.executeCue(cue, level, itemId);
     if (done) this.pendingCue = null;
   }
 
-  private executeCue(cue: string, level?: number): boolean {
+  private executeCue(cue: string, level?: number, itemId?: ItemId): boolean {
     const state = this.game.getState();
     if (!state) return false;
     const playerId = Object.keys(state.players).find((id) => id !== this.botId);
     if (!playerId) return false;
 
+    if (cue === "tutorial_merchant" && itemId !== undefined) {
+      this.game.triggerTutorialMerchant(playerId, itemId);
+      return true;
+    }
+    if (cue === "grant_sabotage_tools") {
+      this.game.grantTutorialSabotage(playerId);
+      return true;
+    }
     if (cue === "bot_send_crows" && level !== undefined) {
       return this.sendCrowsAtLevel(playerId, level);
     }

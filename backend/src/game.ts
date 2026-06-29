@@ -69,6 +69,10 @@ type Slot = "p1" | "p2";
 
 const ROOM_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
+// Stage-3 tutorial merchant arrives almost immediately after its cue so the
+// lesson flows without a wall-clock wait.
+const MERCHANT_TUTORIAL_ARRIVE_MS = 1_500;
+
 // Fields start a new match already sown and partially grown, so players have
 // crops to tend immediately instead of an empty opening sow phase.
 const PRESOW_PROGRESS = 0.3;
@@ -188,6 +192,7 @@ export class Game {
   private timers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private persisted = false;
   private effectCounter = 0;
+  private tutorialMerchantVisits = 0;
   botController?: BotController;
 
   constructor(id: string, config: GameConfig = DEFAULT_GAME_CONFIG) {
@@ -1716,6 +1721,60 @@ export class Game {
       });
     }
     return offers;
+  }
+
+  /**
+   * Tutorial-only: make a merchant arrive for `playerId` offering a forced item
+   * (so Stage 3 can teach swap → mirror → blindness deterministically). The
+   * forced item leads the offer list, padded with random offers via `rollOffers`.
+   * Reuses the normal merchant entity/modal/departure machinery.
+   */
+  triggerTutorialMerchant(playerId: string, forcedItemId: ItemId): void {
+    if (!this.state || this.state.phase !== "playing") return;
+    const ps = this.state.players[playerId];
+    if (!ps) return;
+    const now = Date.now();
+    const arrivesAt = now + MERCHANT_TUTORIAL_ARRIVE_MS;
+    const leavesAt = arrivesAt + MERCHANT_STAY_MS;
+    const def = ITEM_DEFS[forcedItemId];
+    const forcedOffer: MerchantOffer = {
+      itemId: forcedItemId,
+      basePrice: def.price,
+      price: def.price,
+      bought: false,
+    };
+    const padding = this.rollOffers(ps, 0)
+      .filter((o) => o.itemId !== forcedItemId)
+      .slice(0, MERCHANT_OFFER_COUNT - 1);
+    const offers = [forcedOffer, ...padding];
+    ps.merchant = {
+      visitIndex: this.tutorialMerchantVisits++,
+      arrivesAt,
+      leavesAt,
+      discountPct: 0,
+      offers,
+      windowOpen: false,
+    };
+    this.scheduleTimer(`merchant_leave:${playerId}`, leavesAt, () =>
+      this.tryMerchantDepart(playerId),
+    );
+    this.broadcastState();
+  }
+
+  /**
+   * Tutorial-only: unlock the player's crows and thief at level 1 so the Stage-3
+   * "blindness + sabotage combo" step can send them without a separate upgrade
+   * lesson (Stage 3 doesn't teach upgrading).
+   */
+  grantTutorialSabotage(playerId: string): void {
+    if (!this.state) return;
+    const ps = this.state.players[playerId];
+    if (!ps) return;
+    for (const id of ["crows", "thief"] as ToolId[]) {
+      const tool = ps.tools.find((t) => t.id === id);
+      if (tool && tool.level < 1) tool.level = 1;
+    }
+    this.broadcastState();
   }
 
   private tryMerchantDepart(playerId: string): void {

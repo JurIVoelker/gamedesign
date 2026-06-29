@@ -1,6 +1,6 @@
-import type { TutorialStageId, GameState } from "@gamedesign/shared";
+import type { TutorialStageId, GameState, ItemId } from "@gamedesign/shared";
 import { CROW_TUTORIAL_MIN_GROWTH } from "@gamedesign/shared";
-import type { TutorialStep, SendFn } from "./types";
+import type { TutorialStep, SendFn, TutorialSurface } from "./types";
 import { useConnectionStore } from "../state/connectionStore";
 import { useTutorialStore } from "../state/tutorialStore";
 
@@ -431,6 +431,77 @@ function makeCrowDefendGate(
   };
 }
 
+// ── Stage 3: Markt & Items ───────────────────────────────────────────────────
+// Item ids the scripted Stage-3 lessons reference (named so the literal lives in
+// exactly one place — no magic strings).
+const SWAP_ITEM_ID: ItemId = "swap_potion";
+const MIRROR_ITEM_ID: ItemId = "mirror_curse";
+const BLINDNESS_ITEM_ID: ItemId = "blindness_potion";
+
+// Baselines reset by each step's onEnter (snapshots of "used" / "sent" counts).
+let s3SwapUsedBaseline: number | null = null;
+let s3BlindUsedBaseline: number | null = null;
+let s3ComboThiefBaseline: number | null = null;
+let s3ComboCrowsBaseline: number | null = null;
+
+// Mirror lesson: after the player activates the mirror curse, the bot attacks
+// with all three sabotages — staggered, because the bot only retries one pending
+// cue at a time — so the player watches each one reflect onto the bot. Then the
+// step lingers long enough to see all three land (well within the 30s mirror).
+const S3_REFLECT_STAGGER_MS = 4_000;
+const S3_REFLECT_WATCH_MS = 16_000;
+let s3ReflectStartedAt: number | null = null;
+
+function s3PlayerState(game: GameState | null) {
+  const pid = useConnectionStore.getState().playerId;
+  if (!game || !pid) return null;
+  return game.players[pid] ?? null;
+}
+
+function s3OwnsItem(game: GameState | null, itemId: ItemId): boolean {
+  const ps = s3PlayerState(game);
+  return (ps?.items.find((i) => i.id === itemId)?.count ?? 0) > 0;
+}
+
+function s3UsedCount(game: GameState | null, itemId: ItemId): number {
+  return s3PlayerState(game)?.stats.itemsUsedByType[itemId] ?? 0;
+}
+
+// Base surfaces for Stage 3 — everything the player already learned in Stages
+// 1–2 is visible from the start; merchant/itemBar are revealed one-at-a-time.
+const S3_BASE_REVEALS: TutorialSurface[] = [
+  "goldHud",
+  "exitButton",
+  "opponentFarm",
+  "effectsTimeline",
+  "toolsCard",
+  "fertilizerCard",
+  "crowsCard",
+  "thiefCard",
+  "weatherCard",
+  "villagers",
+  "villagerAccuse",
+  "thiefEntity",
+];
+
+// A merchant visit: on entry, force the merchant to arrive offering `itemId`;
+// the step completes once the player owns it. Used for all three Stage-3 buys.
+function makeMerchantPurchaseStep(
+  text: string,
+  itemId: ItemId,
+  reveals?: TutorialSurface[],
+): TutorialStep {
+  return {
+    text,
+    ...(reveals ? { reveals } : {}),
+    allow: [],
+    onEnter: (send) => {
+      send?.({ type: "tutorial_cue", cue: "tutorial_merchant", itemId });
+    },
+    gate: (game) => s3OwnsItem(game, itemId),
+  };
+}
+
 export const TUTORIAL_STEPS: Record<TutorialStageId, TutorialStep[]> = {
   1: [
     {
@@ -798,5 +869,120 @@ export const TUTORIAL_STEPS: Record<TutorialStageId, TutorialStep[]> = {
     },
   ],
 
-  3: [],
+  3: [
+    // ── INTRO ──────────────────────────────────────────────────────────────────
+    // Step 0 — what items are and how to get them. Manual "Weiter".
+    {
+      text: "Willkommen zu Stufe 3! Items sind mächtige Einmal-Helfer. Du kaufst sie beim Händler, der dreimal pro Spiel vorbeikommt und dir jedes Mal ein paar Items anbietet — kauf pro Besuch eins.",
+      reveals: S3_BASE_REVEALS,
+      allow: [],
+    },
+
+    // ── TAUSCHTRANK (swap_potion) ──────────────────────────────────────────────
+    // Step 1 — merchant arrives offering the swap potion; player buys it.
+    makeMerchantPurchaseStep(
+      "Der Händler ist da! Klicke ihn an und kauf den Tauschtrank.",
+      SWAP_ITEM_ID,
+      ["merchant"],
+    ),
+    // Step 2 — use the swap potion (own field ↔ opponent field).
+    {
+      text: "Mit dem Tauschtrank tauschst du Felder: Wähle zuerst eins deiner frisch wachsenden Felder, dann ein reifes Feld deines Gegners — so klaust du seine Ernte und drückst ihm deinen Setzling auf.",
+      reveals: ["itemBar"],
+      highlight: { kind: "dom", id: "itemBar" },
+      allow: [],
+      onEnter: () => {
+        s3SwapUsedBaseline = null;
+      },
+      gate: (game) => {
+        const used = s3UsedCount(game, SWAP_ITEM_ID);
+        if (s3SwapUsedBaseline === null) {
+          s3SwapUsedBaseline = used;
+          return false;
+        }
+        return used > s3SwapUsedBaseline;
+      },
+    },
+
+    // ── SPIEGELFLUCH (mirror_curse) ────────────────────────────────────────────
+    // Step 3 — merchant returns offering the mirror curse; player buys it.
+    makeMerchantPurchaseStep(
+      "Der Händler kommt wieder vorbei. Kauf diesmal den Spiegelfluch.",
+      MIRROR_ITEM_ID,
+    ),
+    // Step 4 — activate the mirror curse.
+    {
+      text: "Aktiviere den Spiegelfluch! 30 Sekunden lang prallt jede Sabotage, die dein Gegner schickt, auf ihn selbst zurück.",
+      highlight: { kind: "dom", id: "itemBar" },
+      allow: [],
+      gate: (game) => {
+        const ps = s3PlayerState(game);
+        return !!ps?.activeEffects.some((e) => e.itemId === MIRROR_ITEM_ID);
+      },
+    },
+    // Step 5 — watch all three sabotages reflect back onto the bot.
+    {
+      text: "Sieh zu! Dein Gegner greift jetzt an — doch seine Krähen, sein Sturm und sein Dieb treffen seinen eigenen Hof.",
+      allow: [],
+      onEnter: (send) => {
+        s3ReflectStartedAt = Date.now();
+        send?.({ type: "tutorial_cue", cue: "bot_send_crows", level: 1 });
+        setTimeout(() => {
+          send?.({ type: "tutorial_cue", cue: "bot_send_weather", level: 1 });
+        }, S3_REFLECT_STAGGER_MS);
+        setTimeout(() => {
+          send?.({ type: "tutorial_cue", cue: "bot_send_thief", level: 1 });
+        }, S3_REFLECT_STAGGER_MS * 2);
+      },
+      gate: () => {
+        if (s3ReflectStartedAt === null) return false;
+        return Date.now() - s3ReflectStartedAt >= S3_REFLECT_WATCH_MS;
+      },
+    },
+
+    // ── BLINDHEITSTRANK (blindness_potion) ─────────────────────────────────────
+    // Step 6 — merchant's last visit offering the blindness potion; player buys it.
+    makeMerchantPurchaseStep(
+      "Letzter Besuch des Händlers — kauf den Blindheitstrank.",
+      BLINDNESS_ITEM_ID,
+    ),
+    // Step 7 — blind the enemy, then strike with thief + crows while he's blind.
+    {
+      text: "Der Blindheitstrank macht den Gegner 15 Sekunden lang blind — er sieht deinen Dieb nicht und kann deine Krähen nicht verscheuchen. Setz ihn ein und schick dann sofort einen Dieb UND Krähen los!",
+      highlight: { kind: "dom", id: "itemBar" },
+      allow: ["sendThief", "sendCrows"],
+      onEnter: (send) => {
+        s3BlindUsedBaseline = null;
+        s3ComboThiefBaseline = null;
+        s3ComboCrowsBaseline = null;
+        // Unlock the player's crows + thief so they can be sent here (Stage 3
+        // doesn't teach upgrading).
+        send?.({ type: "tutorial_cue", cue: "grant_sabotage_tools" });
+      },
+      gate: (game) => {
+        const ps = s3PlayerState(game);
+        if (!ps) return false;
+        const blindUsed = ps.stats.itemsUsedByType[BLINDNESS_ITEM_ID] ?? 0;
+        const thieves = ps.stats.thievesSent;
+        const crows = ps.stats.crowsSent;
+        if (s3BlindUsedBaseline === null) {
+          s3BlindUsedBaseline = blindUsed;
+          s3ComboThiefBaseline = thieves;
+          s3ComboCrowsBaseline = crows;
+          return false;
+        }
+        return (
+          blindUsed > s3BlindUsedBaseline &&
+          thieves > (s3ComboThiefBaseline ?? 0) &&
+          crows > (s3ComboCrowsBaseline ?? 0)
+        );
+      },
+    },
+
+    // ── ABSCHLUSS ──────────────────────────────────────────────────────────────
+    // Step 8 — completion; manual finish button returns to the learning path.
+    {
+      text: "Hervorragend! Du beherrschst jetzt Markt und Items. Damit bist du bereit für ein echtes Testspiel. Viel Erfolg!",
+    },
+  ],
 };

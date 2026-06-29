@@ -11,6 +11,7 @@ import {
   useRevealedSurfaces,
   getRevealedSurfaces,
   isInteractionAllowed,
+  type TutorialStateSlice,
 } from "../state/tutorialStore";
 const MERCHANT_BUBBLE_SHOW_MS = 8000;
 
@@ -21,9 +22,7 @@ export type AccusationTarget =
 // Whether the player may open an accusation right now: outside the tutorial
 // always; inside, only once villager accusation is revealed AND the current
 // step allows it.
-function canAccuse(
-  tutState: ReturnType<typeof useTutorialStore.getState>,
-): boolean {
+function canAccuse(tutState: TutorialStateSlice): boolean {
   if (!tutState.active) return true;
   return (
     getRevealedSurfaces(tutState).has("villagerAccuse") &&
@@ -277,7 +276,7 @@ export function FarmCanvas() {
             opponentFarm: getRevealedSurfaces(tutState).has("opponentFarm"),
           });
           engine.setInteractionAllowed({
-            accuse: isInteractionAllowed(tutState, "accuse"),
+            accuse: canAccuse(tutState),
           });
           engine.setThiefHint(tutState.thiefHintActive);
         }
@@ -317,10 +316,11 @@ export function FarmCanvas() {
   // villagers only show a clickable affordance when the current step allows it.
   useEffect(() => {
     engineRef.current?.setInteractionAllowed({
-      accuse: isInteractionAllowed(
-        { active: tutActive, stage: tutStage, stepIndex: tutStepIndex },
-        "accuse",
-      ),
+      accuse: canAccuse({
+        active: tutActive,
+        stage: tutStage,
+        stepIndex: tutStepIndex,
+      }),
     });
   }, [tutActive, tutStage, tutStepIndex]);
 

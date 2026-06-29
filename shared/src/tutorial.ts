@@ -97,6 +97,11 @@ export function gameConfigForStage(stage: TutorialStageId): GameConfig {
   if (stage === 3) {
     return {
       ...base,
+      // Calmer grow time (matches Stage 2) so swaps and reflected attacks are
+      // easy to follow. Merchant visits are cue-driven in Stage 3 (the tutorial
+      // forces specific offers per step), so no scheduled visits.
+      baseGrowMs: STAGE2_BASE_GROW_MS,
+      merchantVisits: [],
       enabled: {
         ...base.enabled,
         crows: true,

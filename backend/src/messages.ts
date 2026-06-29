@@ -189,7 +189,7 @@ export function handleMessage(session: Session, raw: string | Buffer): void {
       const roomCode = gameManager.getRoomCodeOf(session.playerId);
       if (!roomCode) return;
       const game = gameManager.getGame(roomCode);
-      game?.botController?.handleCue(parsed.cue, parsed.level);
+      game?.botController?.handleCue(parsed.cue, parsed.level, parsed.itemId);
       break;
     }
 
