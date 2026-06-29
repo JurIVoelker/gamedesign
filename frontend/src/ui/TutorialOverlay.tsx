@@ -3,7 +3,12 @@ import { useTutorialStore } from "../state/tutorialStore";
 import { useGameStore } from "../state/gameStore";
 import { useConnectionStore } from "../state/connectionStore";
 import { TUTORIAL_STEPS } from "../tutorial/stages";
-import { markStageCompleted } from "../tutorial/progress";
+import {
+  markStageCompleted,
+  lastStageWithSteps,
+  isBotMatchIntroSeen,
+  markBotMatchIntroSeen,
+} from "../tutorial/progress";
 
 // How often active gates are re-evaluated, independent of game_state arrivals.
 // Keeps time-based gate conditions (lingers, retry delays) responsive.
@@ -56,18 +61,28 @@ export function TutorialOverlay() {
     return () => clearInterval(id);
   }, [active, currentStep, advance]);
 
-  // When all steps complete, wait 3s then mark stage done and return to lobby
+  // When all steps complete, mark stage done. If this was the final tutorial
+  // stage and the player hasn't seen the bot test match yet, launch it directly
+  // (staying connected — the server clears the old tutorial room). Otherwise
+  // return to the lobby.
   useEffect(() => {
     if (!active || stage === null || currentStep !== null) return;
     if (steps.length === 0) return;
-    const t = setTimeout(() => {
-      markStageCompleted(stage);
-      setHighlightField(null);
-      send?.({ type: "leave_game" });
-      disconnect?.();
+    markStageCompleted(stage);
+    setHighlightField(null);
+
+    const autoLaunchBotMatch =
+      stage === lastStageWithSteps() && !isBotMatchIntroSeen();
+    if (autoLaunchBotMatch) {
+      markBotMatchIntroSeen();
       exit();
-    }, 3_000);
-    return () => clearTimeout(t);
+      send?.({ type: "start_bot_match" });
+      return;
+    }
+
+    send?.({ type: "leave_game" });
+    disconnect?.();
+    exit();
   }, [
     active,
     stage,

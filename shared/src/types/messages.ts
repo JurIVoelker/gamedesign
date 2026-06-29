@@ -17,6 +17,7 @@ export type VillagersMsg = { type: "villagers"; count: number };
 export type MerchantWindowMsg = { type: "merchant_window"; open: boolean };
 
 export type StartTutorialMsg = { type: "start_tutorial"; stage: TutorialStageId };
+export type StartBotMatchMsg = { type: "start_bot_match" };
 export type TutorialCueMsg = {
   type: "tutorial_cue";
   cue: string;
@@ -34,6 +35,7 @@ export type ClientMessage =
   | VillagersMsg
   | MerchantWindowMsg
   | StartTutorialMsg
+  | StartBotMatchMsg
   | TutorialCueMsg;
 
 // ---------------------------------------------------------------------------
@@ -86,6 +88,7 @@ export function isClientMessage(msg: unknown): msg is ClientMessage {
     t === "villagers" ||
     t === "merchant_window" ||
     t === "start_tutorial" ||
+    t === "start_bot_match" ||
     t === "tutorial_cue"
   );
 }

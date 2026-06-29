@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { useTutorialStore } from "../state/tutorialStore";
 import { useConnectionStore } from "../state/connectionStore";
-import { isStageCompleted, isStageUnlocked } from "../tutorial/progress";
+import {
+  isStageCompleted,
+  isStageUnlocked,
+  isTutorialComplete,
+} from "../tutorial/progress";
 import type { TutorialStageId } from "@gamedesign/shared";
 
 const STAGE_LABELS: Record<TutorialStageId, string> = {
@@ -22,6 +26,8 @@ export function LearningPath({ onDirectPlay }: { onDirectPlay: () => void }) {
   const { start } = useTutorialStore();
   const send = useConnectionStore((s) => s.send);
   const [, tick] = useState(0);
+
+  const botMatchUnlocked = isTutorialComplete();
 
   function handleStartStage(stage: TutorialStageId) {
     if (!isStageUnlocked(stage)) return;
@@ -90,6 +96,47 @@ export function LearningPath({ onDirectPlay }: { onDirectPlay: () => void }) {
           </button>
         );
       })}
+
+      <button
+        disabled={!botMatchUnlocked}
+        onClick={() => {
+          tick((n) => n + 1); // refresh unlock state
+          if (!isTutorialComplete()) return;
+          send?.({ type: "start_bot_match" });
+        }}
+        className="panel-pixel"
+        style={{
+          padding: "8px 12px",
+          textAlign: "left",
+          cursor: botMatchUnlocked ? "pointer" : "default",
+          opacity: botMatchUnlocked ? 1 : 0.45,
+          background: "none",
+          border: "none",
+          width: "100%",
+        }}
+      >
+        <div
+          style={{
+            fontFamily: "'Press Start 2P', monospace",
+            fontSize: 8,
+            color: "#c8a84b",
+          }}
+        >
+          ▶ Testspiel gegen Bot
+          {!botMatchUnlocked && "  🔒"}
+        </div>
+        <div
+          style={{
+            fontFamily: "'Press Start 2P', monospace",
+            fontSize: 6,
+            color: "#a08060",
+            marginTop: 4,
+            lineHeight: 1.5,
+          }}
+        >
+          Volles Match gegen einen Bot – alles anwenden.
+        </div>
+      </button>
 
       <button
         onClick={onDirectPlay}

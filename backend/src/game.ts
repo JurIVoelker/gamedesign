@@ -17,8 +17,10 @@ import { persistMatch } from "./persistence.js";
 import { Session, BotSession } from "./session.js";
 import type { SessionLike } from "./session.js";
 import { BotController } from "./botController.js";
+import { MatchBotController } from "./matchBotController.js";
+import type { BotBrain } from "./botBrain.js";
 import type { GameConfig } from "@gamedesign/shared";
-import { DEFAULT_GAME_CONFIG } from "@gamedesign/shared";
+import { DEFAULT_GAME_CONFIG, BOT_MATCH_CONFIG } from "@gamedesign/shared";
 import {
   SOW_DURATION_MS,
   HARVEST_DURATION_MS,
@@ -193,7 +195,7 @@ export class Game {
   private persisted = false;
   private effectCounter = 0;
   private tutorialMerchantVisits = 0;
-  botController?: BotController;
+  botController?: BotBrain;
 
   constructor(id: string, config: GameConfig = DEFAULT_GAME_CONFIG) {
     this.id = id;
@@ -201,7 +203,11 @@ export class Game {
   }
 
   isTutorial(): boolean {
-    return !this.config.persist;
+    return this.config.tutorial;
+  }
+
+  isBotMatch(): boolean {
+    return this.config.botMatch;
   }
 
   isSabotageEnabled(): boolean {
@@ -212,7 +218,7 @@ export class Game {
     );
   }
 
-  setBotController(controller: BotController): void {
+  setBotController(controller: BotBrain): void {
     this.botController = controller;
   }
 
@@ -337,6 +343,17 @@ export class Game {
       () => this.endMatch(),
     );
 
+    if (!this.isTutorial()) {
+      this.scheduleTimer(
+        "halfway_warning",
+        startedAt + this.config.matchDurationMs / 2,
+        () =>
+          this.sendCenterToastToAll(
+            "Halbzeit! Noch 4 Minuten – lohnt es sich noch, Gold auszugeben?",
+          ),
+      );
+    }
+
     // Schedule merchant visits only if merchant is enabled
     if (this.config.enabled.merchant) {
       for (let i = 0; i < this.config.merchantVisits.length; i++) {
@@ -383,7 +400,10 @@ export class Game {
 
   votePlayAgain(playerId: string): void {
     this.playAgainVotes.add(playerId);
-    if (this.playAgainVotes.size >= 2) {
+    // In a bot match the opponent is the bot, which is always "ready", so a
+    // single human vote restarts. PvP still needs both players.
+    const needed = this.isBotMatch() ? 1 : 2;
+    if (this.playAgainVotes.size >= needed) {
       this.playAgainVotes.clear();
       this.resetAndRestart();
     }
@@ -452,6 +472,7 @@ export class Game {
 
   private resetAndRestart(): void {
     for (const key of [...this.timers.keys()]) this.cancelTimer(key);
+    this.botController?.reset?.();
     this.startGame();
     this.broadcast({ type: "game_ready" });
   }
@@ -748,6 +769,14 @@ export class Game {
 
     this.broadcastState();
     return "ok";
+  }
+
+  deductGold(playerId: string, amount: number): void {
+    if (!this.state) return;
+    const ps = this.state.players[playerId];
+    if (!ps) return;
+    ps.gold = Math.max(0, ps.gold - amount);
+    this.broadcastState();
   }
 
   accuseVillager(
@@ -2139,6 +2168,38 @@ export class GameManager {
 
     console.log(
       `[game] Tutorial room ${roomCode} created for ${session.playerId} (stage ${stage})`,
+    );
+    return { slot };
+  }
+
+  createBotMatchRoom(session: Session): { slot: Slot } {
+    // Clear any existing tutorial/bot-match room for this player so they start
+    // fresh (mirrors createTutorialRoom).
+    const existing = this.knownSlots.get(session.playerId);
+    if (existing) {
+      const oldGame = this.games.get(existing.roomCode);
+      if (oldGame?.isTutorial() || oldGame?.isBotMatch()) {
+        oldGame.forfeit(session.playerId);
+        this.games.delete(existing.roomCode);
+      }
+    }
+
+    const roomCode = this.generateRoomCode();
+    const game = new Game(roomCode, BOT_MATCH_CONFIG);
+    this.games.set(roomCode, game);
+
+    const slot = game.join(session)!;
+    this.knownSlots.set(session.playerId, { slot, roomCode });
+
+    const botId = `bot_${roomCode}`;
+    const botSession = new BotSession(botId);
+    game.join(botSession);
+
+    const botController = new MatchBotController(game, botId);
+    game.setBotController(botController);
+
+    console.log(
+      `[game] Bot match room ${roomCode} created for ${session.playerId}`,
     );
     return { slot };
   }
