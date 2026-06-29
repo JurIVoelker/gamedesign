@@ -68,6 +68,10 @@ const CROW_TARGET_MAX_MS = 20_000;
 const CROW_REACT_MIN_MS = 400;
 const CROW_REACT_MAX_MS = 1_100;
 
+// Paranoia slows the bot's defenses and costs it gold (fake merchant scam).
+const PARANOIA_REACTION_MULTIPLIER = 1.3;
+const PARANOIA_GOLD_PENALTY = 30;
+
 // Spotting delay before the bot catches a thief stealing from it, scaled by the
 // thief's disguise (the attacker's thief level). Higher disguise = slower spot,
 // and at full disguise the bot sometimes fails to spot it at all.
@@ -94,6 +98,7 @@ export class MatchBotController implements BotBrain {
   // Reaction tracking, keyed by attack identity so it self-clears between waves.
   private scaredCrowKeys = new Set<string>();
   private handledThiefKeys = new Set<string>();
+  private handledParanoiaIds = new Set<string>();
   private pendingTimers = new Set<ReturnType<typeof setTimeout>>();
 
   constructor(game: Game, botId: string) {
@@ -106,6 +111,7 @@ export class MatchBotController implements BotBrain {
     this.pendingTimers.clear();
     this.scaredCrowKeys.clear();
     this.handledThiefKeys.clear();
+    this.handledParanoiaIds.clear();
     this.villagersInitialized = false;
   }
 
@@ -132,13 +138,43 @@ export class MatchBotController implements BotBrain {
 
   // --- Defense ------------------------------------------------------------
 
+  private isBlinded(): boolean {
+    return (
+      this.game
+        .getState()
+        ?.players[this.botId]?.activeEffects.some(
+          (e) => e.itemId === "blindness_potion",
+        ) ?? false
+    );
+  }
+
+  private hasParanoia(): boolean {
+    return (
+      this.game
+        .getState()
+        ?.players[this.botId]?.activeEffects.some(
+          (e) => e.itemId === "paranoia_curse",
+        ) ?? false
+    );
+  }
+
   private defend(now: number): void {
     const state = this.game.getState();
     if (!state) return;
     const botState = state.players[this.botId];
     if (!botState) return;
 
+    // Paranoia: charge 30g for each new activation (fake merchant scam).
+    for (const effect of botState.activeEffects) {
+      if (effect.itemId !== "paranoia_curse") continue;
+      if (this.handledParanoiaIds.has(effect.id)) continue;
+      this.handledParanoiaIds.add(effect.id);
+      this.game.deductGold(this.botId, PARANOIA_GOLD_PENALTY);
+    }
+
     // Scare crows off the bot's own fields after a human reaction delay.
+    // Paranoia makes the bot slower to notice the attack.
+    const crowMultiplier = this.hasParanoia() ? PARANOIA_REACTION_MULTIPLIER : 1;
     for (const field of botState.fields) {
       const crow = field.crowAttack;
       if (!crow) continue;
@@ -146,22 +182,28 @@ export class MatchBotController implements BotBrain {
       if (this.scaredCrowKeys.has(key)) continue;
       this.scaredCrowKeys.add(key);
       const fieldIndex = field.index;
-      this.schedule(randBetween(CROW_REACT_MIN_MS, CROW_REACT_MAX_MS), () => {
-        const s = this.game.getState();
-        if (!s || s.phase !== "playing") return;
-        const f = s.players[this.botId]?.fields[fieldIndex];
-        if (f?.crowAttack) this.game.scareCrow(this.botId, fieldIndex);
-      });
+      this.schedule(
+        randBetween(CROW_REACT_MIN_MS, CROW_REACT_MAX_MS) * crowMultiplier,
+        () => {
+          const s = this.game.getState();
+          if (!s || s.phase !== "playing") return;
+          const f = s.players[this.botId]?.fields[fieldIndex];
+          if (f?.crowAttack) this.game.scareCrow(this.botId, fieldIndex);
+        },
+      );
     }
 
-    // Catch a thief once it's actually stealing, after a disguise-scaled spot delay.
+    // Catch a thief once it's actually stealing, after a disguise-scaled spot
+    // delay. Skip entirely while blinded — don't mark as handled so the bot
+    // retries on the next tick once blindness wears off.
     const thief = botState.thiefAttack;
-    if (thief && thief.phase === "stealing") {
+    if (thief && thief.phase === "stealing" && !this.isBlinded()) {
       const key = `${thief.deployedAt}`;
       if (!this.handledThiefKeys.has(key)) {
         this.handledThiefKeys.add(key);
         if (Math.random() >= (THIEF_MISS_CHANCE[thief.disguise] ?? 0)) {
-          const base = THIEF_SPOT_DELAY_MS[thief.disguise] ?? THIEF_SPOT_DELAY_MS.none;
+          const base =
+            THIEF_SPOT_DELAY_MS[thief.disguise] ?? THIEF_SPOT_DELAY_MS.none;
           const delay = base + randBetween(0, THIEF_SPOT_JITTER_MS);
           this.schedule(delay, () => {
             const s = this.game.getState();

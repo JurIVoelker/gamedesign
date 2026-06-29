@@ -332,6 +332,17 @@ export class Game {
       () => this.endMatch(),
     );
 
+    if (!this.isTutorial()) {
+      this.scheduleTimer(
+        "halfway_warning",
+        startedAt + this.config.matchDurationMs / 2,
+        () =>
+          this.sendCenterToastToAll(
+            "Halbzeit! Noch 4 Minuten – lohnt es sich noch, Gold auszugeben?",
+          ),
+      );
+    }
+
     // Schedule merchant visits only if merchant is enabled
     if (this.config.enabled.merchant) {
       for (let i = 0; i < this.config.merchantVisits.length; i++) {
@@ -747,6 +758,14 @@ export class Game {
 
     this.broadcastState();
     return "ok";
+  }
+
+  deductGold(playerId: string, amount: number): void {
+    if (!this.state) return;
+    const ps = this.state.players[playerId];
+    if (!ps) return;
+    ps.gold = Math.max(0, ps.gold - amount);
+    this.broadcastState();
   }
 
   accuseVillager(
